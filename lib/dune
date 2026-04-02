@@ -3,5 +3,4 @@
 (library
  (name agent_graph)
  (public_name ocaml-agent-graph)
- (libraries lwt.unix yojson fmt unix threads))
-
+ (libraries lwt.unix yojson fmt unix threads aegis_lm))

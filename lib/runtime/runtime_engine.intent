@@ -7,13 +7,14 @@ Linear intent
 3. Define `measure_latency_ms` to convert elapsed wall-clock time into integer milliseconds.
 4. Define `build_item` to package one agent result into the standard batch item structure.
 5. Define `failure_item` to create a consistent error result when the agent cannot be found or fails.
-6. In `run_agent`, first ask the registry for the requested agent module.
-7. If the agent is missing, log an error and return a typed failure item instead of crashing the runtime.
-8. If the agent exists, capture the start time so latency can be measured after execution.
-9. Build a retry policy from the runtime configuration.
-10. Log the fact that this agent is about to run and on what kind of payload.
-11. Run the agent under the retry policy and under the timeout wrapper.
-12. When the run succeeds, compute the measured latency and overwrite the metrics latency field with the real value.
-13. Package the successful output, metrics, and notes into one batch item.
-14. If any exception escapes, turn it into a logged error and a typed failure item.
+6. In `run_agent`, receive both the runtime services and the runtime configuration, because agents now depend on injected LLM services while the engine still owns policy.
+7. Ask the registry for the requested agent module.
+8. If the agent is missing, log an error and return a typed failure item instead of crashing the runtime.
+9. If the agent exists, capture the start time so latency can be measured after execution.
+10. Build a retry policy from the runtime configuration.
+11. Log the fact that this agent is about to run and on what kind of payload.
+12. Run the agent under the retry policy and under the timeout wrapper, passing the injected services through to the agent.
+13. When the run succeeds, compute the measured latency and overwrite the metrics latency field with the real value.
+14. Package the successful output, metrics, and notes into one batch item.
+15. If any exception escapes, turn it into a logged error and a typed failure item.
 

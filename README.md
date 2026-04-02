@@ -8,6 +8,7 @@ The project keeps the research-facing concerns explicit:
 - typed agent identifiers instead of ad hoc strings
 - hierarchical modules instead of a single file blob
 - runtime policies externalized in [`config/runtime.json`](config/runtime.json)
+- real LLM communication delegated to [`aegis_lm`](../aegis-lm/README.md)
 - explicit graph routing, not implicit control flow
 - retries, timeouts, parallel fan-out, aggregation, and audit context
 - `alcotest` coverage for the simple and parallel execution paths
@@ -38,6 +39,9 @@ ocaml-agent-graph/
       core_decision.ml
     config/
       runtime_config.ml
+    llm/
+      llm_prompt.ml
+      llm_aegis_client.ml
     agents/
       agent_intf.ml
       planner_agent.ml
@@ -50,6 +54,7 @@ ocaml-agent-graph/
       runtime_retry_policy.ml
       runtime_engine.ml
       runtime_parallel_executor.ml
+      runtime_services.ml
     orchestration/
       orchestration_graph.ml
       orchestration_decider.ml
@@ -73,6 +78,7 @@ That gives a strongly typed shape close to a tiny LangGraph:
 
 - `orchestration_graph.ml` describes the routing states
 - `orchestration_orchestrator.ml` executes the loop
+- `llm_aegis_client.ml` talks to AegisLM and then to real provider routes
 - `runtime_engine.ml` owns timeouts and retries
 - `runtime_parallel_executor.ml` owns concurrent fan-out
 - `core_context.ml` owns the auditable trace
@@ -80,10 +86,24 @@ That gives a strongly typed shape close to a tiny LangGraph:
 ## Build
 
 ```sh
+opam pin add aegis_lm /Users/columeaulouis-philippe/dev/github/aegis-lm --yes --no-action
 opam install . --deps-only --with-test --yes
 dune build
 dune runtest
 ```
+
+`aegis_lm` is a sibling local library in this setup.
+
+## LLM Setup
+
+The framework now uses `AegisLM` for real chat calls:
+
+- `config/runtime.json` chooses the model profile per agent
+- `aegis-lm/config/example.gateway.json` chooses the provider routes
+- provider API keys still come from the environment seen by `aegis_lm`
+
+The shipped demo config currently uses the `claude-sonnet` route through
+`AegisLM`.
 
 ## Demo
 
@@ -98,6 +118,12 @@ dune exec ./bin/ocaml_agent_graph_demo.exe -- \
   "Design an OCaml agent runtime with explicit graph routing and parallel validation."
 ```
 
+The live path is:
+
+```text
+agent_graph -> runtime_services -> llm_aegis_client -> AegisLM Router -> provider backend
+```
+
 ## Why This Version Is Better Than The Draft
 
 The initial sketch proved the control-flow idea. This repository turns it into a
@@ -105,6 +131,7 @@ real codebase:
 
 - the graph policy is separated from the engine
 - the engine is separated from the agent registry
+- the LLM provider layer is separated from both and injected as a runtime service
 - the policies are configurable without touching code
 - the payload model carries provenance and execution metrics
 - the tests prove both the linear route and the planning/fan-out route

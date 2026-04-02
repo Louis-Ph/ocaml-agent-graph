@@ -32,6 +32,7 @@ Each agent follows the same rule:
 
 - it has an `id`
 - it has a `run` function
+- it receives `services`
 - it receives `context`
 - it receives `payload`
 - it returns a new payload, some metrics, and notes
@@ -85,4 +86,3 @@ test/test_agent_graph.ml
 Keep one clear job per agent.
 
 That makes the framework easier to grow, easier to test, and easier to trust.
-

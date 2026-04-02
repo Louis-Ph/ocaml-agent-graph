@@ -25,21 +25,23 @@ let run config_path task_id input =
       let resolved_input =
         Option.value input ~default:config.demo.input
       in
-      let payload, context =
+      (match
         Lwt_main.run
           (Agent_graph.run
              ~config
              ~task_id:resolved_task_id
              ~input:resolved_input
              ())
-      in
-      Fmt.pr "task_id: %s\n" context.task_id;
-      Fmt.pr
-        "completed_agents: %s\n\n"
-        (Agent_graph.Core.Context.completed_agent_names context
-        |> String.concat ", ");
-      Fmt.pr "%s\n" (Agent_graph.Core.Payload.to_pretty_string payload);
-      `Ok ()
+      with
+       | Error message -> `Error (false, message)
+       | Ok (payload, context) ->
+           Fmt.pr "task_id: %s\n" context.task_id;
+           Fmt.pr
+             "completed_agents: %s\n\n"
+             (Agent_graph.Core.Context.completed_agent_names context
+             |> String.concat ", ");
+           Fmt.pr "%s\n" (Agent_graph.Core.Payload.to_pretty_string payload);
+           `Ok ())
 
 let command =
   let doc = "Run the typed multi-agent orchestration demo." in

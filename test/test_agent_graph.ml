@@ -1,5 +1,33 @@
 open Agent_graph
 
+let llm_config =
+  {
+    Config.Runtime.Llm.gateway_config_path = "/unused/in-tests.json";
+    authorization_token_plaintext = Some "sk-test";
+    authorization_token_env = None;
+    planner =
+      {
+        Config.Runtime.Llm.Agent_profile.model = "planner-model";
+        system_prompt = "planner";
+        max_tokens = Some 128;
+        confidence = 0.91;
+      };
+    summarizer =
+      {
+        Config.Runtime.Llm.Agent_profile.model = "summarizer-model";
+        system_prompt = "summarizer";
+        max_tokens = Some 128;
+        confidence = 0.88;
+      };
+    validator =
+      {
+        Config.Runtime.Llm.Agent_profile.model = "validator-model";
+        system_prompt = "validator";
+        max_tokens = Some 128;
+        confidence = 0.94;
+      };
+  }
+
 let config =
   {
     Config.Runtime.engine =
@@ -22,6 +50,7 @@ let config =
         Config.Runtime.Demo.task_id = "test-task";
         input = "unused";
       };
+    llm = llm_config;
   }
 
 let registry = Agents.Defaults.make_registry ()
@@ -31,23 +60,90 @@ let has_prefix prefix value =
   String.length value >= prefix_length
   && String.sub value 0 prefix_length = prefix
 
-let run input =
+let make_services responses =
+  let backend provider_id model =
+    Aegis_lm.Config_test_support.backend
+      ~provider_id
+      ~provider_kind:Aegis_lm.Config.Openai_compat
+      ~api_base:"https://api.example.test/v1"
+      ~upstream_model:model
+      ~api_key_env:"IGNORED"
+      ()
+  in
+  let aegis_config =
+    Aegis_lm.Config_test_support.sample_config
+      ~virtual_keys:
+        [
+          Aegis_lm.Config_test_support.virtual_key
+            ~token_plaintext:"sk-test"
+            ~name:"test"
+            ~allowed_routes:[ "planner-model"; "summarizer-model"; "validator-model" ]
+            ();
+        ]
+      ~routes:
+        [
+          Aegis_lm.Config_test_support.route
+            ~public_model:"planner-model"
+            ~backends:[ backend "planner-provider" "planner-model" ]
+            ();
+          Aegis_lm.Config_test_support.route
+            ~public_model:"summarizer-model"
+            ~backends:[ backend "summarizer-provider" "summarizer-model" ]
+            ();
+          Aegis_lm.Config_test_support.route
+            ~public_model:"validator-model"
+            ~backends:[ backend "validator-provider" "validator-model" ]
+            ();
+        ]
+      ()
+  in
+  let provider = Aegis_lm.Provider_mock.make responses in
+  let store =
+    Aegis_lm.Runtime_state.create
+      ~provider_factory:(fun _backend -> provider)
+      aegis_config
+  in
+  let llm_client =
+    Llm.Aegis_client.of_store
+      ~authorization:"Bearer sk-test"
+      llm_config
+      store
+  in
+  Runtime.Services.of_llm_client ~config llm_client
+
+let run ~services input =
   let context = Core.Context.empty ~task_id:"test-task" ~metadata:[] in
   Lwt_main.run
     (Orchestration.Orchestrator.loop
+       ~services
        ~config
        ~registry
        context
        (Core.Payload.Text input))
 
 let test_short_text_path () =
-  let payload, context = run "Typed orchestration for compact tasks." in
+  let services =
+    make_services
+      [
+        ( "summarizer-model",
+          Ok
+            (Aegis_lm.Provider_mock.sample_chat_response
+               ~model:"summarizer-model"
+               ~content:"A short LLM summary."
+               ()) );
+      ]
+  in
+  let payload, context = run ~services "Typed orchestration for compact tasks." in
   match payload with
   | Core.Payload.Text summary ->
       Alcotest.(check bool)
         "summary prefix"
         true
         (has_prefix "Summary:" summary);
+      Alcotest.(check string)
+        "llm summary body"
+        "Summary: A short LLM summary."
+        summary;
       Alcotest.(check int) "single agent execution" 1 context.step_count;
       Alcotest.(check bool)
         "summarizer completed"
@@ -56,11 +152,35 @@ let test_short_text_path () =
   | _ -> Alcotest.fail "Expected a summarized text payload"
 
 let test_long_text_parallel_path () =
+  let services =
+    make_services
+      [
+        ( "planner-model",
+          Ok
+            (Aegis_lm.Provider_mock.sample_chat_response
+               ~model:"planner-model"
+               ~content:
+                 "Identify the modules\nDefine the typed graph\nRun summary and validation in parallel"
+               ()) );
+        ( "summarizer-model",
+          Ok
+            (Aegis_lm.Provider_mock.sample_chat_response
+               ~model:"summarizer-model"
+               ~content:"A compact execution summary."
+               ()) );
+        ( "validator-model",
+          Ok
+            (Aegis_lm.Provider_mock.sample_chat_response
+               ~model:"validator-model"
+               ~content:"PASS | strengths: typed flow | risks: monitor provider failures"
+               ()) );
+      ]
+  in
   let input =
     "Design the modules. Type the state graph. Execute the summarizer and \
      validator in parallel. Aggregate the outcomes with audit metadata."
   in
-  let payload, context = run input in
+  let payload, context = run ~services input in
   match payload with
   | Core.Payload.Batch items ->
       let agent_names =
@@ -81,7 +201,12 @@ let test_long_text_parallel_path () =
       Alcotest.(check bool)
         "validator present"
         true
-        (List.mem "validator" agent_names)
+        (List.mem "validator" agent_names);
+      let rendered = Core.Payload.to_pretty_string payload in
+      Alcotest.(check bool)
+        "llm validator text kept"
+        true
+        (String.contains rendered 'P')
   | _ -> Alcotest.fail "Expected a batch payload after parallel orchestration"
 
 let () =

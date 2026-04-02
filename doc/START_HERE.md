@@ -31,6 +31,7 @@ test/    = the safety checks
 Inside `lib/`, the code is split into small jobs:
 
 - `core/` holds the main shared types
+- `llm/` talks to AegisLM
 - `agents/` holds the helpers
 - `runtime/` runs helpers with retries and time limits
 - `orchestration/` decides the path through the graph
@@ -56,6 +57,7 @@ Open a terminal in this project folder.
 Then run:
 
 ```sh
+opam pin add aegis_lm /Users/columeaulouis-philippe/dev/github/aegis-lm --yes --no-action
 opam install . --deps-only --with-test --yes
 dune build
 dune exec ./bin/ocaml_agent_graph_demo.exe
@@ -66,6 +68,10 @@ You will see:
 - which agent ran
 - what the framework decided
 - the final result
+
+This project also needs `AegisLM`.
+
+`AegisLM` is the part that sends the real request to the model provider.
 
 ## How To Try Your Own Text
 
@@ -94,6 +100,8 @@ You can change:
 - the number of retries
 - when a text counts as "long"
 - which agents run in parallel
+- which model each agent uses
+- which AegisLM gateway config file is used
 
 You do not need to change the OCaml code just to change these settings.
 
@@ -144,4 +152,3 @@ When you see:
 Go next to:
 
 - [MAKE_YOUR_OWN_AGENT.md](MAKE_YOUR_OWN_AGENT.md)
-

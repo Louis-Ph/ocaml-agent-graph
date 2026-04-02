@@ -2,8 +2,9 @@ Purpose
 This file runs multiple agents concurrently.
 
 Linear intent
-1. Accept the configuration, registry, agent list, context, and payload.
+1. Accept the runtime services, configuration, registry, agent list, context, and payload.
 2. Map each agent name to one `Runtime_engine.run_agent` call.
-3. Use `Lwt_list.map_p` so the agent runs happen concurrently.
-4. Return the collected list of batch items when all runs complete.
+3. Pass the shared runtime services into every agent run so all parallel branches can reach the same LLM gateway layer.
+4. Use `Lwt_list.map_p` so the agent runs happen concurrently.
+5. Return the collected list of batch items when all runs complete.
 

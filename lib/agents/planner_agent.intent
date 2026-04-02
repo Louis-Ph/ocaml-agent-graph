@@ -1,15 +1,20 @@
 Purpose
-This file implements the planner agent.
+This file implements the planner agent as an LLM-backed planning stage.
 
 Linear intent
-1. Define local defaults for maximum plan length, confidence, and cost so the planner behavior is explicit.
-2. Expose the agent id as `Planner`.
-3. Define what counts as a text separator so raw user text can be split into rough planning segments.
-4. Implement `extract_segments` to scan the input once, collect non-empty segments, and keep their original order.
-5. Implement a small generic `take` helper to cap the number of produced plan steps.
-6. Provide a fallback plan so the planner still returns a useful structure even when the input text gives no clean segments.
-7. Implement `plan_from_text` to turn extracted segments into labeled stages like `Stage 1`, `Stage 2`, and `Stage 3`.
-8. In `run`, accept only `Text` payloads because planning starts from raw request text.
-9. Build a `Plan` payload from that text and attach planner-specific metrics and a short audit note.
-10. Reject non-text payloads with a typed error payload instead of raising an exception.
+1. Open `Lwt.Infix` so the asynchronous result mapping reads naturally.
+2. Define a local maximum number of plan steps.
+3. Expose the agent id as `Planner`.
+4. Keep a small local fallback plan path so the agent can still normalize unusable output.
+5. Provide helpers that split raw text, trim numbering prefixes, and normalize multi-line plan output.
+6. Provide a local deterministic `plan_from_text` fallback based on text segmentation.
+7. Build a planner-specific LLM instruction that asks for short execution steps with no extra commentary.
+8. Convert the LLM usage information into the framework metrics and notes format.
+9. In `run`, accept only `Text` payloads.
+10. Read the planner profile from the runtime services configuration.
+11. Call `Llm_aegis_client.invoke_chat` so the planner goes through AegisLM and the configured provider route.
+12. Parse the LLM text into normalized `Stage N: ...` lines.
+13. Fall back to the local planning heuristic if the model returns no usable lines.
+14. Return a typed `Plan` payload plus metrics and notes.
+15. Reject unsupported payload kinds with a typed error payload.
 

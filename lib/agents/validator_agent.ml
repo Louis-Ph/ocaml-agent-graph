@@ -1,6 +1,7 @@
+open Lwt.Infix
+
 module Defaults = struct
-  let confidence = 0.94
-  let cost = 0.0028
+  let fallback_text_limit = 512
 end
 
 let id = Core_agent_name.Validator
@@ -14,7 +15,7 @@ let validate_text text =
   [
     ("non_empty", length > 0);
     ("sufficient_context", length >= 32);
-    ("bounded_size", length <= 512);
+    ("bounded_size", length <= Defaults.fallback_text_limit);
   ]
   |> List.map (fun (label, status) ->
          Fmt.str "%s:%s" label (bool_to_status status))
@@ -43,31 +44,77 @@ let validate_plan steps =
          Fmt.str "%s:%s" label (bool_to_status status))
   |> String.concat " | "
 
-let run _context = function
+let llm_instruction payload =
+  Fmt.str
+    "Validate the payload below.\nReturn one compact line with a verdict, the main strengths, and the main risks.\nDo not use markdown bullets.\n\nPayload:\n%s"
+    (Core_payload.to_pretty_string payload)
+
+let llm_metrics profile completion =
+  {
+    Core_payload.confidence = profile.Runtime_config.Llm.Agent_profile.confidence;
+    cost = 0.0;
+    latency_ms = 0;
+  },
+  [
+    Fmt.str
+      "Validator used model=%s prompt_tokens=%d completion_tokens=%d total_tokens=%d."
+      completion.Llm_aegis_client.model
+      completion.usage.prompt_tokens
+      completion.usage.completion_tokens
+      completion.usage.total_tokens;
+  ]
+
+let run services context = function
   | Core_payload.Text text ->
-      let metrics =
-        {
-          Core_payload.confidence = Defaults.confidence;
-          cost = Defaults.cost;
-          latency_ms = 0;
-        }
+      let payload = Core_payload.Text text in
+      let profile =
+        services.Runtime_services.config.Runtime_config.llm.validator
       in
-      Lwt.return
-        ( Core_payload.Text (Fmt.str "Validation: %s" (validate_text text)),
-          metrics,
-          [ "Validator checked the shape of the text payload." ] )
+      Llm_aegis_client.invoke_chat
+        services.llm_client
+        ~agent:id
+        ~profile
+        ~context
+        ~payload
+        ~instruction:(llm_instruction payload)
+      >|= (function
+       | Ok completion ->
+           let summary =
+             match String.trim completion.content with
+             | "" -> validate_text text
+             | content -> content
+           in
+           let metrics, notes = llm_metrics profile completion in
+           Core_payload.Text ("Validation: " ^ summary), metrics, notes
+       | Error message ->
+           ( Core_payload.Error ("Validator LLM call failed: " ^ message),
+             Core_payload.zero_metrics,
+             [ "Validator failed to obtain a response from AegisLM." ] ))
   | Core_payload.Plan steps ->
-      let metrics =
-        {
-          Core_payload.confidence = Defaults.confidence;
-          cost = Defaults.cost;
-          latency_ms = 0;
-        }
+      let payload = Core_payload.Plan steps in
+      let profile =
+        services.Runtime_services.config.Runtime_config.llm.validator
       in
-      Lwt.return
-        ( Core_payload.Text (Fmt.str "Validation: %s" (validate_plan steps)),
-          metrics,
-          [ "Validator checked the structural integrity of the plan." ] )
+      Llm_aegis_client.invoke_chat
+        services.llm_client
+        ~agent:id
+        ~profile
+        ~context
+        ~payload
+        ~instruction:(llm_instruction payload)
+      >|= (function
+       | Ok completion ->
+           let summary =
+             match String.trim completion.content with
+             | "" -> validate_plan steps
+             | content -> content
+           in
+           let metrics, notes = llm_metrics profile completion in
+           Core_payload.Text ("Validation: " ^ summary), metrics, notes
+       | Error message ->
+           ( Core_payload.Error ("Validator LLM call failed: " ^ message),
+             Core_payload.zero_metrics,
+             [ "Validator failed to obtain a response from AegisLM." ] ))
   | payload ->
       let metrics = Core_payload.zero_metrics in
       Lwt.return
@@ -77,4 +124,3 @@ let run _context = function
                (Core_payload.summary payload)),
           metrics,
           [ "Validator rejected an unsupported payload." ] )
-

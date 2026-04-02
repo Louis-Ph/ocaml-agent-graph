@@ -1,0 +1,10 @@
+Purpose
+This file turns framework state into prompt messages for AegisLM and OpenAI-style chat requests.
+
+Linear intent
+1. Render metadata pairs into one compact string.
+2. Render the context history in chronological order so the model can see what happened before.
+3. Render the set of completed agents so the model knows the current position in the graph.
+4. Build one user message that includes the agent name, task id, metadata, completed agents, history, current payload, and agent-specific instruction.
+5. Build the final OpenAI-style message list as one system message plus one user message.
+

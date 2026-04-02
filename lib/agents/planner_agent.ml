@@ -1,7 +1,7 @@
+open Lwt.Infix
+
 module Defaults = struct
-  let max_steps = 3
-  let confidence = 0.91
-  let cost = 0.0045
+  let max_steps = 5
 end
 
 let id = Core_agent_name.Planner
@@ -40,6 +40,33 @@ let fallback_plan =
     "Validate the output and collect auditable metrics.";
   ]
 
+let strip_prefixes line =
+  let trimmed = String.trim line in
+  let rec drop_numeric_prefix index =
+    if index >= String.length trimmed then trimmed
+    else
+      match trimmed.[index] with
+      | '0' .. '9' | '.' | ')' | '-' | '*' | ' ' -> drop_numeric_prefix (index + 1)
+      | _ -> String.sub trimmed index (String.length trimmed - index)
+  in
+  drop_numeric_prefix 0 |> String.trim
+
+let normalize_plan_lines text =
+  text
+  |> String.split_on_char '\n'
+  |> List.map strip_prefixes
+  |> List.filter (fun line -> line <> "")
+  |> take Defaults.max_steps
+
+let plan_from_lines lines =
+  match lines with
+  | [] -> fallback_plan
+  | _ ->
+      lines
+      |> List.mapi (fun index line ->
+             if String.starts_with ~prefix:"Stage " line then line
+             else Fmt.str "Stage %d: %s" (index + 1) line)
+
 let plan_from_text text =
   let steps =
     extract_segments text
@@ -51,20 +78,52 @@ let plan_from_text text =
   | [] -> fallback_plan
   | _ -> steps
 
-let run _context = function
+let llm_instruction text =
+  Fmt.str
+    "Turn the request below into a compact execution plan.\nReturn 2 to 5 short lines.\nEach line must describe one action.\nDo not add commentary before or after the lines.\n\nRequest:\n%s"
+    text
+
+let llm_metrics profile completion =
+  {
+    Core_payload.confidence = profile.Runtime_config.Llm.Agent_profile.confidence;
+    cost = 0.0;
+    latency_ms = 0;
+  },
+  [
+    Fmt.str
+      "Planner used model=%s prompt_tokens=%d completion_tokens=%d total_tokens=%d."
+      completion.Llm_aegis_client.model
+      completion.usage.prompt_tokens
+      completion.usage.completion_tokens
+      completion.usage.total_tokens;
+  ]
+
+let run services _context = function
   | Core_payload.Text text ->
-      let plan = plan_from_text text in
-      let metrics =
-        {
-          Core_payload.confidence = Defaults.confidence;
-          cost = Defaults.cost;
-          latency_ms = 0;
-        }
+      let profile =
+        services.Runtime_services.config.Runtime_config.llm.planner
       in
-      Lwt.return
-        ( Core_payload.Plan plan,
-          metrics,
-          [ "Planner normalized the request into an explicit execution plan." ] )
+      Llm_aegis_client.invoke_chat
+        services.llm_client
+        ~agent:id
+        ~profile
+        ~context:_context
+        ~payload:(Core_payload.Text text)
+        ~instruction:(llm_instruction text)
+      >|= (function
+       | Ok completion ->
+           let lines = normalize_plan_lines completion.content in
+           let plan =
+             match lines with
+             | [] -> plan_from_text text
+             | _ -> plan_from_lines lines
+           in
+           let metrics, notes = llm_metrics profile completion in
+           Core_payload.Plan plan, metrics, notes
+       | Error message ->
+           ( Core_payload.Error ("Planner LLM call failed: " ^ message),
+             Core_payload.zero_metrics,
+             [ "Planner failed to obtain a response from AegisLM." ] ))
   | payload ->
       let metrics = Core_payload.zero_metrics in
       Lwt.return
@@ -72,4 +131,3 @@ let run _context = function
             (Fmt.str "Planner cannot process %s" (Core_payload.summary payload)),
           metrics,
           [ "Planner rejected a non-text payload." ] )
-

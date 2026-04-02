@@ -22,7 +22,7 @@ let failure_item agent message =
     ~metrics:Core_payload.zero_metrics
     ~notes:[ message ]
 
-let run_agent ~(config : Runtime_config.t) ~registry agent context payload =
+let run_agent ~(services : Runtime_services.t) ~(config : Runtime_config.t) ~registry agent context payload =
   match Runtime_registry.find registry agent with
   | None ->
       let message =
@@ -49,7 +49,7 @@ let run_agent ~(config : Runtime_config.t) ~registry agent context payload =
           let* output, metrics, notes =
             Runtime_retry_policy.run retry_policy (fun () ->
                 with_timeout config.engine.timeout_seconds
-                  (Agent.run context payload))
+                  (Agent.run services context payload))
           in
           let latency_ms = measure_latency_ms started_at in
           let measured_metrics = { metrics with latency_ms } in

@@ -1,15 +1,17 @@
 Purpose
-This file implements the summarizer agent.
+This file implements the summarizer agent as an LLM-backed compression stage.
 
 Linear intent
-1. Define local defaults for summary length, confidence, and cost.
-2. Expose the agent id as `Summarizer`.
-3. Normalize text into words so summarization logic works on clean tokens instead of raw spacing.
-4. Reuse a generic `take` helper to cap the number of kept words.
-5. Implement `summarize_text` to keep only the first part of a text and add `...` when the text is longer than the budget.
-6. Implement `summarize_plan` to flatten a list of steps into one readable summary string.
-7. In `run`, accept raw `Text` payloads and turn them into `Summary: ...`.
-8. Also accept `Plan` payloads so the summarizer can work after the planner in the long-text path.
-9. Attach metrics and a short note describing what was summarized.
-10. Reject unsupported payload kinds with a typed error payload.
+1. Open `Lwt.Infix` so asynchronous result mapping stays linear.
+2. Keep a small local summary fallback budget.
+3. Expose the agent id as `Summarizer`.
+4. Provide local helper functions for deterministic text and plan summarization.
+5. Build a summarizer-specific LLM instruction that asks for a short plain-English summary.
+6. Convert the LLM usage information into the framework metrics and notes format.
+7. In `run`, accept `Text` payloads and ask the LLM for a concise summary.
+8. If the model response is empty, fall back to the local text summarizer.
+9. In `run`, also accept `Plan` payloads so the summarizer can run after the planner branch.
+10. If the model response is empty for a plan, fall back to the local plan summarizer.
+11. Return `Summary: ...` as a typed `Text` payload plus metrics and notes.
+12. Reject unsupported payload kinds with a typed error payload.
 

@@ -1,14 +1,17 @@
 Purpose
-This file implements the validator agent.
+This file implements the validator agent as an LLM-backed review stage.
 
 Linear intent
-1. Define local defaults for confidence and cost.
-2. Expose the agent id as `Validator`.
-3. Convert booleans into small status labels so validation output stays easy to scan.
-4. Implement `validate_text` to check whether a text payload is non-empty, long enough to be meaningful, and not too large.
-5. Implement `validate_plan` to check whether a plan has enough steps, sufficiently labeled steps, and no duplicates.
-6. In `run`, accept `Text` payloads and return a compact validation report string.
-7. Also accept `Plan` payloads so the validator can inspect the planner output before aggregation.
-8. Attach metrics and a note that records what was validated.
-9. Reject unsupported payload kinds with a typed error payload.
+1. Open `Lwt.Infix` so asynchronous result mapping stays linear.
+2. Keep one local fallback size limit for deterministic validation.
+3. Expose the agent id as `Validator`.
+4. Provide local fallback validators for raw text and plan payloads.
+5. Build a validator-specific LLM instruction that asks for a compact verdict, strengths, and risks.
+6. Convert the LLM usage information into the framework metrics and notes format.
+7. In `run`, accept `Text` payloads and ask the LLM for a compact validation report.
+8. Fall back to the local text validator if the model returns no content.
+9. In `run`, also accept `Plan` payloads so the validator can inspect planner output.
+10. Fall back to the local plan validator if the model returns no content.
+11. Return `Validation: ...` as a typed `Text` payload plus metrics and notes.
+12. Reject unsupported payload kinds with a typed error payload.
 

@@ -17,5 +17,6 @@
   lwt
   yojson
   fmt
+  aegis_lm
   cmdliner
   (alcotest :with-test)))

@@ -1,6 +1,6 @@
 {
   "engine": {
-    "timeout_seconds": 2.5,
+    "timeout_seconds": 20.0,
     "retry_attempts": 2,
     "retry_backoff_seconds": 0.05,
     "max_steps": 8
@@ -11,9 +11,30 @@
     "planner_agent": "planner",
     "parallel_agents": ["summarizer", "validator"]
   },
+  "llm": {
+    "gateway_config_path": "../../aegis-lm/config/example.gateway.json",
+    "authorization_token_plaintext": "sk-aegis-dev",
+    "planner": {
+      "model": "claude-sonnet",
+      "system_prompt": "You are the planning agent inside a typed OCaml orchestration graph. Convert a request into a short, concrete plan. Be direct and structured.",
+      "max_tokens": 220,
+      "confidence": 0.91
+    },
+    "summarizer": {
+      "model": "claude-sonnet",
+      "system_prompt": "You are the summarizer agent inside a typed OCaml orchestration graph. Compress the payload into a short, accurate summary with no filler.",
+      "max_tokens": 180,
+      "confidence": 0.88
+    },
+    "validator": {
+      "model": "claude-sonnet",
+      "system_prompt": "You are the validator agent inside a typed OCaml orchestration graph. Check whether the payload is coherent, complete enough, and safe to pass forward. Answer compactly.",
+      "max_tokens": 180,
+      "confidence": 0.94
+    }
+  },
   "demo": {
     "task_id": "demo-task-001",
     "input": "Design a modular OCaml multi-agent runtime with typed state transitions, auditable orchestration, retries, timeouts, and a parallel validation stage."
   }
 }
-

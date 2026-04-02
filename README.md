@@ -12,6 +12,15 @@ The project keeps the research-facing concerns explicit:
 - retries, timeouts, parallel fan-out, aggregation, and audit context
 - `alcotest` coverage for the simple and parallel execution paths
 
+## Docs
+
+Beginner-friendly documentation lives in [`doc/`](doc/README.md).
+
+Start with:
+
+- [`doc/START_HERE.md`](doc/START_HERE.md)
+- [`doc/MAKE_YOUR_OWN_AGENT.md`](doc/MAKE_YOUR_OWN_AGENT.md)
+
 ## Structure
 
 ```text

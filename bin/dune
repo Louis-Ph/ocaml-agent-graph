@@ -1,0 +1,4 @@
+(executable
+ (name ocaml_agent_graph_demo)
+ (libraries agent_graph cmdliner lwt.unix fmt))
+

@@ -1,0 +1,19 @@
+{
+  "engine": {
+    "timeout_seconds": 2.5,
+    "retry_attempts": 2,
+    "retry_backoff_seconds": 0.05,
+    "max_steps": 8
+  },
+  "routing": {
+    "long_text_threshold": 96,
+    "short_text_agent": "summarizer",
+    "planner_agent": "planner",
+    "parallel_agents": ["summarizer", "validator"]
+  },
+  "demo": {
+    "task_id": "demo-task-001",
+    "input": "Design a modular OCaml multi-agent runtime with typed state transitions, auditable orchestration, retries, timeouts, and a parallel validation stage."
+  }
+}
+

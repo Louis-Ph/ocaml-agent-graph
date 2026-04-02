@@ -1,0 +1,4 @@
+(test
+ (name test_agent_graph)
+ (libraries agent_graph alcotest lwt.unix))
+

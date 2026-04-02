@@ -1,0 +1,15 @@
+{
+  "scenario_id": "multi_supplier_rfq",
+  "title": "Multi Supplier RFQ",
+  "requires_real_llm": true,
+  "uses_multiple_llms": true,
+  "requires_real_web_crawler": false,
+  "goal": "Compare supplier RFQ responses and recommend the best commercial choice.",
+  "core_outputs": [
+    "normalized quote comparison",
+    "commercial exceptions",
+    "recommended supplier",
+    "buyer rationale"
+  ]
+}
+

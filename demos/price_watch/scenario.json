@@ -1,0 +1,14 @@
+{
+  "scenario_id": "price_watch",
+  "title": "Price Watch",
+  "requires_real_llm": true,
+  "uses_multiple_llms": false,
+  "requires_real_web_crawler": true,
+  "goal": "Monitor live offers and trigger a buy recommendation when price and supply conditions are favorable.",
+  "core_outputs": [
+    "tracked offer table",
+    "price movement summary",
+    "buy now or wait recommendation"
+  ]
+}
+

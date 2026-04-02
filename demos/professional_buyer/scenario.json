@@ -1,0 +1,101 @@
+{
+  "scenario_id": "professional_buyer",
+  "title": "Professional Buyer",
+  "summary": "Use one or more real LLMs plus a real web crawler to source a product like a professional buyer and recommend the best offer at the best total cost.",
+  "runtime_mode": {
+    "requires_real_llm": true,
+    "uses_multiple_llms": true,
+    "requires_real_web_crawler": true
+  },
+  "business_goal": {
+    "primary_goal": "Select the best buy recommendation for a requested product category.",
+    "definition_of_best": [
+      "lowest total landed cost",
+      "acceptable technical fit",
+      "credible seller",
+      "acceptable delivery time",
+      "acceptable warranty and return policy"
+    ]
+  },
+  "llm_roles": [
+    {
+      "role_id": "planner",
+      "purpose": "Turn the buyer need into a sourcing plan and search strategy."
+    },
+    {
+      "role_id": "crawler_supervisor",
+      "purpose": "Choose search queries, target domains, and crawl priorities."
+    },
+    {
+      "role_id": "extractor",
+      "purpose": "Normalize product data from crawled pages into structured facts."
+    },
+    {
+      "role_id": "procurement_decider",
+      "purpose": "Score offers and write the final buyer memo."
+    }
+  ],
+  "workflow": [
+    {
+      "stage_id": "need_analysis",
+      "owner": "planner",
+      "output": "procurement brief"
+    },
+    {
+      "stage_id": "market_scan",
+      "owner": "crawler_supervisor",
+      "output": "crawl plan"
+    },
+    {
+      "stage_id": "crawl_execution",
+      "owner": "crawler",
+      "output": "raw offer pages"
+    },
+    {
+      "stage_id": "data_normalization",
+      "owner": "extractor",
+      "output": "structured offer table"
+    },
+    {
+      "stage_id": "offer_scoring",
+      "owner": "procurement_decider",
+      "output": "ranked shortlist"
+    },
+    {
+      "stage_id": "final_recommendation",
+      "owner": "procurement_decider",
+      "output": "buyer memo"
+    }
+  ],
+  "crawl_targets": {
+    "preferred_sources": [
+      "manufacturer websites",
+      "authorized resellers",
+      "major retailers",
+      "industrial distributors"
+    ],
+    "minimum_offer_count": 5,
+    "max_offers_for_final_scoring": 12
+  },
+  "buyer_rules": {
+    "must_compare_total_cost": true,
+    "must_penalize_missing_shipping_data": true,
+    "must_penalize_unknown_warranty": true,
+    "must_flag_suspicious_sellers": true,
+    "must_provide_ranked_alternatives": true
+  },
+  "deliverable": {
+    "format": "buyer_memo",
+    "required_sections": [
+      "need summary",
+      "search coverage",
+      "top recommendation",
+      "ranked alternatives",
+      "cost breakdown",
+      "risk notes",
+      "missing evidence",
+      "final decision rationale"
+    ]
+  }
+}
+

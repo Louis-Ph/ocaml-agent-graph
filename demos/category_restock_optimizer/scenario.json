@@ -1,0 +1,13 @@
+{
+  "scenario_id": "category_restock_optimizer",
+  "title": "Category Restock Optimizer",
+  "requires_real_llm": true,
+  "uses_multiple_llms": true,
+  "requires_real_web_crawler": true,
+  "goal": "Optimize category-level replenishment using live market offers and procurement constraints.",
+  "core_outputs": [
+    "restock shortlist",
+    "supplier risk notes",
+    "reorder recommendation"
+  ]
+}

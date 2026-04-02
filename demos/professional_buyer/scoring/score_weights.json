@@ -1,0 +1,19 @@
+{
+  "score_version": 1,
+  "weights": {
+    "technical_fit": 0.25,
+    "total_landed_cost": 0.25,
+    "seller_trust": 0.15,
+    "delivery_speed": 0.10,
+    "stock_confidence": 0.10,
+    "warranty_and_returns": 0.10,
+    "evidence_quality": 0.05
+  },
+  "hard_fail_rules": [
+    "missing required technical fit",
+    "seller appears fraudulent or unverifiable",
+    "no usable price",
+    "no usable source URL"
+  ]
+}
+

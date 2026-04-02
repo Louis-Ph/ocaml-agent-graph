@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "domain": "procurement",
+  "scenarios": [
+    {
+      "id": "professional_buyer",
+      "title": "Professional Buyer",
+      "requires_real_llm": true,
+      "uses_multiple_llms": true,
+      "requires_web_crawler": true,
+      "primary_goal": "Find the best product offer at the best total cost with a professional procurement decision trail."
+    },
+    {
+      "id": "multi_supplier_rfq",
+      "title": "Multi Supplier RFQ",
+      "requires_real_llm": true,
+      "uses_multiple_llms": true,
+      "requires_web_crawler": false,
+      "primary_goal": "Compare supplier answers to a request for quotation and produce a ranked buyer recommendation."
+    },
+    {
+      "id": "price_watch",
+      "title": "Price Watch",
+      "requires_real_llm": true,
+      "uses_multiple_llms": false,
+      "requires_web_crawler": true,
+      "primary_goal": "Track live price movement and alert when a buy threshold is reached."
+    },
+    {
+      "id": "category_restock_optimizer",
+      "title": "Category Restock Optimizer",
+      "requires_real_llm": true,
+      "uses_multiple_llms": true,
+      "requires_web_crawler": true,
+      "primary_goal": "Decide where and when to restock a category while minimizing total landed cost and supplier risk."
+    }
+  ]
+}
+

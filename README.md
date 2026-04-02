@@ -22,6 +22,14 @@ Start with:
 - [`doc/START_HERE.md`](doc/START_HERE.md)
 - [`doc/MAKE_YOUR_OWN_AGENT.md`](doc/MAKE_YOUR_OWN_AGENT.md)
 
+## Demos
+
+Scenario packs live in [`demos/`](demos/README.md).
+
+The main procurement-oriented pack is:
+
+- [`demos/professional_buyer/README.md`](demos/professional_buyer/README.md)
+
 ## Structure
 
 ```text

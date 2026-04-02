@@ -1,0 +1,9 @@
+Purpose
+This file runs multiple agents concurrently.
+
+Linear intent
+1. Accept the configuration, registry, agent list, context, and payload.
+2. Map each agent name to one `Runtime_engine.run_agent` call.
+3. Use `Lwt_list.map_p` so the agent runs happen concurrently.
+4. Return the collected list of batch items when all runs complete.
+

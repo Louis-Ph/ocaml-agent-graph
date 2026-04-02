@@ -1,0 +1,13 @@
+Purpose
+This file defines the payload language exchanged inside the graph.
+
+Linear intent
+1. Define the `metrics` record so every agent result can carry confidence, cost, and latency.
+2. Define the payload variant with four core states: `Text`, `Plan`, `Batch`, and `Error`.
+3. Define `batch_item` so aggregated results keep the producing agent, the payload, the metrics, and the notes together.
+4. Expose `zero_metrics` as the neutral fallback value for failures and unsupported cases.
+5. Provide `summary` to describe any payload in one short string for logs and context history.
+6. Provide `text_length` as a convenience helper for the text case.
+7. Provide `metrics_to_string` so runtime metrics can be rendered consistently.
+8. Provide `to_pretty_string` so final payloads can be printed in a user-facing way, including nested batch output.
+

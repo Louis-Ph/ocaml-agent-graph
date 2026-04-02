@@ -1,0 +1,18 @@
+Purpose
+This file is the recursive execution loop of the framework.
+
+Linear intent
+1. Open `Lwt.Syntax` so the file can use sequential async style.
+2. Define `log_decision` so every routing choice is written through the runtime logger.
+3. In `loop`, ask the decider for the current route from the current configuration, context, and payload.
+4. Log the chosen decision before acting on it.
+5. If the decision is `Stop`, return the current payload and context as the final result.
+6. If the decision is `Next agent`, run one agent through the runtime engine.
+7. Record that single outcome into the context.
+8. Recurse with the updated context and the new payload produced by the agent.
+9. If the decision is `Parallel agents`, run all selected agents through the parallel executor.
+10. Record all outcomes into the context.
+11. Record one extra event that marks the parallel join point.
+12. Merge the items into one batch payload through the aggregator.
+13. Recurse with the updated context and the merged payload.
+

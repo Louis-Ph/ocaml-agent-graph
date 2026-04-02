@@ -1,0 +1,11 @@
+Purpose
+This file stores and retrieves agent modules by typed agent name.
+
+Linear intent
+1. Define the hash-table key behavior for `Core_agent_name.t`.
+2. Instantiate a hash-table module specialized to agent names.
+3. Define the registry type as a table of packed agent modules.
+4. Provide `create` so callers can choose an initial capacity.
+5. Provide `register` so an agent module is inserted under its own typed id.
+6. Provide `find` so the runtime engine can look up an agent by name.
+

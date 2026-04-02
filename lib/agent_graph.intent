@@ -1,0 +1,14 @@
+Purpose
+This file is the public facade of the library.
+
+Linear intent
+1. Re-export the core modules under one stable `Core` namespace so callers do not need to know every internal file name.
+2. Re-export the configuration loader under `Config` to keep the external API organized.
+3. Re-export the agent modules under `Agents` so users can discover the built-in agents from one place.
+4. Re-export the runtime modules under `Runtime` so operational pieces like logging and retries stay visible but grouped.
+5. Re-export the orchestration modules under `Orchestration` so the routing layer is accessible without exposing the whole file tree.
+6. Provide a single high-level `run` function for the common case.
+7. Build the default registry inside `run` so the caller gets a working system without manual registration.
+8. Build an empty typed context with task id and metadata.
+9. Start the orchestrator with the initial payload wrapped as `Core_payload.Text`.
+

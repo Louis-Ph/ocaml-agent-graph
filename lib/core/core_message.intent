@@ -1,0 +1,8 @@
+Purpose
+This file defines the message shape stored in context history.
+
+Linear intent
+1. Define the possible message roles, including a role that carries a typed agent name.
+2. Define the message record as a role plus textual content.
+3. Provide a role-to-string helper so history entries can be rendered outside the type system.
+

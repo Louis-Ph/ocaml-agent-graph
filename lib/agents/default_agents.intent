@@ -1,0 +1,10 @@
+Purpose
+This file declares the built-in agent set and turns it into a ready-to-use registry.
+
+Linear intent
+1. Build one list named `all` that contains the packaged built-in agents.
+2. Keep that list explicit so the default system has a visible and auditable composition.
+3. Create a new registry with a small initial capacity.
+4. Register each built-in agent into that registry.
+5. Return the registry so the rest of the system can run without extra wiring.
+

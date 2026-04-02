@@ -1,0 +1,10 @@
+Purpose
+This file defines the common contract every agent must obey.
+
+Linear intent
+1. Define `run_result` as one precise shape for every agent output: payload, metrics, and notes.
+2. Define the module signature `S` so every agent exposes an `id` and a `run` function.
+3. Require `run` to receive the typed context and typed payload.
+4. Require `run` to return an `Lwt` promise so agents fit into the asynchronous runtime.
+5. Define `packed` so different agent modules can be stored together in the registry.
+

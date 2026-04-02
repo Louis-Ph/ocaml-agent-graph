@@ -1,0 +1,15 @@
+Purpose
+This file implements the planner agent.
+
+Linear intent
+1. Define local defaults for maximum plan length, confidence, and cost so the planner behavior is explicit.
+2. Expose the agent id as `Planner`.
+3. Define what counts as a text separator so raw user text can be split into rough planning segments.
+4. Implement `extract_segments` to scan the input once, collect non-empty segments, and keep their original order.
+5. Implement a small generic `take` helper to cap the number of produced plan steps.
+6. Provide a fallback plan so the planner still returns a useful structure even when the input text gives no clean segments.
+7. Implement `plan_from_text` to turn extracted segments into labeled stages like `Stage 1`, `Stage 2`, and `Stage 3`.
+8. In `run`, accept only `Text` payloads because planning starts from raw request text.
+9. Build a `Plan` payload from that text and attach planner-specific metrics and a short audit note.
+10. Reject non-text payloads with a typed error payload instead of raising an exception.
+

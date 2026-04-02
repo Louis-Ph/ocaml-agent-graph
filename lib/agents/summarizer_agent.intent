@@ -1,0 +1,15 @@
+Purpose
+This file implements the summarizer agent.
+
+Linear intent
+1. Define local defaults for summary length, confidence, and cost.
+2. Expose the agent id as `Summarizer`.
+3. Normalize text into words so summarization logic works on clean tokens instead of raw spacing.
+4. Reuse a generic `take` helper to cap the number of kept words.
+5. Implement `summarize_text` to keep only the first part of a text and add `...` when the text is longer than the budget.
+6. Implement `summarize_plan` to flatten a list of steps into one readable summary string.
+7. In `run`, accept raw `Text` payloads and turn them into `Summary: ...`.
+8. Also accept `Plan` payloads so the summarizer can work after the planner in the long-text path.
+9. Attach metrics and a short note describing what was summarized.
+10. Reject unsupported payload kinds with a typed error payload.
+

@@ -1,0 +1,11 @@
+Purpose
+This file defines the retry behavior used by the engine.
+
+Linear intent
+1. Open `Lwt.Syntax` so the backoff flow reads in direct order.
+2. Define the retry policy record with maximum retries and backoff duration.
+3. Define `run` as a wrapper around a promise-producing function.
+4. Inside `run`, attempt the function and catch exceptions.
+5. If the retry limit has been reached, re-raise the exception through `Lwt.fail`.
+6. Otherwise, wait for the configured backoff duration and try again with an incremented retry index.
+

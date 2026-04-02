@@ -1,0 +1,9 @@
+Purpose
+This file provides the minimal logging layer used by the runtime.
+
+Linear intent
+1. Define the finite set of log levels.
+2. Convert each log level into a short stable label.
+3. Build a local wall-clock timestamp string.
+4. Print one formatted log line to standard error with timestamp, level, and message.
+

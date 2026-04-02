@@ -1,0 +1,8 @@
+Purpose
+This file gives the orchestration layer one narrow entry point for routing decisions.
+
+Linear intent
+1. Accept the configuration, context, and payload.
+2. Delegate the real decision work to `Orchestration_graph.route`.
+3. Keep the decider module thin so future policy logic can grow here without changing the orchestrator call site.
+

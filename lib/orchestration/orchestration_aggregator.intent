@@ -1,0 +1,8 @@
+Purpose
+This file turns multiple agent outputs into one deterministic batch payload.
+
+Linear intent
+1. Accept a list of batch items produced by parallel agents.
+2. Sort the items by agent name so aggregation order is deterministic.
+3. Wrap the ordered items into `Core_payload.Batch`.
+

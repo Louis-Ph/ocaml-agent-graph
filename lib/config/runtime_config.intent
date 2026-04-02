@@ -1,0 +1,17 @@
+Purpose
+This file defines the runtime configuration model and loads it from JSON.
+
+Linear intent
+1. Open the Yojson helper API to make JSON field extraction concise.
+2. Define the `Engine` record type for timeout, retry, backoff, and step-budget settings.
+3. Define the `Routing` record type for decision policy, including the important agent names used by the graph.
+4. Define the `Demo` record type for the built-in sample task id and sample input text.
+5. Combine those three sections into one top-level runtime configuration type.
+6. Expose the default JSON path so callers have one canonical location.
+7. Convert agent names from strings into typed `Core_agent_name.t` values.
+8. Parse the `engine` JSON section into a typed record.
+9. Parse the `routing` JSON section into a typed record, including the list of parallel agents.
+10. Parse the `demo` JSON section into a typed record.
+11. In `load`, read the file, parse each section, and assemble the final configuration.
+12. Return explicit error messages for missing files, invalid JSON syntax, invalid JSON shapes, and invalid values.
+

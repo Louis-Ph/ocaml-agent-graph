@@ -1,0 +1,9 @@
+Purpose
+This file defines the typed decision language used by the orchestrator.
+
+Linear intent
+1. Define the finite set of stop reasons so termination stays explainable.
+2. Define the decision type as one of three possibilities: run one agent, run many agents, or stop.
+3. Convert stop reasons into stable strings for logs and debugging.
+4. Convert full decisions into readable strings so the orchestrator can log every routing choice.
+

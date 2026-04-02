@@ -1,0 +1,14 @@
+Purpose
+This file defines the routing policy of the agent graph.
+
+Linear intent
+1. Define the named graph nodes so the route can carry more meaning than a raw decision alone.
+2. Define the `route` record as a node plus a decision.
+3. In `route`, stop immediately if the context has exhausted the configured step budget.
+4. Stop immediately for error payloads because the graph should not continue after a typed failure.
+5. Stop immediately for batch payloads because aggregation is the current terminal state.
+6. Send `Plan` payloads into the fan-out stage by returning a parallel decision with the configured parallel agents.
+7. For `Text` payloads, first stop if the text was already processed by either the short-text or planner branch, which prevents accidental loops.
+8. For fresh `Text` payloads longer than the configured threshold, route to the planner.
+9. For fresh `Text` payloads shorter than or equal to the threshold, route directly to the short-text agent.
+

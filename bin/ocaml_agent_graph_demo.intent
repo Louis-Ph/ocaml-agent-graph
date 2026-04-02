@@ -1,0 +1,17 @@
+Purpose
+This file is the command-line entry point for the demo program.
+
+Linear intent
+1. Open the Cmdliner API so the demo can expose a real CLI instead of ad hoc argument parsing.
+2. Define the `--config` option so the user can choose which JSON runtime configuration file to load.
+3. Define the `--task-id` option so the user can override the task id without editing the config file.
+4. Define the positional `INPUT` argument so the user can override the demo prompt from the command line.
+5. In `run`, load the runtime configuration and fail early with a clean CLI error if the file cannot be parsed.
+6. Resolve the final task id by preferring the CLI override and falling back to the configuration value.
+7. Resolve the final input text by preferring the CLI override and falling back to the configuration value.
+8. Execute the framework through `Agent_graph.run` inside `Lwt_main.run`.
+9. Print the task id so the run is easy to identify.
+10. Print the completed agent names so the user can see which path the orchestration followed.
+11. Print the final payload in a human-readable form.
+12. Register the command metadata and exit through `Cmd.eval`.
+

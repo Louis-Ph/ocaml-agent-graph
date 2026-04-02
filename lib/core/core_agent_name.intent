@@ -1,0 +1,11 @@
+Purpose
+This file defines the official set of agent names.
+
+Linear intent
+1. Define the closed variant type `t` so only known agents can exist in the system.
+2. Expose the `all` list so other modules can iterate over the known names.
+3. Provide `compare`, `equal`, and `hash` so agent names can be used in sets, hash tables, and ordered operations.
+4. Convert typed names into stable lowercase strings for logs, config files, and output.
+5. Convert strings back into typed names and return an explicit error for unknown values.
+6. Provide a formatter helper for pretty-printing.
+

@@ -1,0 +1,17 @@
+Purpose
+This file defines the orchestration context and the functions that update it over time.
+
+Linear intent
+1. Build an `Agent_set` so the system can efficiently remember which agents already ran.
+2. Define the `event` record to capture auditable runtime facts with step index, label, detail, and timestamp.
+3. Define the main context record with task id, message history, metadata, completed agents, events, and step count.
+4. Provide `empty` to create a clean starting context.
+5. Provide `add_message` to extend the history when a caller wants to append a message manually.
+6. Provide `record_event` to append a generic event with the current step count.
+7. Provide `has_completed_agent` so the router can avoid looping back to the same stage incorrectly.
+8. Provide `completed_agent_names` so the CLI can print the finished path.
+9. Implement `record_outcome` to update history, completed agents, events, and step count after one agent finishes.
+10. Implement `record_outcomes` to fold many agent results into the context during parallel execution.
+11. Implement `record_parallel_join` to add a dedicated event when a fan-out stage joins back together.
+12. Implement `step_budget_exhausted` so the router can stop when the configured maximum number of steps has been reached.
+

@@ -1,0 +1,19 @@
+Purpose
+This file proves that the main graph routes still behave as expected.
+
+Linear intent
+1. Open the public `Agent_graph` API instead of reaching into private implementation details.
+2. Build a small deterministic runtime configuration for tests.
+3. Build the default registry once for all tests.
+4. Define `has_prefix` as a tiny helper for checking summarizer output.
+5. Define `run` as a synchronous test helper that creates a fresh context and executes the orchestrator on one text payload.
+6. In `test_short_text_path`, run the graph on a short text.
+7. Assert that the final payload is summarized text.
+8. Assert that only one step happened.
+9. Assert that the summarizer is marked as completed.
+10. In `test_long_text_parallel_path`, run the graph on a long text with multiple clauses.
+11. Assert that the final payload is a batch.
+12. Extract the agent names from the batch for easier checks.
+13. Assert that the planner ran first and the two parallel agents produced two aggregated results.
+14. Assert that both `summarizer` and `validator` are present in the batch.
+15. Register both tests with Alcotest under clear suite names.

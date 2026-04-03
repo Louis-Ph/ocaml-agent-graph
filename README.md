@@ -29,6 +29,7 @@ Scenario packs live in [`demos/`](demos/README.md).
 The main procurement-oriented pack is:
 
 - [`demos/professional_buyer/README.md`](demos/professional_buyer/README.md)
+- [`demos/adaptive_webcrawler/README.md`](demos/adaptive_webcrawler/README.md)
 
 ## Structure
 
@@ -117,6 +118,12 @@ The shipped demo config currently uses the `claude-sonnet` route through
 
 ```sh
 dune exec ./bin/ocaml_agent_graph_demo.exe
+```
+
+Run the real adaptive webcrawler demo:
+
+```sh
+dune exec ./bin/adaptive_webcrawler_demo.exe
 ```
 
 Override the default prompt:

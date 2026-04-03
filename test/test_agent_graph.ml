@@ -106,7 +106,6 @@ let make_services responses =
   let llm_client =
     Llm.Aegis_client.of_store
       ~authorization:"Bearer sk-test"
-      llm_config
       store
   in
   Runtime.Services.of_llm_client ~config llm_client
@@ -209,6 +208,69 @@ let test_long_text_parallel_path () =
         (String.contains rendered 'P')
   | _ -> Alcotest.fail "Expected a batch payload after parallel orchestration"
 
+let test_brave_result_parsing () =
+  let html =
+    {|
+data: [{type:"data",data:{results:[
+  {title:"24 Effect handlers",url:"https://ocaml.org/manual/5.4/effects.html"},
+  {title:"GitHub - ocaml-multicore/ocaml-effects-tutorial",url:"https://github.com/ocaml-multicore/ocaml-effects-tutorial"},
+  {title:"Duplicate",url:"https://ocaml.org/manual/5.4/effects.html"}
+]}}]
+|}
+  in
+  let results = Web_crawler.Search.parse_results ~query:"ocaml effects" html in
+  Alcotest.(check int) "deduplicated result count" 2 (List.length results);
+  match results with
+  | first :: second :: [] ->
+      Alcotest.(check string)
+        "first domain"
+        "ocaml.org"
+        first.domain;
+      Alcotest.(check string)
+        "second url"
+        "https://github.com/ocaml-multicore/ocaml-effects-tutorial"
+        second.url
+  | _ -> Alcotest.fail "Expected two parsed results"
+
+let test_html_extraction_and_links () =
+  let html =
+    {|
+<html>
+  <head><title>OCaml Effects Tutorial</title></head>
+  <body>
+    <p>OCaml 5 effect handlers provide user-defined effects for practical control flow.</p>
+    <a href="/manual/5.4/effects.html">manual</a>
+    <a href="https://discuss.ocaml.org/t/tutorial-roguelike-with-effect-handlers/9422">forum</a>
+  </body>
+</html>
+|}
+  in
+  let title = Web_crawler.Html.extract_title html in
+  let text = Web_crawler.Html.visible_text html in
+  let excerpt =
+    Web_crawler.Html.excerpt_from_text
+      ~keywords:[ "ocaml"; "effects"; "handlers" ]
+      text
+  in
+  let links =
+    Web_crawler.Html.extract_links
+      ~base_url:"https://ocaml.org/tutorial/index.html"
+      html
+  in
+  Alcotest.(check (option string))
+    "title"
+    (Some "OCaml Effects Tutorial")
+    title;
+  Alcotest.(check bool)
+    "excerpt contains keyword"
+    true
+    (String.contains (String.lowercase_ascii excerpt) 'e');
+  Alcotest.(check int) "link count" 2 (List.length links);
+  Alcotest.(check string)
+    "relative link resolved"
+    "https://ocaml.org/manual/5.4/effects.html"
+    (List.hd links)
+
 let () =
   Alcotest.run
     "agent-graph"
@@ -216,4 +278,9 @@ let () =
       ("orchestrator", [ Alcotest.test_case "short text" `Quick test_short_text_path ]);
       ( "parallel",
         [ Alcotest.test_case "long text -> plan -> batch" `Quick test_long_text_parallel_path ] );
+      ( "crawler",
+        [
+          Alcotest.test_case "parse brave results" `Quick test_brave_result_parsing;
+          Alcotest.test_case "extract html and links" `Quick test_html_extraction_and_links;
+        ] );
     ]

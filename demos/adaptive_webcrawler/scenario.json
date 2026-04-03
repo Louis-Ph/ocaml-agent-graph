@@ -1,0 +1,88 @@
+{
+  "scenario_name": "adaptive-webcrawler",
+  "task_id": "adaptive-crawl-demo",
+  "objective": "Find authoritative and practical sources about OCaml 5 effect handlers, with at least one official source and one hands-on tutorial.",
+  "seed_queries": [
+    "ocaml 5 effect handlers official manual tutorial",
+    "ocaml effect handlers examples scheduler tutorial"
+  ],
+  "seed_urls": [
+    "https://ocaml.org/manual/5.4/effects.html",
+    "https://github.com/ocaml-multicore/ocaml-effects-tutorial",
+    "https://discuss.ocaml.org/t/tutorial-roguelike-with-effect-handlers/9422"
+  ],
+  "budget": {
+    "max_rounds": 2,
+    "max_queries_per_round": 2,
+    "max_results_per_query": 8,
+    "max_pages_per_round": 4,
+    "max_total_pages": 8,
+    "max_followup_links_per_page": 2,
+    "max_llm_calls": 3
+  },
+  "ranking": {
+    "preferred_domain_bonus": 2.2,
+    "blocked_domain_penalty": -3.0,
+    "keyword_title_weight": 1.6,
+    "keyword_url_weight": 1.2,
+    "text_keyword_weight": 2.0,
+    "link_depth_penalty": 0.35,
+    "preferred_url_terms": [
+      "effects.html",
+      "tutorial",
+      "manual",
+      "ocaml-effects-tutorial",
+      "effect-handlers"
+    ],
+    "penalized_url_terms": [
+      "/api/",
+      "/blob/",
+      "/issues/"
+    ]
+  },
+  "search": {
+    "provider": "brave_html",
+    "base_url": "https://search.brave.com/search",
+    "user_agent": "Mozilla/5.0 (compatible; ocaml-agent-graph-demo/1.0)",
+    "timeout_seconds": 12.0,
+    "preferred_domains": [
+      "ocaml.org",
+      "github.com",
+      "discuss.ocaml.org",
+      "janestreet.com",
+      "arxiv.org"
+    ],
+    "blocked_domains": [
+      "reddit.com",
+      "youtube.com",
+      "news.ycombinator.com"
+    ],
+    "blocked_url_terms": [
+      "signup",
+      "login",
+      ".rss",
+      "?page=",
+      "ref_cta=",
+      "/issues"
+    ]
+  },
+  "stop_when": {
+    "min_authoritative_pages": 3,
+    "min_distinct_domains": 2
+  },
+  "llm": {
+    "gateway_config_path": "gateway.json",
+    "authorization_token_plaintext": "sk-aegis-dev",
+    "reflector": {
+      "model": "claude-sonnet",
+      "prompt_file": "prompts/reflector.md",
+      "max_tokens": 240
+    },
+    "reporter": {
+      "model": "claude-sonnet",
+      "prompt_file": "prompts/reporter.md",
+      "max_tokens": 220
+    }
+  },
+  "output_template_file": "output/report_template.md"
+}

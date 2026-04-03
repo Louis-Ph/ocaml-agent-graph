@@ -1,0 +1,32 @@
+{
+  "security_policy_file": "../../../aegis-lm/config/defaults/security_policy.json",
+  "error_catalog_file": "../../../aegis-lm/config/defaults/error_catalog.json",
+  "providers_schema_file": "../../../aegis-lm/config/defaults/providers.schema.json",
+  "persistence": {
+    "sqlite_path": "var/adaptive_webcrawler.sqlite",
+    "busy_timeout_ms": 5000
+  },
+  "virtual_keys": [
+    {
+      "name": "local-demo",
+      "token_plaintext": "sk-aegis-dev",
+      "daily_token_budget": 50000,
+      "requests_per_minute": 30,
+      "allowed_routes": ["claude-sonnet"]
+    }
+  ],
+  "routes": [
+    {
+      "public_model": "claude-sonnet",
+      "backends": [
+        {
+          "provider_id": "anthropic-primary",
+          "provider_kind": "anthropic",
+          "upstream_model": "claude-sonnet-4-5-20250929",
+          "api_base": "https://api.anthropic.com/v1",
+          "api_key_env": "ANTHROPIC_API_KEY"
+        }
+      ]
+    }
+  ]
+}

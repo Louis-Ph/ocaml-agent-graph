@@ -15,14 +15,13 @@ type completion = {
 type t = {
   store : Aegis_lm.Runtime_state.t;
   authorization : string;
-  llm_config : Runtime_config.Llm.t;
 }
 
-let resolve_authorization llm_config =
-  match llm_config.Runtime_config.Llm.authorization_token_plaintext with
+let resolve_authorization ~authorization_token_plaintext ~authorization_token_env =
+  match authorization_token_plaintext with
   | Some token when String.trim token <> "" -> Ok ("Bearer " ^ token)
   | _ ->
-      (match llm_config.authorization_token_env with
+      (match authorization_token_env with
        | None ->
            Error
              "LLM authorization is missing. Configure authorization_token_plaintext or authorization_token_env."
@@ -35,16 +34,24 @@ let resolve_authorization llm_config =
                      "LLM authorization env var is missing or empty: %s"
                      env_name)))
 
-let create llm_config =
-  match resolve_authorization llm_config with
+let create_with_gateway
+    ~gateway_config_path
+    ~authorization_token_plaintext
+    ~authorization_token_env
+  =
+  match
+    resolve_authorization
+      ~authorization_token_plaintext
+      ~authorization_token_env
+  with
   | Error _ as error -> error
   | Ok authorization ->
-      (match Aegis_lm.Config.load llm_config.gateway_config_path with
+      (match Aegis_lm.Config.load gateway_config_path with
        | Error message ->
            Error
              (Fmt.str
                 "Unable to load AegisLM gateway config %s: %s"
-                llm_config.gateway_config_path
+                gateway_config_path
                 message)
        | Ok gateway_config ->
            (match Aegis_lm.Runtime_state.create_result gateway_config with
@@ -52,12 +59,17 @@ let create llm_config =
                 Error
                   (Fmt.str
                      "Unable to initialize AegisLM runtime from %s: %s"
-                     llm_config.gateway_config_path
+                     gateway_config_path
                      message)
-            | Ok store -> Ok { store; authorization; llm_config }))
+            | Ok store -> Ok { store; authorization }))
 
-let of_store ~authorization llm_config store =
-  { store; authorization; llm_config }
+let create (llm_config : Runtime_config.Llm.t) =
+  create_with_gateway
+    ~gateway_config_path:llm_config.gateway_config_path
+    ~authorization_token_plaintext:llm_config.authorization_token_plaintext
+    ~authorization_token_env:llm_config.authorization_token_env
+
+let of_store ~authorization store = { store; authorization }
 
 let extract_text response =
   response.Aegis_lm.Openai_types.choices
@@ -67,16 +79,10 @@ let extract_text response =
          | value -> Some value)
   |> String.concat "\n"
 
-let invoke_chat client ~agent ~profile ~context ~payload ~instruction =
+let invoke_messages client ~model ~messages ~max_tokens =
   let request =
     Aegis_lm.Openai_types.
-      {
-        model = profile.Runtime_config.Llm.Agent_profile.model;
-        messages =
-          Llm_prompt.build_messages ~agent ~profile ~instruction context payload;
-        stream = false;
-        max_tokens = profile.max_tokens;
-      }
+      { model; messages; stream = false; max_tokens }
   in
   Aegis_lm.Router.dispatch_chat client.store ~authorization:client.authorization request
   >|= function
@@ -93,3 +99,10 @@ let invoke_chat client ~agent ~profile ~context ~payload ~instruction =
               total_tokens = response.usage.total_tokens;
             };
         }
+
+let invoke_chat client ~agent ~profile ~context ~payload ~instruction =
+  invoke_messages
+    client
+    ~model:profile.Runtime_config.Llm.Agent_profile.model
+    ~messages:(Llm_prompt.build_messages ~agent ~profile ~instruction context payload)
+    ~max_tokens:profile.max_tokens

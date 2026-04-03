@@ -17,6 +17,19 @@ module Llm = struct
   module Aegis_client = Llm_aegis_client
 end
 
+module Web_crawler = struct
+  module Types = Web_crawler_types
+  module Config = Web_crawler_config
+  module Url = Web_crawler_url
+  module Keywords = Web_crawler_keywords
+  module Html = Web_crawler_html
+  module Http = Web_crawler_http
+  module Search = Web_crawler_search
+  module Ranker = Web_crawler_ranker
+  module Llm = Web_crawler_llm
+  module Runner = Web_crawler_runner
+end
+
 module Agents = struct
   module Intf = Agent_intf
   module Planner = Planner_agent

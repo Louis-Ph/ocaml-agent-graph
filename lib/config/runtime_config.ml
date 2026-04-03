@@ -59,20 +59,6 @@ type t = {
 
 let default_path = "config/runtime.json"
 
-let member_string_option name json =
-  match json |> member name with
-  | `String value -> Some value
-  | _ -> None
-
-let member_int_option name json =
-  match json |> member name with
-  | `Int value -> Some value
-  | `Intlit value -> Some (int_of_string value)
-  | _ -> None
-
-let resolve_relative_path ~base_dir path =
-  if Filename.is_relative path then Filename.concat base_dir path else path
-
 let agent_of_string value =
   match Core_agent_name.of_string value with
   | Ok agent -> agent
@@ -113,7 +99,7 @@ let parse_agent_profile json =
   {
     Llm.Agent_profile.model = json |> member "model" |> to_string;
     system_prompt = json |> member "system_prompt" |> to_string;
-    max_tokens = member_int_option "max_tokens" json;
+    max_tokens = Config_support.member_int_option "max_tokens" json;
     confidence = json |> member "confidence" |> to_float;
   }
 
@@ -123,10 +109,13 @@ let parse_llm ~base_dir json =
       json
       |> member "gateway_config_path"
       |> to_string
-      |> resolve_relative_path ~base_dir;
+      |> Config_support.resolve_relative_path ~base_dir;
     authorization_token_plaintext =
-      member_string_option "authorization_token_plaintext" json;
-    authorization_token_env = member_string_option "authorization_token_env" json;
+      Config_support.member_string_option
+        "authorization_token_plaintext"
+        json;
+    authorization_token_env =
+      Config_support.member_string_option "authorization_token_env" json;
     planner = json |> member "planner" |> parse_agent_profile;
     summarizer = json |> member "summarizer" |> parse_agent_profile;
     validator = json |> member "validator" |> parse_agent_profile;

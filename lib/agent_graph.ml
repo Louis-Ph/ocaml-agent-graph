@@ -17,6 +17,16 @@ module Llm = struct
   module Aegis_client = Llm_aegis_client
 end
 
+module Client = struct
+  module Config = Client_config
+  module Runtime = Client_runtime
+  module Local_ops = Client_local_ops
+  module Assistant = Client_assistant
+  module Machine = Client_machine
+  module Terminal = Client_terminal
+  module Starter = Client_starter
+end
+
 module Web_crawler = struct
   module Types = Web_crawler_types
   module Config = Web_crawler_config

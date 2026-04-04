@@ -1,0 +1,25 @@
+{
+  "graph_runtime_path": "runtime.json",
+  "assistant": {
+    "route_model": "claude-sonnet",
+    "system_prompt_file": "prompts/graph_terminal_assistant.md",
+    "max_tokens": 700
+  },
+  "local_ops": {
+    "workspace_root": "..",
+    "max_read_bytes": 32000,
+    "max_exec_output_bytes": 12000,
+    "command_timeout_ms": 10000
+  },
+  "human_terminal": {
+    "show_routes_on_start": true,
+    "conversation_keep_turns": 8
+  },
+  "machine_terminal": {
+    "worker_jobs": 4
+  },
+  "ssh": {
+    "human_remote_command": "scripts/remote_human_terminal.sh --client-config config/client.json",
+    "machine_remote_command": "scripts/remote_machine_terminal.sh --client-config config/client.json --jobs 4"
+  }
+}

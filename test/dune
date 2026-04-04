@@ -1,3 +1,7 @@
 (test
  (name test_agent_graph)
  (libraries agent_graph alcotest lwt.unix aegis_lm))
+
+(test
+ (name test_client)
+ (libraries agent_graph alcotest lwt.unix aegis_lm))

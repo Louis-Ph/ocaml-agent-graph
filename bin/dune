@@ -5,3 +5,8 @@
 (executable
  (name adaptive_webcrawler_demo)
  (libraries agent_graph cmdliner lwt.unix fmt))
+
+(executable
+ (name client)
+ (public_name ocaml-agent-graph-client)
+ (libraries agent_graph cmdliner lwt.unix fmt))

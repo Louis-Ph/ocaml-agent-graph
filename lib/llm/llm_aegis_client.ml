@@ -41,6 +41,8 @@ let provider_kind_to_string = function
   | Aegis_lm.Config.Openai_compat -> "openai_compat"
   | Aegis_lm.Config.Anthropic -> "anthropic"
   | Aegis_lm.Config.Google_openai -> "google_openai"
+  | Aegis_lm.Config.Mistral_openai -> "mistral_openai"
+  | Aegis_lm.Config.Ollama_openai -> "ollama_openai"
   | Aegis_lm.Config.Alibaba_openai -> "alibaba_openai"
   | Aegis_lm.Config.Moonshot_openai -> "moonshot_openai"
   | Aegis_lm.Config.Aegis_peer -> "aegis_peer"

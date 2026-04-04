@@ -95,13 +95,25 @@ That gives a strongly typed shape close to a tiny LangGraph:
 ## Build
 
 ```sh
-opam pin add aegis_lm /Users/columeaulouis-philippe/dev/github/aegis-lm --yes --no-action
+./run.sh
+```
+
+The starter:
+
+- checks the active `opam` switch first
+- offers a project-local fallback switch in `./_opam` when needed
+- auto-clones `../aegis-lm` if the sibling checkout is missing
+- pins `aegis_lm`, installs dependencies, builds the human terminal client, and launches it
+- reuses provider keys from your usual shell secret files and `~/.config/aegislm/env`
+
+If you want the manual path instead:
+
+```sh
+opam pin add aegis_lm ../aegis-lm --yes --no-action
 opam install . --deps-only --with-test --yes
 dune build
 dune runtest
 ```
-
-`aegis_lm` is a sibling local library in this setup.
 
 ## LLM Setup
 
@@ -116,6 +128,14 @@ The shipped demo config currently uses the `claude-sonnet` route through
 `AegisLM`.
 
 ## Demo
+
+```sh
+./run.sh
+```
+
+This starts the human terminal client directly.
+
+For the typed demo binary:
 
 ```sh
 dune exec ./bin/ocaml_agent_graph_demo.exe

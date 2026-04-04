@@ -57,11 +57,24 @@ Open a terminal in this project folder.
 Then run:
 
 ```sh
-opam pin add aegis_lm /Users/columeaulouis-philippe/dev/github/aegis-lm --yes --no-action
-opam install . --deps-only --with-test --yes
-dune build
-dune exec ./bin/ocaml_agent_graph_demo.exe
+./run.sh
 ```
+
+The starter script:
+
+- prepares an `opam` environment if needed
+- clones `../aegis-lm` automatically if it is missing
+- pins the local `aegis_lm` dependency
+- builds the human terminal client
+- opens the human terminal directly
+
+Inside the terminal, you can:
+
+- chat with the assistant
+- inspect graph routes and config
+- attach files
+- browse the workspace
+- run approved local commands
 
 You will see:
 
@@ -71,7 +84,7 @@ You will see:
 
 This project also needs `AegisLM`.
 
-`AegisLM` is the part that sends the real request to the model provider.
+`./run.sh` prepares that local dependency for you.
 
 ## How To Try Your Own Text
 

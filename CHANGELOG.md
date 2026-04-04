@@ -27,6 +27,7 @@ Until the first tagged release exists, all shipped history is tracked under
 - provider-aware routing aligned with AegisLM (`a507243`)
 - human and machine terminal clients for graph configuration and execution (`f4cfb44`)
 - clone-and-run starter that brings a user directly into the human terminal (`361e540`)
+- proactive human terminal assistant with documentation-aware `/docs` and `/wizard` workflows for build, install, cron, SSH, and swarm guidance
 
 ### Fixed
 
@@ -37,3 +38,4 @@ Until the first tagged release exists, all shipped history is tracked under
 
 - beginner-friendly usage guides (`25a9e69`)
 - linear intent files for OCaml modules (`bc8580d`)
+- human terminal assistant playbook tied to the AegisLM and ocaml-agent-graph hierarchy

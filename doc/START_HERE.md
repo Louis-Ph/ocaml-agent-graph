@@ -71,6 +71,8 @@ The starter script:
 Inside the terminal, you can:
 
 - chat with the assistant
+- run `/wizard ...` for build, test, install, cron, ssh, or swarm guidance
+- run `/docs ...` to surface the most relevant local documentation
 - inspect graph routes and config
 - attach files
 - browse the workspace

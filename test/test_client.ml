@@ -254,6 +254,49 @@ let test_assistant_reply_parses_markdown_fenced_json () =
   Alcotest.(check string) "message kept" "Résumé prêt." message;
   Alcotest.(check int) "one command parsed" 1 (List.length commands)
 
+let test_assistant_docs_selects_ssh_and_swarm_references () =
+  let docs = Client.Assistant_docs.selected_doc_specs "schedule a remote ssh swarm worker" in
+  let paths =
+    docs
+    |> List.map (fun (spec : Client.Assistant_docs.doc_spec) -> spec.relative_path)
+  in
+  Alcotest.(check bool)
+    "includes local assistant playbook"
+    true
+    (List.mem "doc/HUMAN_TERMINAL_ASSISTANT.md" paths);
+  Alcotest.(check bool)
+    "includes aegis ssh guide"
+    true
+    (List.mem "docs/SSH_REMOTE.md" paths)
+
+let test_assistant_prompt_mentions_aegis_hierarchy_and_docs () =
+  let runtime = make_client_runtime "assistant-route" in
+  let prompt =
+    Client.Assistant.user_prompt
+      ~request_kind:Client.Assistant.Wizard
+      ~runtime
+      ~attachments:[]
+      "prepare a cron driven swarm run over ssh"
+  in
+  Alcotest.(check bool)
+    "mentions hierarchy"
+    true
+    (contains_substring
+       ~substring:"AegisLM is the primary provider gateway and rudimentary-agent layer."
+       prompt);
+  Alcotest.(check bool)
+    "mentions assistant playbook"
+    true
+    (contains_substring ~substring:"doc/HUMAN_TERMINAL_ASSISTANT.md" prompt)
+
+let test_terminal_parse_command_supports_docs_and_wizard () =
+  (match Client.Terminal.parse_command "/docs ssh" with
+   | Client.Terminal.Show_docs (Some "ssh") -> ()
+   | _ -> Alcotest.fail "Expected /docs ssh to parse as Show_docs");
+  match Client.Terminal.parse_command "/wizard cron nightly swarm" with
+  | Client.Terminal.Run_wizard (Some "cron nightly swarm") -> ()
+  | _ -> Alcotest.fail "Expected /wizard ... to parse as Run_wizard"
+
 let test_client_runtime_graph_summary_mentions_routes () =
   let route_model = "assistant-route" in
   let runtime = make_client_runtime route_model in
@@ -310,6 +353,18 @@ let () =
             "parses markdown fenced json"
             `Quick
             test_assistant_reply_parses_markdown_fenced_json;
+          Alcotest.test_case
+            "selects ssh and swarm docs"
+            `Quick
+            test_assistant_docs_selects_ssh_and_swarm_references;
+          Alcotest.test_case
+            "prompt mentions hierarchy and docs"
+            `Quick
+            test_assistant_prompt_mentions_aegis_hierarchy_and_docs;
+          Alcotest.test_case
+            "terminal parses docs and wizard commands"
+            `Quick
+            test_terminal_parse_command_supports_docs_and_wizard;
         ] );
       ( "runtime",
         [

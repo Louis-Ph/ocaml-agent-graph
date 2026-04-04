@@ -7,6 +7,7 @@ type state = {
 type command =
   | Empty
   | Help
+  | Tools
   | Inspect
   | Show_config
   | Show_models
@@ -17,29 +18,15 @@ type command =
   | Explore_path of string
   | Open_path of string
   | Run_command of string
+  | Show_docs of string option
+  | Run_wizard of string option
   | Show_ssh_human
   | Show_ssh_machine
   | Quit
   | Prompt of string
   | Invalid of string
 
-let commands =
-  [
-    "/help";
-    "/inspect";
-    "/config";
-    "/models";
-    "/swap";
-    "/file";
-    "/files";
-    "/clearfiles";
-    "/explore";
-    "/open";
-    "/run";
-    "/ssh-human";
-    "/ssh-machine";
-    "/quit";
-  ]
+let commands = Client_human_constants.commands
 
 let print_lines lines = List.iter print_endline lines
 let print_blank () = print_endline ""
@@ -54,37 +41,49 @@ let parse_command input =
     String.sub trimmed offset (String.length trimmed - offset) |> String.trim
   in
   if trimmed = "" then Empty
-  else if trimmed = "/help" then Help
-  else if trimmed = "/inspect" then Inspect
-  else if trimmed = "/config" then Show_config
-  else if trimmed = "/models" then Show_models
-  else if trimmed = "/files" then Show_files
-  else if trimmed = "/clearfiles" then Clear_files
-  else if trimmed = "/ssh-human" then Show_ssh_human
-  else if trimmed = "/ssh-machine" then Show_ssh_machine
-  else if trimmed = "/quit" then Quit
-  else if trimmed = "/swap" then Invalid "/swap expects a route model."
-  else if starts "/swap" then
-    let route_model = tail "/swap" in
+  else if trimmed = Client_human_constants.Command.help then Help
+  else if trimmed = Client_human_constants.Command.tools then Tools
+  else if trimmed = Client_human_constants.Command.inspect then Inspect
+  else if trimmed = Client_human_constants.Command.config then Show_config
+  else if trimmed = Client_human_constants.Command.models then Show_models
+  else if trimmed = Client_human_constants.Command.files then Show_files
+  else if trimmed = Client_human_constants.Command.clearfiles then Clear_files
+  else if trimmed = Client_human_constants.Command.docs then Show_docs None
+  else if starts Client_human_constants.Command.docs then
+    let topic = tail Client_human_constants.Command.docs in
+    if topic = "" then Show_docs None else Show_docs (Some topic)
+  else if trimmed = Client_human_constants.Command.wizard then Run_wizard None
+  else if starts Client_human_constants.Command.wizard then
+    let goal = tail Client_human_constants.Command.wizard in
+    if goal = "" then Run_wizard None else Run_wizard (Some goal)
+  else if trimmed = Client_human_constants.Command.ssh_human then Show_ssh_human
+  else if trimmed = Client_human_constants.Command.ssh_machine then Show_ssh_machine
+  else if trimmed = Client_human_constants.Command.quit then Quit
+  else if trimmed = Client_human_constants.Command.swap then Invalid "/swap expects a route model."
+  else if starts Client_human_constants.Command.swap then
+    let route_model = tail Client_human_constants.Command.swap in
     if route_model = "" then Invalid "/swap expects a route model."
     else Swap_model route_model
-  else if trimmed = "/file" then Invalid "/file expects a readable file path."
-  else if starts "/file" then
-    let path = tail "/file" in
+  else if trimmed = Client_human_constants.Command.file then
+    Invalid "/file expects a readable file path."
+  else if starts Client_human_constants.Command.file then
+    let path = tail Client_human_constants.Command.file in
     if path = "" then Invalid "/file expects a readable file path."
     else Attach_file path
-  else if trimmed = "/explore" then Explore_path "."
-  else if starts "/explore" then
-    let path = tail "/explore" in
+  else if trimmed = Client_human_constants.Command.explore then Explore_path "."
+  else if starts Client_human_constants.Command.explore then
+    let path = tail Client_human_constants.Command.explore in
     if path = "" then Explore_path "." else Explore_path path
-  else if trimmed = "/open" then Invalid "/open expects a readable file path."
-  else if starts "/open" then
-    let path = tail "/open" in
+  else if trimmed = Client_human_constants.Command.open_file then
+    Invalid "/open expects a readable file path."
+  else if starts Client_human_constants.Command.open_file then
+    let path = tail Client_human_constants.Command.open_file in
     if path = "" then Invalid "/open expects a readable file path."
     else Open_path path
-  else if trimmed = "/run" then Invalid "/run expects a command, for example: /run /bin/ls -la"
-  else if starts "/run" then
-    let command = tail "/run" in
+  else if trimmed = Client_human_constants.Command.run then
+    Invalid "/run expects a command, for example: /run /bin/ls -la"
+  else if starts Client_human_constants.Command.run then
+    let command = tail Client_human_constants.Command.run in
     if command = "" then Invalid "/run expects a command." else Run_command command
   else Prompt trimmed
 
@@ -100,24 +99,8 @@ let update_terminal_context (runtime : Client_runtime.t) =
     ~commands
     ~models:(Llm_aegis_client.route_models runtime.Client_runtime.llm_client)
 
-let help_lines (runtime : Client_runtime.t) =
-  [
-    "Commands:";
-    "  /inspect     show the current graph and route summary";
-    "  /config      show the active client and runtime config paths";
-    "  /models      list available AegisLM route models";
-    "  /swap NAME   switch the assistant to another route model";
-    "  /file PATH   attach one local text file to the next prompt";
-    "  /files       list attached files";
-    "  /clearfiles  clear attached files";
-    "  /explore     list a directory under the configured workspace root";
-    "  /open PATH   preview a local text file under the workspace root";
-    "  /run CMD     execute a local command under the workspace root";
-    "  /ssh-human   print the SSH wrapper for the human terminal";
-    "  /ssh-machine print the SSH wrapper for the machine worker";
-    "  /quit        exit the terminal";
-    Fmt.str "Current assistant route_model: %s" runtime.client_config.assistant.route_model;
-  ]
+let help_lines current_route_model =
+  Client_human_constants.Text.command_help_lines current_route_model
 
 let route_lines (runtime : Client_runtime.t) =
   let route_models = Llm_aegis_client.route_models runtime.Client_runtime.llm_client in
@@ -183,6 +166,59 @@ let print_list_result = function
   | Ok result -> print_lines (Client_local_ops.render_list_dir result)
   | Error message -> print_endline message
 
+let print_doc_lines runtime goal =
+  print_blank ();
+  print_lines (Client_assistant_docs.doc_overview_lines runtime ~goal);
+  print_blank ()
+
+let run_assistant_request runtime state ~request_kind prompt_text =
+  let attachments = List.rev state.attachments in
+  let conversation = trim_conversation runtime state.conversation in
+  match
+    Lwt_main.run
+      (Client_assistant.ask
+         runtime
+         ~request_kind
+         ~route_model:state.active_route_model
+         ~conversation
+         ~attachments
+         prompt_text)
+  with
+  | Error message ->
+      print_endline message;
+      { state with attachments = [] }
+  | Ok reply ->
+      print_blank ();
+      print_endline reply.message;
+      print_endline
+        (Fmt.str
+           "route=%s model=%s tokens=%d"
+           reply.route_model
+           reply.resolved_model
+           reply.usage.total_tokens);
+      List.iter
+        (fun command ->
+          if prompt_for_command_execution command then (
+            let plan : Client_local_ops.exec_plan =
+              {
+                command = command.command;
+                args = command.args;
+                cwd = command.cwd;
+              }
+            in
+            print_blank ();
+            print_exec_result (run_exec_plan runtime plan);
+            print_blank ()))
+        reply.commands;
+      let conversation =
+        conversation
+        @ [
+            { Aegis_lm.Openai_types.role = "user"; content = prompt_text };
+            { role = "assistant"; content = reply.message };
+          ]
+      in
+      { state with attachments = []; conversation }
+
 let rec loop (runtime : Client_runtime.t) state =
   update_terminal_context runtime;
   let prompt = Fmt.str "%s> " state.active_route_model in
@@ -193,7 +229,12 @@ let rec loop (runtime : Client_runtime.t) state =
        | Empty -> loop runtime state
        | Help ->
            print_blank ();
-           print_lines (help_lines runtime);
+           print_lines (help_lines state.active_route_model);
+           print_blank ();
+           loop runtime state
+       | Tools ->
+           print_blank ();
+           print_lines Client_human_constants.Text.tool_lines;
            print_blank ();
            loop runtime state
        | Inspect ->
@@ -224,13 +265,10 @@ let rec loop (runtime : Client_runtime.t) state =
               Llm_aegis_client.route_access runtime.llm_client ~route_model
             with
            | Some _ ->
-               print_endline (Fmt.str "Assistant route switched to %s" route_model);
+               print_endline (Client_human_constants.Text.route_switched route_model);
                loop runtime { state with active_route_model = route_model }
            | None ->
-               print_endline
-                 (Fmt.str
-                    "Unknown route_model %s. Use /models to inspect available routes."
-                    route_model);
+               print_endline (Client_human_constants.Text.unknown_route route_model);
                loop runtime state)
        | Attach_file path ->
            (match
@@ -240,8 +278,7 @@ let rec loop (runtime : Client_runtime.t) state =
                 path
             with
            | Ok attachment ->
-               print_endline
-                 (Fmt.str "Attached for the next prompt: %s" attachment.path);
+               print_endline (Client_human_constants.Text.file_attached attachment.path);
                loop runtime { state with attachments = attachment :: state.attachments }
            | Error message ->
                print_endline message;
@@ -249,12 +286,12 @@ let rec loop (runtime : Client_runtime.t) state =
        | Show_files ->
            print_blank ();
            (match List.rev state.attachments with
-           | [] -> print_endline "No file is attached right now."
+           | [] -> print_endline Client_human_constants.Text.files_empty
            | attachments -> print_lines (List.map attachment_line attachments));
            print_blank ();
            loop runtime state
        | Clear_files ->
-           print_endline "Attached files were cleared.";
+           print_endline Client_human_constants.Text.files_cleared;
            loop runtime { state with attachments = [] }
        | Explore_path path ->
            print_blank ();
@@ -280,6 +317,28 @@ let rec loop (runtime : Client_runtime.t) state =
            | Ok plan -> print_exec_result (run_exec_plan runtime plan));
            print_blank ();
            loop runtime state
+       | Show_docs topic_opt ->
+           print_doc_lines runtime (Option.value topic_opt ~default:"general operations");
+           loop runtime state
+       | Run_wizard None ->
+           print_blank ();
+           print_lines Client_human_constants.Text.wizard_lines;
+           print_blank ();
+           loop runtime state
+       | Run_wizard (Some goal) ->
+           let wizard_prompt =
+             Fmt.str
+               "Guide me through this goal as the human terminal starter wizard: %s"
+               goal
+           in
+           let state =
+             run_assistant_request
+               runtime
+               state
+               ~request_kind:Client_assistant.Wizard
+               wizard_prompt
+           in
+           loop runtime state
        | Show_ssh_human ->
            print_blank ();
            print_endline runtime.client_config.ssh.human_remote_command;
@@ -291,70 +350,30 @@ let rec loop (runtime : Client_runtime.t) state =
            print_blank ();
            loop runtime state
        | Quit ->
-           print_endline "Bye.";
+           print_endline Client_human_constants.Text.goodbye;
            0
        | Invalid message ->
            print_endline message;
            loop runtime state
        | Prompt prompt_text ->
-           let attachments = List.rev state.attachments in
-           let conversation = trim_conversation runtime state.conversation in
-           (match
-              Lwt_main.run
-                (Client_assistant.ask
-                   runtime
-                   ~route_model:state.active_route_model
-                   ~conversation
-                   ~attachments
-                   prompt_text)
-            with
-           | Error message ->
-               print_endline message;
-               loop runtime { state with attachments = [] }
-           | Ok reply ->
-               print_blank ();
-               print_endline reply.message;
-               print_endline
-                 (Fmt.str
-                    "route=%s model=%s tokens=%d"
-                    reply.route_model
-                    reply.resolved_model
-                    reply.usage.total_tokens);
-               List.iter
-                 (fun command ->
-                   if prompt_for_command_execution command then (
-                     let plan : Client_local_ops.exec_plan =
-                       {
-                         command = command.command;
-                         args = command.args;
-                         cwd = command.cwd;
-                       }
-                     in
-                     print_blank ();
-                     print_exec_result (run_exec_plan runtime plan);
-                     print_blank ()))
-                 reply.commands;
-               let conversation =
-                 conversation
-                 @ [
-                     { Aegis_lm.Openai_types.role = "user"; content = prompt_text };
-                     { role = "assistant"; content = reply.message };
-                   ]
-               in
-               loop
-                 runtime
-                 {
-                   state with
-                   attachments = [];
-                   conversation;
-                 }))
+           let state =
+             run_assistant_request
+               runtime
+               state
+               ~request_kind:Client_assistant.Standard
+               prompt_text
+           in
+           loop runtime state)
 
 let run (runtime : Client_runtime.t) =
-  print_endline "ocaml-agent-graph terminal";
+  print_endline Client_human_constants.Text.title;
+  print_lines Client_human_constants.Text.intro_lines;
   if runtime.Client_runtime.client_config.human_terminal.show_routes_on_start then (
     print_blank ();
     print_lines (route_lines runtime);
     print_blank ());
-  print_lines (help_lines runtime);
+  print_lines (help_lines runtime.client_config.assistant.route_model);
+  print_blank ();
+  print_lines Client_human_constants.Text.docs_lines;
   print_blank ();
   loop runtime (initial_state runtime)

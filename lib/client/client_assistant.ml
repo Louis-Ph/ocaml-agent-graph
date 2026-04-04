@@ -19,6 +19,10 @@ type reply = {
 
 type attachment = Client_local_ops.read_file_result
 
+type request_kind =
+  | Standard
+  | Wizard
+
 let member name = function
   | `Assoc fields -> List.assoc_opt name fields
   | _ -> None
@@ -163,15 +167,32 @@ let render_attachments attachments =
   | [] -> "none"
   | _ -> attachments |> List.map render_attachment |> String.concat "\n\n"
 
-let user_prompt ~runtime ~attachments prompt =
+let request_kind_label = function
+  | Standard -> "normal assistance request"
+  | Wizard -> "starter wizard request"
+
+let request_instructions = function
+  | Standard ->
+      "Expected behavior:\n- answer concretely\n- relate the request to the graph and provider structure\n- propose next steps when useful"
+  | Wizard ->
+      "Expected behavior:\n- behave like a proactive starter wizard\n- explain a step-by-step plan for build, test, install, cron, ssh, or swarm work\n- propose safe local commands when they would move the user forward"
+
+let user_prompt ?(request_kind = Standard) ~runtime ~attachments prompt =
+  let documentation_context =
+    Client_assistant_docs.render_prompt_context runtime ~goal:prompt
+  in
   Fmt.str
-    "Graph summary:\n%s\n\nAttached files:\n%s\n\nUser request:\n%s"
+    "Request kind:\n%s\n\n%s\n\nGraph summary:\n%s\n\nAttached files:\n%s\n\nDocumentation briefing:\n%s\n\nUser request:\n%s"
+    (request_kind_label request_kind)
+    (request_instructions request_kind)
     (Client_runtime.graph_summary_text runtime)
     (render_attachments attachments)
+    documentation_context
     prompt
 
 let ask
     runtime
+    ?(request_kind = Standard)
     ~route_model
     ~conversation
     ~attachments
@@ -193,7 +214,7 @@ let ask
     let user_message : Aegis_lm.Openai_types.message =
       {
         role = "user";
-        content = user_prompt ~runtime ~attachments prompt;
+        content = user_prompt ~request_kind ~runtime ~attachments prompt;
       }
     in
     system_message :: conversation @ [ user_message ]

@@ -22,6 +22,7 @@ Beginner-friendly documentation lives in [`doc/`](doc/README.md).
 Start with:
 
 - [`doc/START_HERE.md`](doc/START_HERE.md)
+- [`doc/HUMAN_TERMINAL_ASSISTANT.md`](doc/HUMAN_TERMINAL_ASSISTANT.md)
 - [`doc/MAKE_YOUR_OWN_AGENT.md`](doc/MAKE_YOUR_OWN_AGENT.md)
 - [`doc/RELEASING.md`](doc/RELEASING.md)
 
@@ -171,6 +172,12 @@ The live path is:
 ```text
 agent_graph -> runtime_services -> llm_aegis_client -> AegisLM Router -> provider backend
 ```
+
+Inside the human terminal, use `/wizard ...` for guided operator workflows and
+`/docs ...` to surface the most relevant local documentation.
+
+For the human terminal assistant contract and operating hierarchy, see
+[`doc/HUMAN_TERMINAL_ASSISTANT.md`](doc/HUMAN_TERMINAL_ASSISTANT.md).
 
 ## Why This Version Is Better Than The Draft
 

@@ -13,6 +13,11 @@ Until the first tagged release exists, all shipped history is tracked under
 
 ## Unreleased
 
+### Maintenance
+
+- add standard GitHub Actions Ubuntu CI with sibling `aegis-lm` checkout, build, tests, and demo smoke coverage
+- add automated demo-pack coverage tests for catalog consistency and config loading
+
 ### Added
 
 - typed multi-agent graph runtime with explicit routing and orchestration (`98a4d07`)

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  ubuntu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ocaml-agent-graph
+
+    steps:
+      - name: Checkout ocaml-agent-graph
+        uses: actions/checkout@v6
+        with:
+          path: ocaml-agent-graph
+
+      - name: Checkout sibling aegis-lm
+        uses: actions/checkout@v6
+        with:
+          repository: Louis-Ph/aegis-lm
+          path: aegis-lm
+
+      - name: Install Ubuntu system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev pkg-config m4 bubblewrap
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.2.1
+
+      - name: Pin sibling aegis_lm
+        run: opam pin add aegis_lm ../aegis-lm --yes --no-action
+
+      - name: Install opam dependencies
+        run: opam install . --deps-only --with-test --yes
+
+      - name: Build
+        run: opam exec -- dune build @all
+
+      - name: Test
+        run: opam exec -- dune runtest
+
+      - name: Demo smoke coverage
+        run: |
+          ./run.sh --help=plain
+          _build/default/bin/ocaml_agent_graph_demo.exe --help=plain
+          _build/default/bin/adaptive_webcrawler_demo.exe --help=plain
+          _build/default/bin/client.exe ask --help=plain

@@ -1,5 +1,7 @@
 # ocaml-agent-graph
 
+[![CI](https://github.com/Louis-Ph/ocaml-agent-graph/actions/workflows/ci.yml/badge.svg)](https://github.com/Louis-Ph/ocaml-agent-graph/actions/workflows/ci.yml)
+
 Typed, modular multi-agent orchestration in OCaml, shaped like a small
 LangGraph/CrewAI runtime rather than a monolithic script.
 

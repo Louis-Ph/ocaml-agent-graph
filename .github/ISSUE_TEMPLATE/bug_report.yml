@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a reproducible defect in graph execution, terminal clients, starter flow, or AegisLM integration.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please sanitize keys, secrets, tokens, and provider credentials before submitting.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: One clear sentence describing the problem.
+      placeholder: The starter rebuilds correctly but the human terminal exits immediately on macOS
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: List the exact commands, config changes, or inputs needed to reproduce the issue.
+      placeholder: |
+        1. Clone the repository
+        2. Run ./run.sh
+        3. Enter ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Sanitized config or logs
+      description: Include only the minimal sanitized material needed to reproduce the issue.
+  - type: input
+    id: version
+    attributes:
+      label: Commit or release
+      placeholder: 1eae33a or v0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Human terminal
+        - Machine client
+        - Starter or bootstrap
+        - Graph runtime
+        - AegisLM integration
+        - Demo pack
+        - Documentation
+    validations:
+      required: true

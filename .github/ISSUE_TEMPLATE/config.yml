@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Support
+    url: https://github.com/Louis-Ph/ocaml-agent-graph/blob/main/SUPPORT.md
+    about: Read the support process before opening a request for help.
+  - name: Security policy
+    url: https://github.com/Louis-Ph/ocaml-agent-graph/blob/main/SECURITY.md
+    about: Do not report vulnerabilities publicly.

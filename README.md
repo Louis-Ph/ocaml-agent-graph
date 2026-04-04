@@ -21,6 +21,16 @@ Start with:
 
 - [`doc/START_HERE.md`](doc/START_HERE.md)
 - [`doc/MAKE_YOUR_OWN_AGENT.md`](doc/MAKE_YOUR_OWN_AGENT.md)
+- [`doc/RELEASING.md`](doc/RELEASING.md)
+
+Project health and community docs:
+
+- [`CHANGELOG.md`](CHANGELOG.md)
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
+- [`SECURITY.md`](SECURITY.md)
+- [`SUPPORT.md`](SUPPORT.md)
+- [`LICENSE`](LICENSE)
 
 ## Demos
 

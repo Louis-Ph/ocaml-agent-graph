@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a focused improvement to graph orchestration, terminal UX, starter flow, or configuration structure.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the real operator or developer problem first.
+      placeholder: We need to start several isolated machine terminals with clearer route-model diagnostics.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the change you want and where it should live.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: impact
+    attributes:
+      label: Structural or operational impact
+      description: Note any hierarchy, compatibility, routing, startup, or security implications.

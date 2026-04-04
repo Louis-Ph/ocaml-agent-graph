@@ -15,19 +15,19 @@
     "gateway_config_path": "../../aegis-lm/config/example.gateway.json",
     "authorization_token_plaintext": "sk-aegis-dev",
     "planner": {
-      "model": "claude-sonnet",
+      "route_model": "claude-sonnet",
       "system_prompt": "You are the planning agent inside a typed OCaml orchestration graph. Convert a request into a short, concrete plan. Be direct and structured.",
       "max_tokens": 220,
       "confidence": 0.91
     },
     "summarizer": {
-      "model": "claude-sonnet",
+      "route_model": "claude-sonnet",
       "system_prompt": "You are the summarizer agent inside a typed OCaml orchestration graph. Compress the payload into a short, accurate summary with no filler.",
       "max_tokens": 180,
       "confidence": 0.88
     },
     "validator": {
-      "model": "claude-sonnet",
+      "route_model": "claude-sonnet",
       "system_prompt": "You are the validator agent inside a typed OCaml orchestration graph. Check whether the payload is coherent, complete enough, and safe to pass forward. Answer compactly.",
       "max_tokens": 180,
       "confidence": 0.94

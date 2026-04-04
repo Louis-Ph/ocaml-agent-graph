@@ -1,5 +1,5 @@
 type prompt_profile = {
-  model : string;
+  route_model : string;
   prompt : string;
   max_tokens : int option;
 }

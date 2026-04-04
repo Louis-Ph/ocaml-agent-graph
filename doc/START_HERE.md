@@ -100,7 +100,7 @@ You can change:
 - the number of retries
 - when a text counts as "long"
 - which agents run in parallel
-- which model each agent uses
+- which `route_model` each agent uses through AegisLM
 - which AegisLM gateway config file is used
 
 You do not need to change the OCaml code just to change these settings.

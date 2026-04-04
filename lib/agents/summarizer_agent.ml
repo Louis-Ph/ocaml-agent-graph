@@ -39,6 +39,20 @@ let llm_instruction payload =
     "Write a concise summary of the payload below.\nUse plain English.\nKeep the answer under 80 words.\nDo not add headings.\n\nPayload:\n%s"
     (Core_payload.to_pretty_string payload)
 
+let route_access_note services profile =
+  match
+    Llm_aegis_client.route_access
+      services.Runtime_services.llm_client
+      ~route_model:profile.Runtime_config.Llm.Agent_profile.route_model
+  with
+  | Some route_access ->
+      "Summarizer provider access: "
+      ^ Llm_aegis_client.route_access_summary route_access
+  | None ->
+      Fmt.str
+        "Summarizer provider access: route_model=%s is missing from the loaded AegisLM config."
+        profile.route_model
+
 let llm_metrics profile completion =
   {
     Core_payload.confidence = profile.Runtime_config.Llm.Agent_profile.confidence;
@@ -47,11 +61,14 @@ let llm_metrics profile completion =
   },
   [
     Fmt.str
-      "Summarizer used model=%s prompt_tokens=%d completion_tokens=%d total_tokens=%d."
-      completion.Llm_aegis_client.model
+      "Summarizer used route_model=%s resolved_model=%s prompt_tokens=%d completion_tokens=%d total_tokens=%d."
+      completion.Llm_aegis_client.route_model
+      completion.model
       completion.usage.prompt_tokens
       completion.usage.completion_tokens
       completion.usage.total_tokens;
+    "Summarizer provider access: "
+    ^ Llm_aegis_client.route_access_summary completion.route_access;
   ]
 
 let run services context = function
@@ -79,7 +96,10 @@ let run services context = function
        | Error message ->
            ( Core_payload.Error ("Summarizer LLM call failed: " ^ message),
              Core_payload.zero_metrics,
-             [ "Summarizer failed to obtain a response from AegisLM." ] ))
+             [
+               "Summarizer failed to obtain a response from AegisLM.";
+               route_access_note services profile;
+             ] ))
   | Core_payload.Plan steps ->
       let payload = Core_payload.Plan steps in
       let profile =
@@ -104,7 +124,10 @@ let run services context = function
        | Error message ->
            ( Core_payload.Error ("Summarizer LLM call failed: " ^ message),
              Core_payload.zero_metrics,
-             [ "Summarizer failed to obtain a response from AegisLM." ] ))
+             [
+               "Summarizer failed to obtain a response from AegisLM.";
+               route_access_note services profile;
+             ] ))
   | payload ->
       let metrics = Core_payload.zero_metrics in
       Lwt.return

@@ -1,6 +1,11 @@
 open Yojson.Safe.Util
 
 let parse_prompt_profile ~base_dir json =
+  let route_model =
+    match Config_support.member_string_option "route_model" json with
+    | Some value -> value
+    | None -> json |> member "model" |> to_string
+  in
   let prompt_path =
     json
     |> member "prompt_file"
@@ -12,7 +17,7 @@ let parse_prompt_profile ~base_dir json =
   | Ok prompt ->
       Ok
         {
-          Web_crawler_types.model = json |> member "model" |> to_string;
+          Web_crawler_types.route_model;
           prompt;
           max_tokens = Config_support.member_int_option "max_tokens" json;
         }

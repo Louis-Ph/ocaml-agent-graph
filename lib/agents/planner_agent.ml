@@ -83,6 +83,20 @@ let llm_instruction text =
     "Turn the request below into a compact execution plan.\nReturn 2 to 5 short lines.\nEach line must describe one action.\nDo not add commentary before or after the lines.\n\nRequest:\n%s"
     text
 
+let route_access_note services profile =
+  match
+    Llm_aegis_client.route_access
+      services.Runtime_services.llm_client
+      ~route_model:profile.Runtime_config.Llm.Agent_profile.route_model
+  with
+  | Some route_access ->
+      "Planner provider access: "
+      ^ Llm_aegis_client.route_access_summary route_access
+  | None ->
+      Fmt.str
+        "Planner provider access: route_model=%s is missing from the loaded AegisLM config."
+        profile.route_model
+
 let llm_metrics profile completion =
   {
     Core_payload.confidence = profile.Runtime_config.Llm.Agent_profile.confidence;
@@ -91,11 +105,14 @@ let llm_metrics profile completion =
   },
   [
     Fmt.str
-      "Planner used model=%s prompt_tokens=%d completion_tokens=%d total_tokens=%d."
-      completion.Llm_aegis_client.model
+      "Planner used route_model=%s resolved_model=%s prompt_tokens=%d completion_tokens=%d total_tokens=%d."
+      completion.Llm_aegis_client.route_model
+      completion.model
       completion.usage.prompt_tokens
       completion.usage.completion_tokens
       completion.usage.total_tokens;
+    "Planner provider access: "
+    ^ Llm_aegis_client.route_access_summary completion.route_access;
   ]
 
 let run services _context = function
@@ -123,7 +140,10 @@ let run services _context = function
        | Error message ->
            ( Core_payload.Error ("Planner LLM call failed: " ^ message),
              Core_payload.zero_metrics,
-             [ "Planner failed to obtain a response from AegisLM." ] ))
+             [
+               "Planner failed to obtain a response from AegisLM.";
+               route_access_note services profile;
+             ] ))
   | payload ->
       let metrics = Core_payload.zero_metrics in
       Lwt.return

@@ -74,12 +74,12 @@
     "gateway_config_path": "gateway.json",
     "authorization_token_plaintext": "sk-aegis-dev",
     "reflector": {
-      "model": "claude-sonnet",
+      "route_model": "claude-sonnet",
       "prompt_file": "prompts/reflector.md",
       "max_tokens": 240
     },
     "reporter": {
-      "model": "claude-sonnet",
+      "route_model": "claude-sonnet",
       "prompt_file": "prompts/reporter.md",
       "max_tokens": 220
     }

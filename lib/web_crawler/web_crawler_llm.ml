@@ -8,10 +8,21 @@ type invocation = {
 }
 
 let create (config : Web_crawler_types.t) =
-  Llm_aegis_client.create_with_gateway
-    ~gateway_config_path:config.llm.gateway_config_path
-    ~authorization_token_plaintext:config.llm.authorization_token_plaintext
-    ~authorization_token_env:config.llm.authorization_token_env
+  match
+    Llm_aegis_client.create_with_gateway
+      ~gateway_config_path:config.llm.gateway_config_path
+      ~authorization_token_plaintext:config.llm.authorization_token_plaintext
+      ~authorization_token_env:config.llm.authorization_token_env
+  with
+  | Error _ as error -> error
+  | Ok client ->
+      (match
+         Llm_aegis_client.validate_route_models
+           client
+           [ config.llm.reflector.route_model; config.llm.reporter.route_model ]
+       with
+       | Error _ as error -> error
+       | Ok () -> Ok client)
 
 let invoke_profile
     client
@@ -29,7 +40,7 @@ let invoke_profile
   in
   Llm_aegis_client.invoke_messages
     client
-    ~model:profile.model
+    ~route_model:profile.route_model
     ~messages
     ~max_tokens:profile.max_tokens
   >|= function

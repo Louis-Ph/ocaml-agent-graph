@@ -107,9 +107,10 @@ dune runtest
 
 The framework now uses `AegisLM` for real chat calls:
 
-- `config/runtime.json` chooses the model profile per agent
+- `config/runtime.json` chooses the `route_model` per agent
 - `aegis-lm/config/example.gateway.json` chooses the provider routes
 - provider API keys still come from the environment seen by `aegis_lm`
+- startup validation now checks that every configured agent route exists in the loaded AegisLM gateway config
 
 The shipped demo config currently uses the `claude-sonnet` route through
 `AegisLM`.

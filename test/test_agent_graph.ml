@@ -1,34 +1,41 @@
 open Agent_graph
 
-let llm_config =
+let make_llm_config
+    ?(planner_route_model = "planner-model")
+    ?(summarizer_route_model = "summarizer-model")
+    ?(validator_route_model = "validator-model")
+    ()
+  =
   {
     Config.Runtime.Llm.gateway_config_path = "/unused/in-tests.json";
     authorization_token_plaintext = Some "sk-test";
     authorization_token_env = None;
     planner =
       {
-        Config.Runtime.Llm.Agent_profile.model = "planner-model";
+        Config.Runtime.Llm.Agent_profile.route_model = planner_route_model;
         system_prompt = "planner";
         max_tokens = Some 128;
         confidence = 0.91;
       };
     summarizer =
       {
-        Config.Runtime.Llm.Agent_profile.model = "summarizer-model";
+        Config.Runtime.Llm.Agent_profile.route_model = summarizer_route_model;
         system_prompt = "summarizer";
         max_tokens = Some 128;
         confidence = 0.88;
       };
     validator =
       {
-        Config.Runtime.Llm.Agent_profile.model = "validator-model";
+        Config.Runtime.Llm.Agent_profile.route_model = validator_route_model;
         system_prompt = "validator";
         max_tokens = Some 128;
         confidence = 0.94;
       };
   }
 
-let config =
+let llm_config = make_llm_config ()
+
+let make_config ?(llm = llm_config) () =
   {
     Config.Runtime.engine =
       {
@@ -50,8 +57,10 @@ let config =
         Config.Runtime.Demo.task_id = "test-task";
         input = "unused";
       };
-    llm = llm_config;
+    llm;
   }
+
+let config = make_config ()
 
 let registry = Agents.Defaults.make_registry ()
 
@@ -60,7 +69,17 @@ let has_prefix prefix value =
   String.length value >= prefix_length
   && String.sub value 0 prefix_length = prefix
 
-let make_services responses =
+let contains_substring ~substring value =
+  let substring_length = String.length substring in
+  let value_length = String.length value in
+  let rec loop index =
+    if index + substring_length > value_length then false
+    else if String.sub value index substring_length = substring then true
+    else loop (index + 1)
+  in
+  if substring_length = 0 then true else loop 0
+
+let make_aegis_config ?routes () =
   let backend provider_id model =
     Aegis_lm.Config_test_support.backend
       ~provider_id
@@ -70,17 +89,10 @@ let make_services responses =
       ~api_key_env:"IGNORED"
       ()
   in
-  let aegis_config =
-    Aegis_lm.Config_test_support.sample_config
-      ~virtual_keys:
-        [
-          Aegis_lm.Config_test_support.virtual_key
-            ~token_plaintext:"sk-test"
-            ~name:"test"
-            ~allowed_routes:[ "planner-model"; "summarizer-model"; "validator-model" ]
-            ();
-        ]
-      ~routes:
+  let routes =
+    match routes with
+    | Some routes -> routes
+    | None ->
         [
           Aegis_lm.Config_test_support.route
             ~public_model:"planner-model"
@@ -95,8 +107,21 @@ let make_services responses =
             ~backends:[ backend "validator-provider" "validator-model" ]
             ();
         ]
-      ()
   in
+  Aegis_lm.Config_test_support.sample_config
+    ~virtual_keys:
+      [
+        Aegis_lm.Config_test_support.virtual_key
+          ~token_plaintext:"sk-test"
+          ~name:"test"
+          ~allowed_routes:[ "planner-model"; "summarizer-model"; "validator-model" ]
+          ();
+      ]
+    ~routes
+    ()
+
+let make_services responses =
+  let aegis_config = make_aegis_config () in
   let provider = Aegis_lm.Provider_mock.make responses in
   let store =
     Aegis_lm.Runtime_state.create
@@ -208,6 +233,108 @@ let test_long_text_parallel_path () =
         (String.contains rendered 'P')
   | _ -> Alcotest.fail "Expected a batch payload after parallel orchestration"
 
+let test_batch_notes_include_provider_access () =
+  let services =
+    make_services
+      [
+        ( "planner-model",
+          Ok
+            (Aegis_lm.Provider_mock.sample_chat_response
+               ~model:"planner-model"
+               ~content:"Identify modules\nValidate providers"
+               ()) );
+        ( "summarizer-model",
+          Ok
+            (Aegis_lm.Provider_mock.sample_chat_response
+               ~model:"summarizer-model"
+               ~content:"Compact summary."
+               ()) );
+        ( "validator-model",
+          Ok
+            (Aegis_lm.Provider_mock.sample_chat_response
+               ~model:"validator-model"
+               ~content:"PASS | strengths: provider trace | risks: missing env"
+               ()) );
+      ]
+  in
+  let payload, _context =
+    run
+      ~services
+      "Plan the graph, summarize it, and validate provider access notes."
+  in
+  match payload with
+  | Core.Payload.Batch items ->
+      let summarizer_item =
+        items
+        |> List.find (fun (item : Core.Payload.batch_item) ->
+               item.agent = Core.Agent_name.Summarizer)
+      in
+      let joined_notes = String.concat "\n" summarizer_item.notes in
+      Alcotest.(check bool)
+        "route model tracked in notes"
+        true
+        (contains_substring
+           ~substring:"route_model=summarizer-model"
+           joined_notes);
+      Alcotest.(check bool)
+        "provider id tracked in notes"
+        true
+        (contains_substring
+           ~substring:"summarizer-provider [openai_compat -> summarizer-model"
+           joined_notes);
+      Alcotest.(check bool)
+        "route access summary present"
+        true
+        (String.starts_with ~prefix:"Summarizer used route_model=" (List.hd summarizer_item.notes))
+  | _ -> Alcotest.fail "Expected a batch payload with provider access notes"
+
+let test_validate_agent_profiles_rejects_missing_route () =
+  let routes =
+    [
+      Aegis_lm.Config_test_support.route
+        ~public_model:"summarizer-model"
+        ~backends:
+          [
+            Aegis_lm.Config_test_support.backend
+              ~provider_id:"summarizer-provider"
+              ~provider_kind:Aegis_lm.Config.Openai_compat
+              ~api_base:"https://api.example.test/v1"
+              ~upstream_model:"summarizer-model"
+              ~api_key_env:"IGNORED"
+              ();
+          ]
+        ();
+    ]
+  in
+  let llm =
+    make_llm_config
+      ~planner_route_model:"missing-planner-route"
+      ~summarizer_route_model:"summarizer-model"
+      ~validator_route_model:"missing-validator-route"
+      ()
+  in
+  let store = Aegis_lm.Runtime_state.create (make_aegis_config ~routes ()) in
+  let llm_client =
+    Llm.Aegis_client.of_store
+      ~authorization:"Bearer sk-test"
+      store
+  in
+  match Llm.Aegis_client.validate_agent_profiles llm_client llm with
+  | Ok () -> Alcotest.fail "Expected agent profile validation to reject missing routes"
+  | Error message ->
+      Alcotest.(check bool)
+        "planner route called out"
+        true
+        (contains_substring
+           ~substring:"agent=planner"
+           message);
+      Alcotest.(check bool)
+        "route_model wording kept"
+        true
+        (contains_substring
+           ~substring:"route_model=missing-planner-route"
+           message)
+
 let test_brave_result_parsing () =
   let html =
     {|
@@ -277,7 +404,17 @@ let () =
     [
       ("orchestrator", [ Alcotest.test_case "short text" `Quick test_short_text_path ]);
       ( "parallel",
-        [ Alcotest.test_case "long text -> plan -> batch" `Quick test_long_text_parallel_path ] );
+        [
+          Alcotest.test_case "long text -> plan -> batch" `Quick test_long_text_parallel_path;
+          Alcotest.test_case "batch notes include provider access" `Quick test_batch_notes_include_provider_access;
+        ] );
+      ( "llm",
+        [
+          Alcotest.test_case
+            "reject missing Aegis routes"
+            `Quick
+            test_validate_agent_profiles_rejects_missing_route;
+        ] );
       ( "crawler",
         [
           Alcotest.test_case "parse brave results" `Quick test_brave_result_parsing;

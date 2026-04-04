@@ -28,7 +28,7 @@ end
 module Llm = struct
   module Agent_profile = struct
     type t = {
-      model : string;
+      route_model : string;
       system_prompt : string;
       max_tokens : int option;
       confidence : float;
@@ -48,6 +48,13 @@ module Llm = struct
     | Core_agent_name.Planner -> t.planner
     | Summarizer -> t.summarizer
     | Validator -> t.validator
+
+  let agent_bindings t =
+    [
+      Core_agent_name.Planner, t.planner;
+      Summarizer, t.summarizer;
+      Validator, t.validator;
+    ]
 end
 
 type t = {
@@ -96,8 +103,13 @@ let parse_demo json =
   }
 
 let parse_agent_profile json =
+  let route_model =
+    match Config_support.member_string_option "route_model" json with
+    | Some value -> value
+    | None -> json |> member "model" |> to_string
+  in
   {
-    Llm.Agent_profile.model = json |> member "model" |> to_string;
+    Llm.Agent_profile.route_model;
     system_prompt = json |> member "system_prompt" |> to_string;
     max_tokens = Config_support.member_int_option "max_tokens" json;
     confidence = json |> member "confidence" |> to_float;

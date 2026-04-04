@@ -223,6 +223,14 @@ describe_active_toolchain() {
   fi
 }
 
+normalize_existing_dir() {
+  target_dir=$1
+  if [ ! -d "$target_dir" ]; then
+    return 1
+  fi
+  (cd "$target_dir" && pwd -P)
+}
+
 ensure_aegis_lm_checkout() {
   if [ -f "$DEFAULT_AEGIS_LM_DIR/dune-project" ]; then
     return 0
@@ -252,7 +260,33 @@ ensure_aegis_lm_checkout() {
   return 0
 }
 
+aegis_lm_pin_matches() {
+  desired_dir=$(normalize_existing_dir "$DEFAULT_AEGIS_LM_DIR" || true)
+  if [ -z "$desired_dir" ]; then
+    return 1
+  fi
+
+  pin_list=$("$OPAM_BIN" pin list 2>/dev/null || true)
+  case "$pin_list" in
+    *"$desired_dir"*)
+      return 0
+      ;;
+  esac
+
+  pin_src=$("$OPAM_BIN" show aegis_lm --raw 2>/dev/null | sed -n 's/^[[:space:]]*src:[[:space:]]*"\(.*\)".*$/\1/p' | head -n 1)
+  case "$pin_src" in
+    *"$desired_dir"*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 pin_aegis_lm_dependency() {
+  if aegis_lm_pin_matches; then
+    return 0
+  fi
   ensure_build_log
   if ! "$OPAM_BIN" pin add aegis_lm "$DEFAULT_AEGIS_LM_DIR" --yes --no-action >"$BUILD_LOG" 2>&1; then
     say_err "Unable to pin aegis_lm from $DEFAULT_AEGIS_LM_DIR."

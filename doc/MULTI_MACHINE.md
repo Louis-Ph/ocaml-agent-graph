@@ -7,7 +7,7 @@
 
 The hierarchy remains explicit:
 
-- `AegisLM` stays the provider gateway and route authority
+- `BulkheadLM` stays the provider gateway and route authority
 - `ocaml-agent-graph` sits above it and exposes typed orchestration workflows
 
 ## Human Operator Over SSH
@@ -107,9 +107,9 @@ Two common shapes are supported:
    machine calls it with `curl` or any JSON client.
 2. Direct peer-style orchestration: one machine calls another over SSH worker
    JSONL or over the HTTP workflow API, while both keep their own local
-   `AegisLM` routing context.
+   `BulkheadLM` routing context.
 
-For AegisLM-level HTTP and SSH peer routing under the gateway itself, also read:
+For BulkheadLM-level HTTP and SSH peer routing under the gateway itself, also read:
 
-- `../aegis-lm/docs/SSH_REMOTE.md`
-- `../aegis-lm/docs/PEER_MESH.md`
+- `../bulkhead-lm/docs/SSH_REMOTE.md`
+- `../bulkhead-lm/docs/PEER_MESH.md`

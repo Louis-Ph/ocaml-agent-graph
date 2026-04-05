@@ -130,12 +130,12 @@ let config_json
     ]
 
 let choose_route_model (runtime : Client_runtime.t) =
-  let available = Llm_aegis_client.route_models runtime.Client_runtime.llm_client in
+  let available = Llm_bulkhead_client.route_models runtime.Client_runtime.llm_client in
   match available with
   | [] -> runtime.client_config.assistant.route_model
   | first :: _ ->
       print_endline "";
-      print_endline "Available AegisLM routes:";
+      print_endline "Available BulkheadLM routes:";
       print_lines (List.map (fun value -> "  - " ^ value) available);
       prompt_with_default ~default:first "Assistant route_model"
 
@@ -169,7 +169,7 @@ let build_config ~client_config_path () =
     match Runtime_config.load graph_runtime_path with
     | Error _ -> prompt_with_default ~default:"claude-sonnet" "Assistant route_model"
     | Ok runtime_config ->
-        (match Llm_aegis_client.create runtime_config.llm with
+        (match Llm_bulkhead_client.create runtime_config.llm with
          | Error _ ->
              prompt_with_default ~default:"claude-sonnet" "Assistant route_model"
          | Ok llm_client ->
@@ -259,7 +259,7 @@ let run ~client_config_path () =
   print_lines
     [
       "This wizard prepares a human terminal and a machine worker config.";
-      "It reuses the graph runtime and AegisLM gateway already configured by the repository.";
+      "It reuses the graph runtime and BulkheadLM gateway already configured by the repository.";
     ];
   let selected_path =
     if Sys.file_exists client_config_path then

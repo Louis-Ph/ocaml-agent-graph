@@ -1,6 +1,6 @@
 type repo =
   | Graph_repo
-  | Aegis_repo
+  | Bulkhead_repo
 
 type topic =
   | General
@@ -79,7 +79,7 @@ let catalog =
       repo = Graph_repo;
       relative_path = "README.md";
       description =
-        "Repository overview, quick start, run.sh behavior, and AegisLM integration.";
+        "Repository overview, quick start, run.sh behavior, and BulkheadLM integration.";
       topics = [ General; Build; Install; Swarm; Ssh; Http; Peer; Provider; Docs ];
     };
     {
@@ -107,28 +107,28 @@ let catalog =
       topics = [ Swarm; Agent; Docs ];
     };
     {
-      repo = Aegis_repo;
+      repo = Bulkhead_repo;
       relative_path = "README.md";
       description =
-        "AegisLM quick start, starter terminal, worker mode, and provider routing.";
+        "BulkheadLM quick start, starter terminal, worker mode, and provider routing.";
       topics = [ General; Install; Provider; Ssh; Http; Peer; Docs ];
     };
     {
-      repo = Aegis_repo;
+      repo = Bulkhead_repo;
       relative_path = "docs/SSH_REMOTE.md";
       description =
         "Human and machine SSH wrappers, remote install, and clean JSONL worker transport.";
       topics = [ Ssh; Install; Swarm; Peer; Docs; Cron ];
     };
     {
-      repo = Aegis_repo;
+      repo = Bulkhead_repo;
       relative_path = "docs/PEER_MESH.md";
       description =
         "HTTP and SSH peering patterns, hop guards, and explicit mesh topology.";
       topics = [ Peer; Http; Ssh; Install; Provider; Docs; Swarm ];
     };
     {
-      repo = Aegis_repo;
+      repo = Bulkhead_repo;
       relative_path = "docs/ARCHITECTURE.md";
       description =
         "Layered architecture for the gateway, terminal clients, worker mode, and admin flows.";
@@ -150,14 +150,14 @@ let truncate_text ~max_chars text =
 let repo_root (runtime : Client_runtime.t) =
   runtime.Client_runtime.client_config.local_ops.workspace_root
 
-let aegis_root runtime =
-  Filename.concat (Filename.dirname (repo_root runtime)) "aegis-lm"
+let bulkhead_root runtime =
+  Filename.concat (Filename.dirname (repo_root runtime)) "bulkhead-lm"
 
 let absolute_path runtime spec =
   let root =
     match spec.repo with
     | Graph_repo -> repo_root runtime
-    | Aegis_repo -> aegis_root runtime
+    | Bulkhead_repo -> bulkhead_root runtime
   in
   Filename.concat root spec.relative_path
 
@@ -203,7 +203,7 @@ let topic_keywords =
     Agent,
     [ "agent"; "agents"; "planner"; "summarizer"; "validator"; "graphe"; "graph" ];
     Provider,
-    [ "provider"; "providers"; "fournisseur"; "route"; "route_model"; "gateway"; "backend"; "aegis" ];
+    [ "provider"; "providers"; "fournisseur"; "route"; "route_model"; "gateway"; "backend"; "bulkhead" ];
     Docs,
     [ "doc"; "docs"; "documentation"; "document"; "readme"; "guide" ];
   ]
@@ -338,7 +338,7 @@ let render_prompt_context runtime ~goal =
   String.concat
     "\n\n"
     [
-      "Operating hierarchy:\n- AegisLM is the primary provider gateway and rudimentary-agent layer.\n- ocaml-agent-graph turns those routed model calls into typed agents, graph policies, and smarter swarms.\n- The human terminal assistant should connect both projects to the user's operational goal.";
+      "Operating hierarchy:\n- BulkheadLM is the primary provider gateway and rudimentary-agent layer.\n- ocaml-agent-graph turns those routed model calls into typed agents, graph policies, and smarter swarms.\n- The human terminal assistant should connect both projects to the user's operational goal.";
       Fmt.str "Workspace root:\n%s" runtime.Client_runtime.client_config.local_ops.workspace_root;
       Fmt.str "Assistant route_model:\n%s" runtime.Client_runtime.client_config.assistant.route_model;
       Fmt.str

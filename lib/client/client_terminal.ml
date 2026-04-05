@@ -1,6 +1,6 @@
 type state = {
   active_route_model : string;
-  conversation : Aegis_lm.Openai_types.message list;
+  conversation : Bulkhead_lm.Openai_types.message list;
   attachments : Client_assistant.attachment list;
 }
 
@@ -105,22 +105,22 @@ let initial_state (runtime : Client_runtime.t) =
   }
 
 let update_terminal_context (runtime : Client_runtime.t) =
-  Aegis_lm.Starter_terminal.set_context
+  Bulkhead_lm.Starter_terminal.set_context
     ~commands
-    ~models:(Llm_aegis_client.route_models runtime.Client_runtime.llm_client)
+    ~models:(Llm_bulkhead_client.route_models runtime.Client_runtime.llm_client)
 
 let help_lines current_route_model =
   Client_human_constants.Text.command_help_lines current_route_model
 
 let route_lines (runtime : Client_runtime.t) =
-  let route_models = Llm_aegis_client.route_models runtime.Client_runtime.llm_client in
+  let route_models = Llm_bulkhead_client.route_models runtime.Client_runtime.llm_client in
   match route_models with
-  | [] -> [ "No AegisLM routes are configured." ]
+  | [] -> [ "No BulkheadLM routes are configured." ]
   | _ ->
       route_models
       |> List.map (fun route_model ->
-             match Llm_aegis_client.route_access runtime.llm_client ~route_model with
-             | Some route_access -> Llm_aegis_client.route_access_summary route_access
+             match Llm_bulkhead_client.route_access runtime.llm_client ~route_model with
+             | Some route_access -> Llm_bulkhead_client.route_access_summary route_access
              | None -> Fmt.str "route_model=%s unavailable" route_model)
 
 let trim_conversation (runtime : Client_runtime.t) conversation =
@@ -257,7 +257,7 @@ let run_assistant_request runtime state ~request_kind prompt_text =
       let conversation =
         conversation
         @ [
-            { Aegis_lm.Openai_types.role = "user"; content = prompt_text };
+            { Bulkhead_lm.Openai_types.role = "user"; content = prompt_text };
             { role = "assistant"; content = reply.message };
           ]
       in
@@ -266,7 +266,7 @@ let run_assistant_request runtime state ~request_kind prompt_text =
 let rec loop (runtime : Client_runtime.t) state =
   update_terminal_context runtime;
   let prompt = Fmt.str "%s> " state.active_route_model in
-  match Aegis_lm.Starter_terminal.read_line ~record_history:true ~prompt () with
+  match Bulkhead_lm.Starter_terminal.read_line ~record_history:true ~prompt () with
   | None -> 0
   | Some input ->
       (match parse_command input with
@@ -317,7 +317,7 @@ let rec loop (runtime : Client_runtime.t) state =
            print_blank ();
            loop runtime state
        | Swap_model route_model ->
-           (match Llm_aegis_client.route_access runtime.llm_client ~route_model with
+           (match Llm_bulkhead_client.route_access runtime.llm_client ~route_model with
             | Some _ ->
                 print_endline (Client_human_constants.Text.route_switched route_model);
                 loop runtime { state with active_route_model = route_model }
@@ -463,7 +463,7 @@ let run (runtime : Client_runtime.t) =
   Client_ui.print_banner
     ~title:Client_human_constants.Text.title
     ~subtitle:
-      "Typed orchestration above AegisLM with a human lane, a worker lane, SSH remoting, HTTP workflow serving, and bootstrap installers."
+      "Typed orchestration above BulkheadLM with a human lane, a worker lane, SSH remoting, HTTP workflow serving, and bootstrap installers."
     [ "human"; "worker"; "ssh"; "http"; "peer" ];
   print_wrapped_lines Client_human_constants.Text.intro_lines;
   print_blank ();

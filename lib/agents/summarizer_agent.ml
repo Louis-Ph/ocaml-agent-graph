@@ -41,16 +41,16 @@ let llm_instruction payload =
 
 let route_access_note services profile =
   match
-    Llm_aegis_client.route_access
+    Llm_bulkhead_client.route_access
       services.Runtime_services.llm_client
       ~route_model:profile.Runtime_config.Llm.Agent_profile.route_model
   with
   | Some route_access ->
       "Summarizer provider access: "
-      ^ Llm_aegis_client.route_access_summary route_access
+      ^ Llm_bulkhead_client.route_access_summary route_access
   | None ->
       Fmt.str
-        "Summarizer provider access: route_model=%s is missing from the loaded AegisLM config."
+        "Summarizer provider access: route_model=%s is missing from the loaded BulkheadLM config."
         profile.route_model
 
 let llm_metrics profile completion =
@@ -62,13 +62,13 @@ let llm_metrics profile completion =
   [
     Fmt.str
       "Summarizer used route_model=%s resolved_model=%s prompt_tokens=%d completion_tokens=%d total_tokens=%d."
-      completion.Llm_aegis_client.route_model
+      completion.Llm_bulkhead_client.route_model
       completion.model
       completion.usage.prompt_tokens
       completion.usage.completion_tokens
       completion.usage.total_tokens;
     "Summarizer provider access: "
-    ^ Llm_aegis_client.route_access_summary completion.route_access;
+    ^ Llm_bulkhead_client.route_access_summary completion.route_access;
   ]
 
 let run services context = function
@@ -77,7 +77,7 @@ let run services context = function
       let profile =
         services.Runtime_services.config.Runtime_config.llm.summarizer
       in
-      Llm_aegis_client.invoke_chat
+      Llm_bulkhead_client.invoke_chat
         services.llm_client
         ~agent:id
         ~profile
@@ -97,7 +97,7 @@ let run services context = function
            ( Core_payload.Error ("Summarizer LLM call failed: " ^ message),
              Core_payload.zero_metrics,
              [
-               "Summarizer failed to obtain a response from AegisLM.";
+               "Summarizer failed to obtain a response from BulkheadLM.";
                route_access_note services profile;
              ] ))
   | Core_payload.Plan steps ->
@@ -105,7 +105,7 @@ let run services context = function
       let profile =
         services.Runtime_services.config.Runtime_config.llm.summarizer
       in
-      Llm_aegis_client.invoke_chat
+      Llm_bulkhead_client.invoke_chat
         services.llm_client
         ~agent:id
         ~profile
@@ -125,7 +125,7 @@ let run services context = function
            ( Core_payload.Error ("Summarizer LLM call failed: " ^ message),
              Core_payload.zero_metrics,
              [
-               "Summarizer failed to obtain a response from AegisLM.";
+               "Summarizer failed to obtain a response from BulkheadLM.";
                route_access_note services profile;
              ] ))
   | payload ->

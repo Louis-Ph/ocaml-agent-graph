@@ -36,14 +36,14 @@ let render_user_message ~agent ~instruction (context : Core_context.t) payload =
     instruction
 
 let build_messages ~agent ~profile ~instruction context payload :
-    Aegis_lm.Openai_types.message list =
-  let system_message : Aegis_lm.Openai_types.message =
+    Bulkhead_lm.Openai_types.message list =
+  let system_message : Bulkhead_lm.Openai_types.message =
     {
       role = "system";
       content = profile.Runtime_config.Llm.Agent_profile.system_prompt;
     }
   in
-  let user_message : Aegis_lm.Openai_types.message =
+  let user_message : Bulkhead_lm.Openai_types.message =
     {
       role = "user";
       content = render_user_message ~agent ~instruction context payload;

@@ -37,7 +37,7 @@ Fallback channel:
 
 The most security-sensitive areas in this repository currently include:
 
-- AegisLM authorization and route access propagation
+- BulkheadLM authorization and route access propagation
 - terminal local operations and command execution boundaries
 - graph runtime retries, timeouts, and agent orchestration flow
 - configuration loading and path resolution
@@ -46,5 +46,5 @@ The most security-sensitive areas in this repository currently include:
 ## Operational note
 
 If you run this repository in a regulated or high-assurance environment, review
-the graph runtime config, the client config, and the sibling `aegis-lm`
+the graph runtime config, the client config, and the sibling `bulkhead-lm`
 security posture together before deployment.

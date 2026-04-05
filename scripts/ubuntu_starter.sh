@@ -64,7 +64,7 @@ Manual setup options for Ubuntu:
     sudo apt-get install -y opam build-essential m4 pkg-config bubblewrap libsqlite3-dev
 
   Clone the sibling dependency if it is missing:
-    git clone "$DEFAULT_AEGIS_LM_REPO_URL" "$DEFAULT_AEGIS_LM_DIR"
+    git clone "$DEFAULT_BULKHEAD_LM_REPO_URL" "$DEFAULT_BULKHEAD_LM_DIR"
 
   Initialize opam once:
     opam init --yes
@@ -72,7 +72,7 @@ Manual setup options for Ubuntu:
 
   Then prepare this repository:
     cd "$ROOT_DIR"
-    opam pin add aegis_lm "$DEFAULT_AEGIS_LM_DIR" --yes --no-action
+    opam pin add bulkhead_lm "$DEFAULT_BULKHEAD_LM_DIR" --yes --no-action
     opam install . --deps-only --yes
     dune build bin/client.exe
     ./run.sh
@@ -81,7 +81,7 @@ Manual setup options for Ubuntu:
     cd "$ROOT_DIR"
     opam switch create . "$DEFAULT_OCAML_COMPILER" --yes
     eval "\$(opam env --switch . --set-switch)"
-    opam pin add aegis_lm "$DEFAULT_AEGIS_LM_DIR" --yes --no-action
+    opam pin add bulkhead_lm "$DEFAULT_BULKHEAD_LM_DIR" --yes --no-action
     opam install . --deps-only --yes
     ./run.sh
 EOF

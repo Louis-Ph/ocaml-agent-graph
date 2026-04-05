@@ -22,7 +22,7 @@
   lwt
   yojson
   fmt
-  aegis_lm
+  bulkhead_lm
   cohttp-lwt-unix
   cmdliner
   (alcotest :with-test)))

@@ -12,7 +12,7 @@ Linear intent
 8. Convert the LLM usage information into the framework metrics and notes format.
 9. In `run`, accept only `Text` payloads.
 10. Read the planner profile from the runtime services configuration.
-11. Call `Llm_aegis_client.invoke_chat` so the planner goes through AegisLM and the configured provider route.
+11. Call `Llm_bulkhead_client.invoke_chat` so the planner goes through BulkheadLM and the configured provider route.
 12. Parse the LLM text into normalized `Stage N: ...` lines.
 13. Fall back to the local planning heuristic if the model returns no usable lines.
 14. Return a typed `Plan` payload plus metrics and notes.

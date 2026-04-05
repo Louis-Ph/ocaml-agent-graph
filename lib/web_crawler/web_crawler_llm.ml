@@ -9,7 +9,7 @@ type invocation = {
 
 let create (config : Web_crawler_types.t) =
   match
-    Llm_aegis_client.create_with_gateway
+    Llm_bulkhead_client.create_with_gateway
       ~gateway_config_path:config.llm.gateway_config_path
       ~authorization_token_plaintext:config.llm.authorization_token_plaintext
       ~authorization_token_env:config.llm.authorization_token_env
@@ -17,7 +17,7 @@ let create (config : Web_crawler_types.t) =
   | Error _ as error -> error
   | Ok client ->
       (match
-         Llm_aegis_client.validate_route_models
+         Llm_bulkhead_client.validate_route_models
            client
            [ config.llm.reflector.route_model; config.llm.reporter.route_model ]
        with
@@ -31,14 +31,14 @@ let invoke_profile
   =
   let messages =
     ([
-       ({ Aegis_lm.Openai_types.role = "system"; content = profile.prompt }
-         : Aegis_lm.Openai_types.message);
+       ({ Bulkhead_lm.Openai_types.role = "system"; content = profile.prompt }
+         : Bulkhead_lm.Openai_types.message);
        ({ role = "user"; content = user_content }
-         : Aegis_lm.Openai_types.message);
+         : Bulkhead_lm.Openai_types.message);
      ]
-      : Aegis_lm.Openai_types.message list)
+      : Bulkhead_lm.Openai_types.message list)
   in
-  Llm_aegis_client.invoke_messages
+  Llm_bulkhead_client.invoke_messages
     client
     ~route_model:profile.route_model
     ~messages

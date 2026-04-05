@@ -4,7 +4,7 @@ This document defines the hierarchy for the human terminal client.
 
 ## Product Hierarchy
 
-`AegisLM` is the primary gateway and the producer of rudimentary provider-facing
+`BulkheadLM` is the primary gateway and the producer of rudimentary provider-facing
 agents.
 
 `ocaml-agent-graph` sits above it.
@@ -40,7 +40,7 @@ The assistant should be forceful and proactive:
 
 - propose the next safe command when useful
 - point to the right local documentation
-- explain whether the task belongs mostly to `AegisLM` or to `ocaml-agent-graph`
+- explain whether the task belongs mostly to `BulkheadLM` or to `ocaml-agent-graph`
 - keep the user grounded in real files, real configs, and real entrypoints
 
 ## Canonical Workflows
@@ -70,7 +70,7 @@ For a local user, the standard path is:
 
 - clone the repository
 - run `./run.sh`
-- let the starter prepare `opam`, the sibling `aegis-lm`, dependencies, and the human terminal
+- let the starter prepare `opam`, the sibling `bulkhead-lm`, dependencies, and the human terminal
 
 For remote SSH usage, use the dedicated wrappers instead of inventing ad-hoc
 commands.
@@ -132,7 +132,7 @@ The assistant should surface:
 The assistant should keep two topology patterns separate:
 
 - normal relation: one machine serves and another machine consumes
-- peer style: two machines can each keep their own local `AegisLM` context while
+- peer style: two machines can each keep their own local `BulkheadLM` context while
   one machine calls the other's worker or HTTP workflow API directly
 
 The assistant should not blur those two patterns together.

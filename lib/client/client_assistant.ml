@@ -13,7 +13,7 @@ type reply = {
   raw_content : string;
   route_model : string;
   resolved_model : string;
-  usage : Llm_aegis_client.usage;
+  usage : Llm_bulkhead_client.usage;
   route_access_summary : string;
 }
 
@@ -200,7 +200,7 @@ let ask
   =
   let config = runtime.Client_runtime.client_config in
   let messages =
-    let system_message : Aegis_lm.Openai_types.message =
+    let system_message : Bulkhead_lm.Openai_types.message =
       {
         role = "system";
         content = config.assistant.system_prompt;
@@ -211,7 +211,7 @@ let ask
         ~keep_turns:config.human_terminal.conversation_keep_turns
         conversation
     in
-    let user_message : Aegis_lm.Openai_types.message =
+    let user_message : Bulkhead_lm.Openai_types.message =
       {
         role = "user";
         content = user_prompt ~request_kind ~runtime ~attachments prompt;
@@ -219,7 +219,7 @@ let ask
     in
     system_message :: conversation @ [ user_message ]
   in
-  Llm_aegis_client.invoke_messages
+  Llm_bulkhead_client.invoke_messages
     runtime.llm_client
     ~route_model
     ~messages
@@ -237,5 +237,5 @@ let ask
           resolved_model = completion.model;
           usage = completion.usage;
           route_access_summary =
-            Llm_aegis_client.route_access_summary completion.route_access;
+            Llm_bulkhead_client.route_access_summary completion.route_access;
         }

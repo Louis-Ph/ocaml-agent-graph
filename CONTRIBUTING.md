@@ -30,7 +30,7 @@ The simplest local path is:
 For a fully manual path:
 
 ```sh
-opam pin add aegis_lm ../aegis-lm --yes --no-action
+opam pin add bulkhead_lm ../bulkhead-lm --yes --no-action
 opam install . --deps-only --with-test --yes
 dune build
 dune runtest

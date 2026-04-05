@@ -1,10 +1,10 @@
 (test
  (name test_agent_graph)
- (libraries agent_graph alcotest lwt.unix aegis_lm))
+ (libraries agent_graph alcotest lwt.unix bulkhead_lm))
 
 (test
  (name test_client)
- (libraries agent_graph alcotest lwt.unix aegis_lm))
+ (libraries agent_graph alcotest lwt.unix bulkhead_lm))
 
 (test
  (name test_demos)

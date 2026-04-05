@@ -14,7 +14,7 @@ end
 
 module Llm = struct
   module Prompt = Llm_prompt
-  module Aegis_client = Llm_aegis_client
+  module Bulkhead_client = Llm_bulkhead_client
 end
 
 module Client = struct

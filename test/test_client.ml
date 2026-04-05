@@ -31,7 +31,7 @@ let write_file path content =
 let make_runtime_config route_model =
   let llm =
     {
-      Config.Runtime.Llm.gateway_config_path = "/unused/aegis.json";
+      Config.Runtime.Llm.gateway_config_path = "/unused/bulkhead.json";
       authorization_token_plaintext = Some "sk-test";
       authorization_token_env = None;
       planner =
@@ -83,29 +83,29 @@ let make_runtime_config route_model =
 
 let make_llm_client route_model =
   let backend =
-    Aegis_lm.Config_test_support.backend
+    Bulkhead_lm.Config_test_support.backend
       ~provider_id:"test-provider"
-      ~provider_kind:Aegis_lm.Config.Openai_compat
+      ~provider_kind:Bulkhead_lm.Config.Openai_compat
       ~api_base:"https://api.example.test/v1"
       ~upstream_model:route_model
       ~api_key_env:"IGNORED"
       ()
   in
   let config =
-    Aegis_lm.Config_test_support.sample_config
+    Bulkhead_lm.Config_test_support.sample_config
       ~virtual_keys:
         [
-          Aegis_lm.Config_test_support.virtual_key
+          Bulkhead_lm.Config_test_support.virtual_key
             ~token_plaintext:"sk-test"
             ~name:"test"
             ~allowed_routes:[ route_model ]
             ();
         ]
-      ~routes:[ Aegis_lm.Config_test_support.route ~public_model:route_model ~backends:[ backend ] () ]
+      ~routes:[ Bulkhead_lm.Config_test_support.route ~public_model:route_model ~backends:[ backend ] () ]
       ()
   in
-  let store = Aegis_lm.Runtime_state.create config in
-  Llm.Aegis_client.of_store ~authorization:"Bearer sk-test" store
+  let store = Bulkhead_lm.Runtime_state.create config in
+  Llm.Bulkhead_client.of_store ~authorization:"Bearer sk-test" store
 
 let make_client_runtime route_model =
   let runtime_config = make_runtime_config route_model in
@@ -356,15 +356,15 @@ let test_assistant_docs_selects_ssh_http_and_peer_references () =
     true
     (List.mem "doc/MULTI_MACHINE.md" paths);
   Alcotest.(check bool)
-    "includes aegis ssh guide"
+    "includes bulkhead ssh guide"
     true
     (List.mem "docs/SSH_REMOTE.md" paths);
   Alcotest.(check bool)
-    "includes aegis peer guide"
+    "includes bulkhead peer guide"
     true
     (List.mem "docs/PEER_MESH.md" paths)
 
-let test_assistant_prompt_mentions_aegis_hierarchy_and_docs () =
+let test_assistant_prompt_mentions_bulkhead_hierarchy_and_docs () =
   let runtime = make_client_runtime "assistant-route" in
   let prompt =
     Client.Assistant.user_prompt
@@ -377,7 +377,7 @@ let test_assistant_prompt_mentions_aegis_hierarchy_and_docs () =
     "mentions hierarchy"
     true
     (contains_substring
-       ~substring:"AegisLM is the primary provider gateway and rudimentary-agent layer."
+       ~substring:"BulkheadLM is the primary provider gateway and rudimentary-agent layer."
        prompt);
   Alcotest.(check bool)
     "mentions assistant playbook"
@@ -477,7 +477,7 @@ let () =
           Alcotest.test_case
             "prompt mentions hierarchy and docs"
             `Quick
-            test_assistant_prompt_mentions_aegis_hierarchy_and_docs;
+            test_assistant_prompt_mentions_bulkhead_hierarchy_and_docs;
           Alcotest.test_case
             "terminal parses docs and wizard commands"
             `Quick

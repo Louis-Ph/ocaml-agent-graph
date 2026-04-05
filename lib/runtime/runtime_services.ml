@@ -1,14 +1,14 @@
 type t = {
   config : Runtime_config.t;
-  llm_client : Llm_aegis_client.t;
+  llm_client : Llm_bulkhead_client.t;
 }
 
 let create config =
-  match Llm_aegis_client.create config.Runtime_config.llm with
+  match Llm_bulkhead_client.create config.Runtime_config.llm with
   | Error _ as error -> error
   | Ok llm_client ->
       (match
-         Llm_aegis_client.validate_agent_profiles
+         Llm_bulkhead_client.validate_agent_profiles
            llm_client
            config.Runtime_config.llm
        with

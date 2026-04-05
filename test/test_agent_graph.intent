@@ -6,9 +6,9 @@ Linear intent
 2. Build a deterministic runtime configuration, including one LLM profile per agent.
 3. Build the default registry once for all tests.
 4. Define `has_prefix` as a tiny helper for checking summarizer output.
-5. Define `make_services` to build a real AegisLM runtime store backed by `Aegis_lm.Provider_mock`.
-6. Configure AegisLM routes and a test virtual key so the graph still goes through the real `Config -> Runtime_state -> Router` path.
-7. Wrap that mocked AegisLM runtime inside `Runtime.Services`.
+5. Define `make_services` to build a real BulkheadLM runtime store backed by `Bulkhead_lm.Provider_mock`.
+6. Configure BulkheadLM routes and a test virtual key so the graph still goes through the real `Config -> Runtime_state -> Router` path.
+7. Wrap that mocked BulkheadLM runtime inside `Runtime.Services`.
 8. Define `run` as a synchronous helper that creates a fresh context and executes the orchestrator with injected services.
 9. In `test_short_text_path`, mock the summarizer route and run the graph on a short text.
 10. Assert that the final payload is summarized text generated from the mocked LLM response.

@@ -18,7 +18,7 @@ The project keeps the research-facing concerns explicit:
 - typed agent identifiers instead of ad hoc strings
 - hierarchical modules instead of a single file blob
 - runtime policies externalized in [`config/runtime.json`](config/runtime.json)
-- real LLM communication delegated to [`aegis_lm`](../aegis-lm/README.md)
+- real LLM communication delegated to [`bulkhead_lm`](../bulkhead-lm/README.md)
 - explicit graph routing, not implicit control flow
 - retries, timeouts, parallel fan-out, aggregation, and audit context
 - `alcotest` coverage for the simple and parallel execution paths
@@ -72,7 +72,7 @@ ocaml-agent-graph/
       runtime_config.ml
     llm/
       llm_prompt.ml
-      llm_aegis_client.ml
+      llm_bulkhead_client.ml
     agents/
       agent_intf.ml
       planner_agent.ml
@@ -109,7 +109,7 @@ That gives a strongly typed shape close to a tiny LangGraph:
 
 - `orchestration_graph.ml` describes the routing states
 - `orchestration_orchestrator.ml` executes the loop
-- `llm_aegis_client.ml` talks to AegisLM and then to real provider routes
+- `llm_bulkhead_client.ml` talks to BulkheadLM and then to real provider routes
 - `runtime_engine.ml` owns timeouts and retries
 - `runtime_parallel_executor.ml` owns concurrent fan-out
 - `core_context.ml` owns the auditable trace
@@ -124,15 +124,15 @@ The starter:
 
 - checks the active `opam` switch first
 - offers a project-local fallback switch in `./_opam` when needed
-- auto-clones `../aegis-lm` if the sibling checkout is missing
-- pins `aegis_lm`, installs dependencies, builds the human terminal client, and launches it
+- auto-clones `../bulkhead-lm` if the sibling checkout is missing
+- pins `bulkhead_lm`, installs dependencies, builds the human terminal client, and launches it
 - keeps SSH and HTTP bootstrap entrypoints ready for multi-machine rollout
-- reuses provider keys from your usual shell secret files and `~/.config/aegislm/env`
+- reuses provider keys from your usual shell secret files and `~/.config/bulkhead-lm/env`
 
 If you want the manual path instead:
 
 ```sh
-opam pin add aegis_lm ../aegis-lm --yes --no-action
+opam pin add bulkhead_lm ../bulkhead-lm --yes --no-action
 opam install . --deps-only --with-test --yes
 dune build
 dune runtest
@@ -140,15 +140,15 @@ dune runtest
 
 ## LLM Setup
 
-The framework now uses `AegisLM` for real chat calls:
+The framework now uses `BulkheadLM` for real chat calls:
 
 - `config/runtime.json` chooses the `route_model` per agent
-- `aegis-lm/config/example.gateway.json` chooses the provider routes
-- provider API keys still come from the environment seen by `aegis_lm`
-- startup validation now checks that every configured agent route exists in the loaded AegisLM gateway config
+- `bulkhead-lm/config/example.gateway.json` chooses the provider routes
+- provider API keys still come from the environment seen by `bulkhead_lm`
+- startup validation now checks that every configured agent route exists in the loaded BulkheadLM gateway config
 
 The shipped demo config currently uses the `claude-sonnet` route through
-`AegisLM`.
+`BulkheadLM`.
 
 ## Demo
 
@@ -180,7 +180,7 @@ dune exec ./bin/ocaml_agent_graph_demo.exe -- \
 The live path is:
 
 ```text
-agent_graph -> runtime_services -> llm_aegis_client -> AegisLM Router -> provider backend
+agent_graph -> runtime_services -> llm_bulkhead_client -> BulkheadLM Router -> provider backend
 ```
 
 Inside the human terminal, use `/wizard ...` for guided operator workflows and

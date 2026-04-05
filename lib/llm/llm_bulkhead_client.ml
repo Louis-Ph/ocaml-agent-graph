@@ -32,38 +32,38 @@ type completion = {
 }
 
 type t = {
-  store : Aegis_lm.Runtime_state.t;
+  store : Bulkhead_lm.Runtime_state.t;
   authorization : string;
   route_access_by_model : route_access String_map.t;
 }
 
 let provider_kind_to_string = function
-  | Aegis_lm.Config.Openai_compat -> "openai_compat"
-  | Aegis_lm.Config.Anthropic -> "anthropic"
-  | Aegis_lm.Config.Google_openai -> "google_openai"
-  | Aegis_lm.Config.Mistral_openai -> "mistral_openai"
-  | Aegis_lm.Config.Ollama_openai -> "ollama_openai"
-  | Aegis_lm.Config.Alibaba_openai -> "alibaba_openai"
-  | Aegis_lm.Config.Moonshot_openai -> "moonshot_openai"
-  | Aegis_lm.Config.Aegis_peer -> "aegis_peer"
-  | Aegis_lm.Config.Aegis_ssh_peer -> "aegis_ssh_peer"
+  | Bulkhead_lm.Config.Openai_compat -> "openai_compat"
+  | Bulkhead_lm.Config.Anthropic -> "anthropic"
+  | Bulkhead_lm.Config.Google_openai -> "google_openai"
+  | Bulkhead_lm.Config.Mistral_openai -> "mistral_openai"
+  | Bulkhead_lm.Config.Ollama_openai -> "ollama_openai"
+  | Bulkhead_lm.Config.Alibaba_openai -> "alibaba_openai"
+  | Bulkhead_lm.Config.Moonshot_openai -> "moonshot_openai"
+  | Bulkhead_lm.Config.Bulkhead_peer -> "bulkhead_peer"
+  | Bulkhead_lm.Config.Bulkhead_ssh_peer -> "bulkhead_ssh_peer"
 
 let env_is_ready env_name =
   match Sys.getenv_opt env_name with
   | Some value when String.trim value <> "" -> true
   | _ -> false
 
-let backend_access_of_backend (backend : Aegis_lm.Config.backend) =
+let backend_access_of_backend (backend : Bulkhead_lm.Config.backend) =
   {
     provider_id = backend.provider_id;
     provider_kind = provider_kind_to_string backend.provider_kind;
     upstream_model = backend.upstream_model;
-    target = Aegis_lm.Config.backend_target_label backend;
+    target = Bulkhead_lm.Config.backend_target_label backend;
     api_key_env = backend.api_key_env;
     ready = env_is_ready backend.api_key_env;
   }
 
-let route_access_of_route (route : Aegis_lm.Config.route) =
+let route_access_of_route (route : Bulkhead_lm.Config.route) =
   let backends =
     route.backends
     |> List.map backend_access_of_backend
@@ -78,7 +78,7 @@ let route_access_of_route (route : Aegis_lm.Config.route) =
   }
 
 let route_access_index store =
-  let config = store.Aegis_lm.Runtime_state.config in
+  let config = store.Bulkhead_lm.Runtime_state.config in
   config.routes
   |> List.fold_left
        (fun index route ->
@@ -102,7 +102,7 @@ let missing_route_message client route_model =
     | models -> String.concat ", " models
   in
   Fmt.str
-    "Unknown AegisLM route_model=%s. Available route_models: %s"
+    "Unknown BulkheadLM route_model=%s. Available route_models: %s"
     route_model
     available_routes
 
@@ -112,7 +112,7 @@ let ensure_route_model client ~route_model =
   | Some access when access.backends = [] ->
       Error
         (Fmt.str
-           "AegisLM route_model=%s is configured without any provider backend."
+           "BulkheadLM route_model=%s is configured without any provider backend."
            route_model)
   | Some access -> Ok access
 
@@ -137,7 +137,7 @@ let validate_agent_profiles client (llm_config : Runtime_config.Llm.t) =
          | Error message ->
              Error
                (Fmt.str
-                  "Invalid AegisLM binding for agent=%s: %s"
+                  "Invalid BulkheadLM binding for agent=%s: %s"
                   (Core_agent_name.to_string agent)
                   message))
   in
@@ -202,19 +202,19 @@ let create_with_gateway
   with
   | Error _ as error -> error
   | Ok authorization ->
-      (match Aegis_lm.Config.load gateway_config_path with
+      (match Bulkhead_lm.Config.load gateway_config_path with
        | Error message ->
            Error
              (Fmt.str
-                "Unable to load AegisLM gateway config %s: %s"
+                "Unable to load BulkheadLM gateway config %s: %s"
                 gateway_config_path
                 message)
        | Ok gateway_config ->
-           (match Aegis_lm.Runtime_state.create_result gateway_config with
+           (match Bulkhead_lm.Runtime_state.create_result gateway_config with
             | Error message ->
                 Error
                   (Fmt.str
-                     "Unable to initialize AegisLM runtime from %s: %s"
+                     "Unable to initialize BulkheadLM runtime from %s: %s"
                      gateway_config_path
                      message)
             | Ok store -> Ok (make ~authorization store)))
@@ -228,8 +228,8 @@ let create (llm_config : Runtime_config.Llm.t) =
 let of_store ~authorization store = make ~authorization store
 
 let extract_text response =
-  response.Aegis_lm.Openai_types.choices
-  |> List.filter_map (fun (choice : Aegis_lm.Openai_types.chat_choice) ->
+  response.Bulkhead_lm.Openai_types.choices
+  |> List.filter_map (fun (choice : Bulkhead_lm.Openai_types.chat_choice) ->
          match String.trim choice.message.content with
          | "" -> None
          | value -> Some value)
@@ -240,12 +240,12 @@ let invoke_messages client ~route_model ~messages ~max_tokens =
   | Error _ as error -> Lwt.return error
   | Ok route_access ->
       let request =
-        Aegis_lm.Openai_types.
+        Bulkhead_lm.Openai_types.
           { model = route_model; messages; stream = false; max_tokens }
       in
-      Aegis_lm.Router.dispatch_chat client.store ~authorization:client.authorization request
+      Bulkhead_lm.Router.dispatch_chat client.store ~authorization:client.authorization request
       >|= function
-      | Error err -> Error (Aegis_lm.Domain_error.to_string err)
+      | Error err -> Error (Bulkhead_lm.Domain_error.to_string err)
       | Ok response ->
           Ok
             {

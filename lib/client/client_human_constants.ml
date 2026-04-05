@@ -58,7 +58,7 @@ module Text = struct
 
   let intro_lines =
     [
-      "AegisLM remains the primary provider gateway and rudimentary-agent layer.";
+      "BulkheadLM remains the primary provider gateway and rudimentary-agent layer.";
       "ocaml-agent-graph adds typed orchestration, graph control, install flows, and smarter swarms on top.";
       "The human terminal now covers local work, SSH remoting, HTTP workflow serving, and pair-style machine calls.";
     ]
@@ -71,7 +71,7 @@ module Text = struct
       "  /mesh       show the SSH, HTTP, install, and peer transport map";
       "  /inspect    show the current graph and route summary";
       "  /config     show the active client and runtime config paths";
-      "  /models     list available AegisLM route models";
+      "  /models     list available BulkheadLM route models";
       "  /swap NAME  switch the assistant to another route model";
       "  /file PATH  attach one local text file to the next prompt";
       "  /files      list attached files";

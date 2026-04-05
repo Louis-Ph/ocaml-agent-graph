@@ -79,11 +79,11 @@ let contains_substring ~substring value =
   in
   if substring_length = 0 then true else loop 0
 
-let make_aegis_config ?routes () =
+let make_bulkhead_config ?routes () =
   let backend provider_id model =
-    Aegis_lm.Config_test_support.backend
+    Bulkhead_lm.Config_test_support.backend
       ~provider_id
-      ~provider_kind:Aegis_lm.Config.Openai_compat
+      ~provider_kind:Bulkhead_lm.Config.Openai_compat
       ~api_base:"https://api.example.test/v1"
       ~upstream_model:model
       ~api_key_env:"IGNORED"
@@ -94,24 +94,24 @@ let make_aegis_config ?routes () =
     | Some routes -> routes
     | None ->
         [
-          Aegis_lm.Config_test_support.route
+          Bulkhead_lm.Config_test_support.route
             ~public_model:"planner-model"
             ~backends:[ backend "planner-provider" "planner-model" ]
             ();
-          Aegis_lm.Config_test_support.route
+          Bulkhead_lm.Config_test_support.route
             ~public_model:"summarizer-model"
             ~backends:[ backend "summarizer-provider" "summarizer-model" ]
             ();
-          Aegis_lm.Config_test_support.route
+          Bulkhead_lm.Config_test_support.route
             ~public_model:"validator-model"
             ~backends:[ backend "validator-provider" "validator-model" ]
             ();
         ]
   in
-  Aegis_lm.Config_test_support.sample_config
+  Bulkhead_lm.Config_test_support.sample_config
     ~virtual_keys:
       [
-        Aegis_lm.Config_test_support.virtual_key
+        Bulkhead_lm.Config_test_support.virtual_key
           ~token_plaintext:"sk-test"
           ~name:"test"
           ~allowed_routes:[ "planner-model"; "summarizer-model"; "validator-model" ]
@@ -121,15 +121,15 @@ let make_aegis_config ?routes () =
     ()
 
 let make_services responses =
-  let aegis_config = make_aegis_config () in
-  let provider = Aegis_lm.Provider_mock.make responses in
+  let bulkhead_config = make_bulkhead_config () in
+  let provider = Bulkhead_lm.Provider_mock.make responses in
   let store =
-    Aegis_lm.Runtime_state.create
+    Bulkhead_lm.Runtime_state.create
       ~provider_factory:(fun _backend -> provider)
-      aegis_config
+      bulkhead_config
   in
   let llm_client =
-    Llm.Aegis_client.of_store
+    Llm.Bulkhead_client.of_store
       ~authorization:"Bearer sk-test"
       store
   in
@@ -151,7 +151,7 @@ let test_short_text_path () =
       [
         ( "summarizer-model",
           Ok
-            (Aegis_lm.Provider_mock.sample_chat_response
+            (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"summarizer-model"
                ~content:"A short LLM summary."
                ()) );
@@ -181,20 +181,20 @@ let test_long_text_parallel_path () =
       [
         ( "planner-model",
           Ok
-            (Aegis_lm.Provider_mock.sample_chat_response
+            (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"planner-model"
                ~content:
                  "Identify the modules\nDefine the typed graph\nRun summary and validation in parallel"
                ()) );
         ( "summarizer-model",
           Ok
-            (Aegis_lm.Provider_mock.sample_chat_response
+            (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"summarizer-model"
                ~content:"A compact execution summary."
                ()) );
         ( "validator-model",
           Ok
-            (Aegis_lm.Provider_mock.sample_chat_response
+            (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"validator-model"
                ~content:"PASS | strengths: typed flow | risks: monitor provider failures"
                ()) );
@@ -239,19 +239,19 @@ let test_batch_notes_include_provider_access () =
       [
         ( "planner-model",
           Ok
-            (Aegis_lm.Provider_mock.sample_chat_response
+            (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"planner-model"
                ~content:"Identify modules\nValidate providers"
                ()) );
         ( "summarizer-model",
           Ok
-            (Aegis_lm.Provider_mock.sample_chat_response
+            (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"summarizer-model"
                ~content:"Compact summary."
                ()) );
         ( "validator-model",
           Ok
-            (Aegis_lm.Provider_mock.sample_chat_response
+            (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"validator-model"
                ~content:"PASS | strengths: provider trace | risks: missing env"
                ()) );
@@ -291,13 +291,13 @@ let test_batch_notes_include_provider_access () =
 let test_validate_agent_profiles_rejects_missing_route () =
   let routes =
     [
-      Aegis_lm.Config_test_support.route
+      Bulkhead_lm.Config_test_support.route
         ~public_model:"summarizer-model"
         ~backends:
           [
-            Aegis_lm.Config_test_support.backend
+            Bulkhead_lm.Config_test_support.backend
               ~provider_id:"summarizer-provider"
-              ~provider_kind:Aegis_lm.Config.Openai_compat
+              ~provider_kind:Bulkhead_lm.Config.Openai_compat
               ~api_base:"https://api.example.test/v1"
               ~upstream_model:"summarizer-model"
               ~api_key_env:"IGNORED"
@@ -313,13 +313,13 @@ let test_validate_agent_profiles_rejects_missing_route () =
       ~validator_route_model:"missing-validator-route"
       ()
   in
-  let store = Aegis_lm.Runtime_state.create (make_aegis_config ~routes ()) in
+  let store = Bulkhead_lm.Runtime_state.create (make_bulkhead_config ~routes ()) in
   let llm_client =
-    Llm.Aegis_client.of_store
+    Llm.Bulkhead_client.of_store
       ~authorization:"Bearer sk-test"
       store
   in
-  match Llm.Aegis_client.validate_agent_profiles llm_client llm with
+  match Llm.Bulkhead_client.validate_agent_profiles llm_client llm with
   | Ok () -> Alcotest.fail "Expected agent profile validation to reject missing routes"
   | Error message ->
       Alcotest.(check bool)
@@ -411,7 +411,7 @@ let () =
       ( "llm",
         [
           Alcotest.test_case
-            "reject missing Aegis routes"
+            "reject missing BulkheadLM routes"
             `Quick
             test_validate_agent_profiles_rejects_missing_route;
         ] );

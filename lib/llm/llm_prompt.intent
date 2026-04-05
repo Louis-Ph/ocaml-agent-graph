@@ -1,5 +1,5 @@
 Purpose
-This file turns framework state into prompt messages for AegisLM and OpenAI-style chat requests.
+This file turns framework state into prompt messages for BulkheadLM and OpenAI-style chat requests.
 
 Linear intent
 1. Render metadata pairs into one compact string.

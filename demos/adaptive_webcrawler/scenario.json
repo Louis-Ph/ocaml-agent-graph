@@ -72,7 +72,7 @@
   },
   "llm": {
     "gateway_config_path": "gateway.json",
-    "authorization_token_plaintext": "sk-aegis-dev",
+    "authorization_token_plaintext": "sk-bulkhead-lm-dev",
     "reflector": {
       "route_model": "claude-sonnet",
       "prompt_file": "prompts/reflector.md",

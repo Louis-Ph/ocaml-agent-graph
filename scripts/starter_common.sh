@@ -1,12 +1,12 @@
 #!/bin/sh
 
 DEFAULT_CLIENT_CONFIG=${AGENT_GRAPH_CLIENT_CONFIG:-$ROOT_DIR/config/client.json}
-DEFAULT_AEGIS_LM_DIR=${AGENT_GRAPH_AEGIS_LM_DIR:-$ROOT_DIR/../aegis-lm}
-DEFAULT_AEGIS_LM_REPO_URL=${AGENT_GRAPH_AEGIS_LM_REPO_URL:-https://github.com/Louis-Ph/aegis-lm.git}
+DEFAULT_BULKHEAD_LM_DIR=${AGENT_GRAPH_BULKHEAD_LM_DIR:-$ROOT_DIR/../bulkhead-lm}
+DEFAULT_BULKHEAD_LM_REPO_URL=${AGENT_GRAPH_BULKHEAD_LM_REPO_URL:-https://github.com/Louis-Ph/bulkhead-lm.git}
 DEFAULT_OCAML_COMPILER=${AGENT_GRAPH_OCAML_COMPILER:-ocaml-base-compiler.5.2.1}
 USE_GLOBAL_SWITCH=${AGENT_GRAPH_USE_GLOBAL_SWITCH:-0}
 FORCE_LOCAL_SWITCH=${AGENT_GRAPH_FORCE_LOCAL_SWITCH:-0}
-DEFAULT_ENV_FILES="$HOME/.zshrc.secret:$HOME/.zshrc.secrets:$HOME/.bashrc.secret:$HOME/.bashrc.secrets:$HOME/.profile.secret:$HOME/.profile.secrets:$HOME/.config/aegislm/env:$HOME/.config/ocaml-agent-graph/env"
+DEFAULT_ENV_FILES="$HOME/.zshrc.secret:$HOME/.zshrc.secrets:$HOME/.bashrc.secret:$HOME/.bashrc.secrets:$HOME/.profile.secret:$HOME/.profile.secrets:$HOME/.config/bulkhead-lm/env:$HOME/.config/ocaml-agent-graph/env"
 STARTER_ENV_FILES=${AGENT_GRAPH_STARTER_ENV_FILES:-$DEFAULT_ENV_FILES}
 BUILD_LOG=""
 OPAM_BIN=""
@@ -65,11 +65,11 @@ manual_setup_commands() {
   cat <<EOF
 Manual setup options:
   Clone the sibling dependency if it is missing:
-    git clone "$DEFAULT_AEGIS_LM_REPO_URL" "$DEFAULT_AEGIS_LM_DIR"
+    git clone "$DEFAULT_BULKHEAD_LM_REPO_URL" "$DEFAULT_BULKHEAD_LM_DIR"
 
   Reuse the current switch:
     eval "\$(opam env --set-switch)"
-    opam pin add aegis_lm "$DEFAULT_AEGIS_LM_DIR" --yes --no-action
+    opam pin add bulkhead_lm "$DEFAULT_BULKHEAD_LM_DIR" --yes --no-action
     opam install . --deps-only --yes
     dune build bin/client.exe
     ./run.sh
@@ -78,7 +78,7 @@ Manual setup options:
     cd "$ROOT_DIR"
     opam switch create . "$DEFAULT_OCAML_COMPILER" --yes
     eval "\$(opam env --switch . --set-switch)"
-    opam pin add aegis_lm "$DEFAULT_AEGIS_LM_DIR" --yes --no-action
+    opam pin add bulkhead_lm "$DEFAULT_BULKHEAD_LM_DIR" --yes --no-action
     opam install . --deps-only --yes
     ./run.sh
 EOF
@@ -237,37 +237,37 @@ normalize_existing_dir() {
   (cd "$target_dir" && pwd -P)
 }
 
-ensure_aegis_lm_checkout() {
-  if [ -f "$DEFAULT_AEGIS_LM_DIR/dune-project" ]; then
+ensure_bulkhead_lm_checkout() {
+  if [ -f "$DEFAULT_BULKHEAD_LM_DIR/dune-project" ]; then
     return 0
   fi
 
-  if [ -e "$DEFAULT_AEGIS_LM_DIR" ] && [ ! -d "$DEFAULT_AEGIS_LM_DIR" ]; then
-    say_err "AegisLM path exists but is not a directory: $DEFAULT_AEGIS_LM_DIR"
+  if [ -e "$DEFAULT_BULKHEAD_LM_DIR" ] && [ ! -d "$DEFAULT_BULKHEAD_LM_DIR" ]; then
+    say_err "BulkheadLM path exists but is not a directory: $DEFAULT_BULKHEAD_LM_DIR"
     return 1
   fi
 
-  say "AegisLM checkout was not found at $DEFAULT_AEGIS_LM_DIR."
+  say "BulkheadLM checkout was not found at $DEFAULT_BULKHEAD_LM_DIR."
   if ! command -v git >/dev/null 2>&1; then
     say_err "git is required to clone the sibling dependency automatically."
     return 1
   fi
 
-  if ! prompt_yes_no "Clone aegis-lm next to this repository now?" "Y"; then
+  if ! prompt_yes_no "Clone bulkhead-lm next to this repository now?" "Y"; then
     return 1
   fi
 
-  parent_dir=$(dirname "$DEFAULT_AEGIS_LM_DIR")
+  parent_dir=$(dirname "$DEFAULT_BULKHEAD_LM_DIR")
   mkdir -p "$parent_dir"
-  if ! git clone "$DEFAULT_AEGIS_LM_REPO_URL" "$DEFAULT_AEGIS_LM_DIR"; then
-    say_err "Automatic clone of aegis-lm failed."
+  if ! git clone "$DEFAULT_BULKHEAD_LM_REPO_URL" "$DEFAULT_BULKHEAD_LM_DIR"; then
+    say_err "Automatic clone of bulkhead-lm failed."
     return 1
   fi
   return 0
 }
 
-aegis_lm_pin_matches() {
-  desired_dir=$(normalize_existing_dir "$DEFAULT_AEGIS_LM_DIR" || true)
+bulkhead_lm_pin_matches() {
+  desired_dir=$(normalize_existing_dir "$DEFAULT_BULKHEAD_LM_DIR" || true)
   if [ -z "$desired_dir" ]; then
     return 1
   fi
@@ -279,7 +279,7 @@ aegis_lm_pin_matches() {
       ;;
   esac
 
-  pin_src=$("$OPAM_BIN" show aegis_lm --raw 2>/dev/null | sed -n 's/^[[:space:]]*src:[[:space:]]*"\(.*\)".*$/\1/p' | head -n 1)
+  pin_src=$("$OPAM_BIN" show bulkhead_lm --raw 2>/dev/null | sed -n 's/^[[:space:]]*src:[[:space:]]*"\(.*\)".*$/\1/p' | head -n 1)
   case "$pin_src" in
     *"$desired_dir"*)
       return 0
@@ -289,13 +289,13 @@ aegis_lm_pin_matches() {
   return 1
 }
 
-pin_aegis_lm_dependency() {
-  if aegis_lm_pin_matches; then
+pin_bulkhead_lm_dependency() {
+  if bulkhead_lm_pin_matches; then
     return 0
   fi
   ensure_build_log
-  if ! "$OPAM_BIN" pin add aegis_lm "$DEFAULT_AEGIS_LM_DIR" --yes --no-action >"$BUILD_LOG" 2>&1; then
-    say_err "Unable to pin aegis_lm from $DEFAULT_AEGIS_LM_DIR."
+  if ! "$OPAM_BIN" pin add bulkhead_lm "$DEFAULT_BULKHEAD_LM_DIR" --yes --no-action >"$BUILD_LOG" 2>&1; then
+    say_err "Unable to pin bulkhead_lm from $DEFAULT_BULKHEAD_LM_DIR."
     say_err "See $BUILD_LOG for details."
     return 1
   fi
@@ -303,8 +303,8 @@ pin_aegis_lm_dependency() {
 }
 
 prepare_local_dependencies() {
-  ensure_aegis_lm_checkout || return 1
-  pin_aegis_lm_dependency || return 1
+  ensure_bulkhead_lm_checkout || return 1
+  pin_bulkhead_lm_dependency || return 1
   return 0
 }
 

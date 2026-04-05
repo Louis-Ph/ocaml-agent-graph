@@ -31,7 +31,7 @@ test/    = the safety checks
 Inside `lib/`, the code is split into small jobs:
 
 - `core/` holds the main shared types
-- `llm/` talks to AegisLM
+- `llm/` talks to BulkheadLM
 - `agents/` holds the helpers
 - `runtime/` runs helpers with retries and time limits
 - `orchestration/` decides the path through the graph
@@ -63,8 +63,8 @@ Then run:
 The starter script:
 
 - prepares an `opam` environment if needed
-- clones `../aegis-lm` automatically if it is missing
-- pins the local `aegis_lm` dependency
+- clones `../bulkhead-lm` automatically if it is missing
+- pins the local `bulkhead_lm` dependency
 - builds the human terminal client
 - opens the human terminal directly
 
@@ -90,7 +90,7 @@ You will see:
 - what the framework decided
 - the final result
 
-This project also needs `AegisLM`.
+This project also needs `BulkheadLM`.
 
 `./run.sh` prepares that local dependency for you.
 
@@ -121,8 +121,8 @@ You can change:
 - the number of retries
 - when a text counts as "long"
 - which agents run in parallel
-- which `route_model` each agent uses through AegisLM
-- which AegisLM gateway config file is used
+- which `route_model` each agent uses through BulkheadLM
+- which BulkheadLM gateway config file is used
 
 You do not need to change the OCaml code just to change these settings.
 

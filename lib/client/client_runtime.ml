@@ -11,7 +11,7 @@ type t = {
   client_config : Client_config.t;
   runtime_config_path : string;
   runtime_config : Runtime_config.t;
-  llm_client : Llm_aegis_client.t;
+  llm_client : Llm_bulkhead_client.t;
 }
 
 let trim_preview ~max_chars text =
@@ -44,11 +44,11 @@ let load path =
                 client_config.graph_runtime_path
                 message)
        | Ok runtime_config ->
-           (match Llm_aegis_client.create runtime_config.llm with
+           (match Llm_bulkhead_client.create runtime_config.llm with
             | Error _ as error -> error
             | Ok llm_client ->
                 (match
-                   Llm_aegis_client.validate_route_models
+                   Llm_bulkhead_client.validate_route_models
                      llm_client
                      [ client_config.assistant.route_model ]
                  with
@@ -79,10 +79,10 @@ let of_parts
   }
 
 let route_summaries t =
-  Llm_aegis_client.route_models t.llm_client
+  Llm_bulkhead_client.route_models t.llm_client
   |> List.map (fun route_model ->
-         match Llm_aegis_client.route_access t.llm_client ~route_model with
-         | Some route_access -> Llm_aegis_client.route_access_summary route_access
+         match Llm_bulkhead_client.route_access t.llm_client ~route_model with
+         | Some route_access -> Llm_bulkhead_client.route_access_summary route_access
          | None -> Fmt.str "route_model=%s is unavailable" route_model)
 
 let graph_summary_lines t =

@@ -12,8 +12,8 @@
     "parallel_agents": ["summarizer", "validator"]
   },
   "llm": {
-    "gateway_config_path": "../../aegis-lm/config/example.gateway.json",
-    "authorization_token_plaintext": "sk-aegis-dev",
+    "gateway_config_path": "../../bulkhead-lm/config/example.gateway.json",
+    "authorization_token_plaintext": "sk-bulkhead-lm-dev",
     "planner": {
       "route_model": "claude-sonnet",
       "system_prompt": "You are the planning agent inside a typed OCaml orchestration graph. Convert a request into a short, concrete plan. Be direct and structured.",

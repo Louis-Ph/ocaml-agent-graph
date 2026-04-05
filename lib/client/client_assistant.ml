@@ -175,7 +175,7 @@ let request_instructions = function
   | Standard ->
       "Expected behavior:\n- answer concretely\n- relate the request to the graph and provider structure\n- propose next steps when useful"
   | Wizard ->
-      "Expected behavior:\n- behave like a proactive starter wizard\n- explain a step-by-step plan for build, test, install, cron, ssh, or swarm work\n- propose safe local commands when they would move the user forward"
+      "Expected behavior:\n- behave like a proactive starter wizard\n- explain a step-by-step plan for build, test, install, cron, ssh, http, peer, or swarm work\n- propose safe local commands when they would move the user forward"
 
 let user_prompt ?(request_kind = Standard) ~runtime ~attachments prompt =
   let documentation_context =

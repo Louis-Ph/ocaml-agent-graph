@@ -22,9 +22,11 @@ module Client = struct
   module Runtime = Client_runtime
   module Local_ops = Client_local_ops
   module Human_constants = Client_human_constants
+  module Ui = Client_ui
   module Assistant_docs = Client_assistant_docs
   module Assistant = Client_assistant
   module Machine = Client_machine
+  module Http_server = Client_http_server
   module Terminal = Client_terminal
   module Starter = Client_starter
 end

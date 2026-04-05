@@ -132,10 +132,29 @@ let make_client_runtime route_model =
           conversation_keep_turns = 8;
         };
       machine_terminal = { Client.Config.Machine_terminal.worker_jobs = 4 };
-      ssh =
+      transport =
         {
-          Client.Config.Ssh.human_remote_command = "ssh human";
-          machine_remote_command = "ssh machine";
+          Client.Config.Transport.ssh =
+            {
+              Client.Config.Transport.Ssh.human_remote_command = "ssh human";
+              machine_remote_command = "ssh machine";
+              install_emit_command = "ssh install";
+            };
+          http =
+            {
+              Client.Config.Transport.Http.workflow =
+                {
+                  Client.Config.Transport.Http_workflow.base_url = "http://127.0.0.1:8087";
+                  server_command = "serve-http";
+                };
+              distribution =
+                {
+                  Client.Config.Transport.Http_distribution.base_url = "http://127.0.0.1:8788";
+                  server_command = "serve-dist";
+                  install_url = "http://127.0.0.1:8788/install.sh";
+                  archive_url = "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz";
+                };
+            };
         };
     }
   in
@@ -178,9 +197,24 @@ let test_client_config_loads_prompt_and_paths () =
   "machine_terminal": {
     "worker_jobs": 7
   },
-  "ssh": {
-    "human_remote_command": "ssh -t host human",
-    "machine_remote_command": "ssh -T host machine"
+  "transport": {
+    "ssh": {
+      "human_remote_command": "ssh -t host human",
+      "machine_remote_command": "ssh -T host machine",
+      "install_emit_command": "ssh host install"
+    },
+    "http": {
+      "workflow": {
+        "base_url": "http://mesh.example.test:8087",
+        "server_command": "serve-http"
+      },
+      "distribution": {
+        "base_url": "http://mesh.example.test:8788",
+        "server_command": "serve-dist",
+        "install_url": "http://mesh.example.test:8788/install.sh",
+        "archive_url": "http://mesh.example.test:8788/ocaml-agent-graph.tar.gz"
+      }
+    }
   }
 }
 |};
@@ -198,7 +232,58 @@ let test_client_config_loads_prompt_and_paths () =
           Alcotest.(check int)
             "worker jobs loaded"
             7
-            config.machine_terminal.worker_jobs)
+            config.machine_terminal.worker_jobs;
+          Alcotest.(check string)
+            "ssh install loaded"
+            "ssh host install"
+            config.transport.ssh.install_emit_command;
+          Alcotest.(check string)
+            "http workflow url loaded"
+            "http://mesh.example.test:8087"
+            config.transport.http.workflow.base_url)
+
+let test_client_config_supports_legacy_ssh_fallback () =
+  with_temp_dir "agent-graph-client-config-legacy" (fun dir ->
+      let prompt_dir = Filename.concat dir "prompts" in
+      Unix.mkdir prompt_dir 0o755;
+      let prompt_path = Filename.concat prompt_dir "assistant.md" in
+      let runtime_path = Filename.concat dir "runtime.json" in
+      let client_path = Filename.concat dir "client.json" in
+      write_file prompt_path "assistant prompt body";
+      write_file runtime_path "{}";
+      write_file
+        client_path
+        {|
+{
+  "graph_runtime_path": "runtime.json",
+  "assistant": {
+    "route_model": "claude-sonnet",
+    "system_prompt_file": "prompts/assistant.md"
+  },
+  "local_ops": {
+    "workspace_root": "."
+  },
+  "human_terminal": {},
+  "machine_terminal": {
+    "worker_jobs": 3
+  },
+  "ssh": {
+    "human_remote_command": "ssh human legacy",
+    "machine_remote_command": "ssh machine legacy"
+  }
+}
+|};
+      match Client.Config.load client_path with
+      | Error message -> Alcotest.fail message
+      | Ok config ->
+          Alcotest.(check string)
+            "legacy human ssh preserved"
+            "ssh human legacy"
+            config.transport.ssh.human_remote_command;
+          Alcotest.(check string)
+            "legacy machine ssh preserved"
+            "ssh machine legacy"
+            config.transport.ssh.machine_remote_command)
 
 let test_assistant_reply_parses_commands () =
   let content =
@@ -254,8 +339,10 @@ let test_assistant_reply_parses_markdown_fenced_json () =
   Alcotest.(check string) "message kept" "Résumé prêt." message;
   Alcotest.(check int) "one command parsed" 1 (List.length commands)
 
-let test_assistant_docs_selects_ssh_and_swarm_references () =
-  let docs = Client.Assistant_docs.selected_doc_specs "schedule a remote ssh swarm worker" in
+let test_assistant_docs_selects_ssh_http_and_peer_references () =
+  let docs =
+    Client.Assistant_docs.selected_doc_specs "schedule a remote ssh http peer swarm worker"
+  in
   let paths =
     docs
     |> List.map (fun (spec : Client.Assistant_docs.doc_spec) -> spec.relative_path)
@@ -265,9 +352,17 @@ let test_assistant_docs_selects_ssh_and_swarm_references () =
     true
     (List.mem "doc/HUMAN_TERMINAL_ASSISTANT.md" paths);
   Alcotest.(check bool)
+    "includes local multi-machine guide"
+    true
+    (List.mem "doc/MULTI_MACHINE.md" paths);
+  Alcotest.(check bool)
     "includes aegis ssh guide"
     true
-    (List.mem "docs/SSH_REMOTE.md" paths)
+    (List.mem "docs/SSH_REMOTE.md" paths);
+  Alcotest.(check bool)
+    "includes aegis peer guide"
+    true
+    (List.mem "docs/PEER_MESH.md" paths)
 
 let test_assistant_prompt_mentions_aegis_hierarchy_and_docs () =
   let runtime = make_client_runtime "assistant-route" in
@@ -287,12 +382,25 @@ let test_assistant_prompt_mentions_aegis_hierarchy_and_docs () =
   Alcotest.(check bool)
     "mentions assistant playbook"
     true
-    (contains_substring ~substring:"doc/HUMAN_TERMINAL_ASSISTANT.md" prompt)
+    (contains_substring ~substring:"doc/HUMAN_TERMINAL_ASSISTANT.md" prompt);
+  Alcotest.(check bool)
+    "mentions http workflow transport"
+    true
+    (contains_substring ~substring:"http workflow" prompt)
 
 let test_terminal_parse_command_supports_docs_and_wizard () =
   (match Client.Terminal.parse_command "/docs ssh" with
    | Client.Terminal.Show_docs (Some "ssh") -> ()
    | _ -> Alcotest.fail "Expected /docs ssh to parse as Show_docs");
+  (match Client.Terminal.parse_command "/mesh" with
+   | Client.Terminal.Mesh -> ()
+   | _ -> Alcotest.fail "Expected /mesh to parse as Mesh");
+  (match Client.Terminal.parse_command "/curl" with
+   | Client.Terminal.Show_curl_examples -> ()
+   | _ -> Alcotest.fail "Expected /curl to parse as Show_curl_examples");
+  (match Client.Terminal.parse_command "/install-http" with
+   | Client.Terminal.Show_install_http -> ()
+   | _ -> Alcotest.fail "Expected /install-http to parse as Show_install_http");
   match Client.Terminal.parse_command "/wizard cron nightly swarm" with
   | Client.Terminal.Run_wizard (Some "cron nightly swarm") -> ()
   | _ -> Alcotest.fail "Expected /wizard ... to parse as Run_wizard"
@@ -308,7 +416,11 @@ let test_client_runtime_graph_summary_mentions_routes () =
   Alcotest.(check bool)
     "route summary mentioned"
     true
-    (contains_substring ~substring:"route_model=assistant-route" summary)
+    (contains_substring ~substring:"route_model=assistant-route" summary);
+  Alcotest.(check bool)
+    "http workflow mentioned"
+    true
+    (contains_substring ~substring:"transport: http_workflow=http://127.0.0.1:8087" summary)
 
 let test_machine_run_lines_preserves_distinct_requests () =
   let runtime = make_client_runtime "assistant-route" in
@@ -341,7 +453,12 @@ let () =
     "agent-graph-client"
     [
       ( "client-config",
-        [ Alcotest.test_case "loads prompt and paths" `Quick test_client_config_loads_prompt_and_paths
+        [
+          Alcotest.test_case "loads prompt and paths" `Quick test_client_config_loads_prompt_and_paths;
+          Alcotest.test_case
+            "supports legacy ssh fallback"
+            `Quick
+            test_client_config_supports_legacy_ssh_fallback;
         ] );
       ( "assistant",
         [
@@ -354,9 +471,9 @@ let () =
             `Quick
             test_assistant_reply_parses_markdown_fenced_json;
           Alcotest.test_case
-            "selects ssh and swarm docs"
+            "selects ssh http and peer docs"
             `Quick
-            test_assistant_docs_selects_ssh_and_swarm_references;
+            test_assistant_docs_selects_ssh_http_and_peer_references;
           Alcotest.test_case
             "prompt mentions hierarchy and docs"
             `Quick

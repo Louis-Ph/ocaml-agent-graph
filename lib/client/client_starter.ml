@@ -34,6 +34,9 @@ let write_json_file path json =
   ensure_dir (Filename.dirname path);
   Yojson.Safe.to_file path json
 
+let default_http_workflow_port = 8087
+let default_http_distribution_port = 8788
+
 let config_json
     ~graph_runtime_path
     ~assistant_route_model
@@ -67,20 +70,62 @@ let config_json
             "conversation_keep_turns", `Int 8;
           ] );
       "machine_terminal", `Assoc [ "worker_jobs", `Int worker_jobs ];
-      ( "ssh",
+      ( "transport",
         `Assoc
           [
-            ( "human_remote_command",
-              `String
-                (Fmt.str
-                   "scripts/remote_human_terminal.sh --client-config %s"
-                   client_config_path) );
-            ( "machine_remote_command",
-              `String
-                (Fmt.str
-                   "scripts/remote_machine_terminal.sh --client-config %s --jobs %d"
-                   client_config_path
-                   worker_jobs) );
+            ( "ssh",
+              `Assoc
+                [
+                  ( "human_remote_command",
+                    `String
+                      (Client_config.Defaults.ssh_human_remote_command
+                         ~client_config_path) );
+                  ( "machine_remote_command",
+                    `String
+                      (Client_config.Defaults.ssh_machine_remote_command
+                         ~client_config_path
+                         ~worker_jobs) );
+                  ( "install_emit_command",
+                    `String Client_config.Defaults.ssh_install_emit_command );
+                ] );
+            ( "http",
+              `Assoc
+                [
+                  ( "workflow",
+                    `Assoc
+                      [
+                        ( "base_url",
+                          `String Client_config.Defaults.default_http_workflow_base_url );
+                        ( "server_command",
+                          `String
+                            (Fmt.str
+                               "scripts/http_machine_server.sh --client-config %s --port %d"
+                               client_config_path
+                               default_http_workflow_port) );
+                      ] );
+                  ( "distribution",
+                    `Assoc
+                      [
+                        ( "base_url",
+                          `String
+                            Client_config.Defaults.default_http_distribution_base_url );
+                        ( "server_command",
+                          `String
+                            (Fmt.str
+                               "scripts/http_dist_server.sh --public-base-url http://127.0.0.1:%d"
+                               default_http_distribution_port) );
+                        ( "install_url",
+                          `String
+                            (Client_config.Defaults.http_distribution_install_url
+                               ~base_url:
+                                 Client_config.Defaults.default_http_distribution_base_url) );
+                        ( "archive_url",
+                          `String
+                            (Client_config.Defaults.http_distribution_archive_url
+                               ~base_url:
+                                 Client_config.Defaults.default_http_distribution_base_url) );
+                      ] );
+                ] );
           ] );
     ]
 
@@ -152,10 +197,29 @@ let build_config ~client_config_path () =
              let machine_terminal : Client_config.Machine_terminal.t =
                { worker_jobs }
              in
-             let ssh : Client_config.Ssh.t =
+             let transport : Client_config.Transport.t =
                {
-                 human_remote_command = "";
-                 machine_remote_command = "";
+                 ssh =
+                   {
+                     Client_config.Transport.Ssh.human_remote_command = "";
+                     machine_remote_command = "";
+                     install_emit_command = "";
+                   };
+                 http =
+                   {
+                     Client_config.Transport.Http.workflow =
+                       {
+                         Client_config.Transport.Http_workflow.base_url = "";
+                         server_command = "";
+                       };
+                     distribution =
+                       {
+                         Client_config.Transport.Http_distribution.base_url = "";
+                         server_command = "";
+                         install_url = "";
+                         archive_url = "";
+                       };
+                   };
                }
              in
              let provisional_config : Client_config.t =
@@ -165,7 +229,7 @@ let build_config ~client_config_path () =
                  local_ops;
                  human_terminal;
                  machine_terminal;
-                 ssh;
+                 transport;
                }
              in
              let runtime =

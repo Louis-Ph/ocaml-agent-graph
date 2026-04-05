@@ -33,6 +33,8 @@ It should help the user:
 - prepare cron or timer-based recurring runs
 - execute or supervise swarms of agents
 - explain when to use human SSH versus machine SSH
+- expose the HTTP workflow API and ready-to-paste `curl` examples
+- explain the difference between a normal client/server split and a direct peer-style connection
 
 The assistant should be forceful and proactive:
 
@@ -73,6 +75,9 @@ For a local user, the standard path is:
 For remote SSH usage, use the dedicated wrappers instead of inventing ad-hoc
 commands.
 
+For remote HTTP bootstrap usage, prefer the dedicated distribution server and
+installer script instead of ad-hoc archives.
+
 ### Cron Or Scheduled Runs
 
 The assistant should treat scheduling as an operational task, not as magic.
@@ -86,7 +91,7 @@ It should:
 - prefer idempotent commands
 
 When the schedule targets a machine interface, prefer the machine worker or a
-non-interactive demo command.
+non-interactive demo command or the HTTP workflow API.
 When it targets a human interactive session, do not use cron.
 
 ### Swarm Execution
@@ -108,3 +113,26 @@ Use:
 
 The assistant should explain why `ssh -t` and `ssh -T` are different and when
 each is required.
+
+### HTTP
+
+Use:
+
+- the workflow HTTP server for one-shot machine calls from `curl` or another program
+- the HTTP distribution server for fresh-machine bootstrap installs
+
+The assistant should surface:
+
+- `/http-server` for the local command that starts the workflow server
+- `/curl` for ready-to-paste HTTP examples
+- `/install-http` for the bootstrap install URL
+
+### Peer Style
+
+The assistant should keep two topology patterns separate:
+
+- normal relation: one machine serves and another machine consumes
+- peer style: two machines can each keep their own local `AegisLM` context while
+  one machine calls the other's worker or HTTP workflow API directly
+
+The assistant should not blur those two patterns together.

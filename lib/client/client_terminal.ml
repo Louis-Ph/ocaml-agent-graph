@@ -8,6 +8,7 @@ type command =
   | Empty
   | Help
   | Tools
+  | Mesh
   | Inspect
   | Show_config
   | Show_models
@@ -22,6 +23,10 @@ type command =
   | Run_wizard of string option
   | Show_ssh_human
   | Show_ssh_machine
+  | Show_http_server
+  | Show_curl_examples
+  | Show_install_ssh
+  | Show_install_http
   | Quit
   | Prompt of string
   | Invalid of string
@@ -31,11 +36,11 @@ let commands = Client_human_constants.commands
 let print_lines lines = List.iter print_endline lines
 let print_blank () = print_endline ""
 
+let print_wrapped_lines lines = Client_ui.print_wrapped_lines ~indent:2 lines
+
 let parse_command input =
   let trimmed = String.trim input in
-  let starts prefix =
-    String.starts_with ~prefix:(prefix ^ " ") trimmed
-  in
+  let starts prefix = String.starts_with ~prefix:(prefix ^ " ") trimmed in
   let tail prefix =
     let offset = String.length prefix + 1 in
     String.sub trimmed offset (String.length trimmed - offset) |> String.trim
@@ -43,6 +48,7 @@ let parse_command input =
   if trimmed = "" then Empty
   else if trimmed = Client_human_constants.Command.help then Help
   else if trimmed = Client_human_constants.Command.tools then Tools
+  else if trimmed = Client_human_constants.Command.mesh then Mesh
   else if trimmed = Client_human_constants.Command.inspect then Inspect
   else if trimmed = Client_human_constants.Command.config then Show_config
   else if trimmed = Client_human_constants.Command.models then Show_models
@@ -58,6 +64,10 @@ let parse_command input =
     if goal = "" then Run_wizard None else Run_wizard (Some goal)
   else if trimmed = Client_human_constants.Command.ssh_human then Show_ssh_human
   else if trimmed = Client_human_constants.Command.ssh_machine then Show_ssh_machine
+  else if trimmed = Client_human_constants.Command.http_server then Show_http_server
+  else if trimmed = Client_human_constants.Command.curl then Show_curl_examples
+  else if trimmed = Client_human_constants.Command.install_ssh then Show_install_ssh
+  else if trimmed = Client_human_constants.Command.install_http then Show_install_http
   else if trimmed = Client_human_constants.Command.quit then Quit
   else if trimmed = Client_human_constants.Command.swap then Invalid "/swap expects a route model."
   else if starts Client_human_constants.Command.swap then
@@ -168,8 +178,42 @@ let print_list_result = function
 
 let print_doc_lines runtime goal =
   print_blank ();
-  print_lines (Client_assistant_docs.doc_overview_lines runtime ~goal);
+  Client_ui.print_section "Relevant Docs" (Client_assistant_docs.doc_overview_lines runtime ~goal);
   print_blank ()
+
+let transport_rows (runtime : Client_runtime.t) =
+  [
+    "human ssh", runtime.client_config.transport.ssh.human_remote_command;
+    "worker ssh", runtime.client_config.transport.ssh.machine_remote_command;
+    "http server", runtime.client_config.transport.http.workflow.server_command;
+    "http base", runtime.client_config.transport.http.workflow.base_url;
+    "install ssh", runtime.client_config.transport.ssh.install_emit_command;
+    "install http", runtime.client_config.transport.http.distribution.install_url;
+  ]
+
+let http_curl_examples (runtime : Client_runtime.t) =
+  let base_url = runtime.client_config.transport.http.workflow.base_url in
+  [
+    Fmt.str "curl -fsS %s/health" base_url;
+    Fmt.str "curl -fsS %s/v1/capabilities" base_url;
+    Fmt.str
+      "curl -fsS -X POST %s/v1/assistant -H 'Content-Type: application/json' -d '{\"prompt\":\"Reply with OK.\"}'"
+      base_url;
+    Fmt.str
+      "curl -fsS -X POST %s/v1/run_graph -H 'Content-Type: application/json' -d '{\"task_id\":\"mesh-demo\",\"input\":\"Plan a bounded swarm rollout.\"}'"
+      base_url;
+  ]
+
+let print_transport_dashboard runtime =
+  Client_ui.print_section
+    "Transport Map"
+    [
+      "human terminal -> SSH TTY session for operators";
+      "worker terminal -> SSH JSONL stream for another program";
+      "workflow HTTP -> one-shot JSON API for normal client/server and peer-style use";
+      "bootstrap -> SSH installer or HTTP installer snapshot for fresh machines";
+    ];
+  Client_ui.print_label_value_rows (transport_rows runtime)
 
 let run_assistant_request runtime state ~request_kind prompt_text =
   let attachments = List.rev state.attachments in
@@ -189,7 +233,7 @@ let run_assistant_request runtime state ~request_kind prompt_text =
       { state with attachments = [] }
   | Ok reply ->
       print_blank ();
-      print_endline reply.message;
+      Client_ui.print_wrapped reply.message;
       print_endline
         (Fmt.str
            "route=%s model=%s tokens=%d"
@@ -229,22 +273,28 @@ let rec loop (runtime : Client_runtime.t) state =
        | Empty -> loop runtime state
        | Help ->
            print_blank ();
-           print_lines (help_lines state.active_route_model);
+           Client_ui.print_section "Command Deck" (help_lines state.active_route_model);
            print_blank ();
            loop runtime state
        | Tools ->
            print_blank ();
-           print_lines Client_human_constants.Text.tool_lines;
+           Client_ui.print_section "Operational Lanes" Client_human_constants.Text.tool_lines;
+           print_blank ();
+           loop runtime state
+       | Mesh ->
+           print_blank ();
+           print_transport_dashboard runtime;
            print_blank ();
            loop runtime state
        | Inspect ->
            print_blank ();
-           print_endline (Client_runtime.graph_summary_text runtime);
+           Client_ui.print_section "Graph Summary" (String.split_on_char '\n' (Client_runtime.graph_summary_text runtime));
            print_blank ();
            loop runtime state
        | Show_config ->
            print_blank ();
-           print_lines
+           Client_ui.print_section
+             "Active Config"
              [
                Fmt.str "client_config: %s" runtime.client_config_path;
                Fmt.str "graph_runtime_config: %s" runtime.runtime_config_path;
@@ -252,24 +302,28 @@ let rec loop (runtime : Client_runtime.t) state =
                  "workspace_root: %s"
                  runtime.client_config.local_ops.workspace_root;
                Fmt.str "assistant_route_model: %s" state.active_route_model;
+               Fmt.str
+                 "http_workflow_base_url: %s"
+                 runtime.client_config.transport.http.workflow.base_url;
+               Fmt.str
+                 "http_install_url: %s"
+                 runtime.client_config.transport.http.distribution.install_url;
              ];
            print_blank ();
            loop runtime state
        | Show_models ->
            print_blank ();
-           print_lines (route_lines runtime);
+           Client_ui.print_section "Route Models" (route_lines runtime);
            print_blank ();
            loop runtime state
        | Swap_model route_model ->
-           (match
-              Llm_aegis_client.route_access runtime.llm_client ~route_model
-            with
-           | Some _ ->
-               print_endline (Client_human_constants.Text.route_switched route_model);
-               loop runtime { state with active_route_model = route_model }
-           | None ->
-               print_endline (Client_human_constants.Text.unknown_route route_model);
-               loop runtime state)
+           (match Llm_aegis_client.route_access runtime.llm_client ~route_model with
+            | Some _ ->
+                print_endline (Client_human_constants.Text.route_switched route_model);
+                loop runtime { state with active_route_model = route_model }
+            | None ->
+                print_endline (Client_human_constants.Text.unknown_route route_model);
+                loop runtime state)
        | Attach_file path ->
            (match
               Client_local_ops.read_file
@@ -277,17 +331,17 @@ let rec loop (runtime : Client_runtime.t) state =
                 ~max_bytes:runtime.client_config.local_ops.max_read_bytes
                 path
             with
-           | Ok attachment ->
-               print_endline (Client_human_constants.Text.file_attached attachment.path);
-               loop runtime { state with attachments = attachment :: state.attachments }
-           | Error message ->
-               print_endline message;
-               loop runtime state)
+            | Ok attachment ->
+                print_endline (Client_human_constants.Text.file_attached attachment.path);
+                loop runtime { state with attachments = attachment :: state.attachments }
+            | Error message ->
+                print_endline message;
+                loop runtime state)
        | Show_files ->
            print_blank ();
            (match List.rev state.attachments with
-           | [] -> print_endline Client_human_constants.Text.files_empty
-           | attachments -> print_lines (List.map attachment_line attachments));
+            | [] -> print_endline Client_human_constants.Text.files_empty
+            | attachments -> print_lines (List.map attachment_line attachments));
            print_blank ();
            loop runtime state
        | Clear_files ->
@@ -313,8 +367,8 @@ let rec loop (runtime : Client_runtime.t) state =
        | Run_command raw_command ->
            print_blank ();
            (match Client_local_ops.parse_exec_words raw_command with
-           | Error message -> print_endline message
-           | Ok plan -> print_exec_result (run_exec_plan runtime plan));
+            | Error message -> print_endline message
+            | Ok plan -> print_exec_result (run_exec_plan runtime plan));
            print_blank ();
            loop runtime state
        | Show_docs topic_opt ->
@@ -322,7 +376,7 @@ let rec loop (runtime : Client_runtime.t) state =
            loop runtime state
        | Run_wizard None ->
            print_blank ();
-           print_lines Client_human_constants.Text.wizard_lines;
+           Client_ui.print_section "Wizard Topics" Client_human_constants.Text.wizard_lines;
            print_blank ();
            loop runtime state
        | Run_wizard (Some goal) ->
@@ -341,12 +395,52 @@ let rec loop (runtime : Client_runtime.t) state =
            loop runtime state
        | Show_ssh_human ->
            print_blank ();
-           print_endline runtime.client_config.ssh.human_remote_command;
+           Client_ui.print_section
+             "Human SSH"
+             [ runtime.client_config.transport.ssh.human_remote_command ];
            print_blank ();
            loop runtime state
        | Show_ssh_machine ->
            print_blank ();
-           print_endline runtime.client_config.ssh.machine_remote_command;
+           Client_ui.print_section
+             "Worker SSH"
+             [ runtime.client_config.transport.ssh.machine_remote_command ];
+           print_blank ();
+           loop runtime state
+       | Show_http_server ->
+           print_blank ();
+           Client_ui.print_section
+             "Workflow HTTP Server"
+             [
+               runtime.client_config.transport.http.workflow.server_command;
+               Fmt.str
+                 "Advertised base URL: %s"
+                 runtime.client_config.transport.http.workflow.base_url;
+             ];
+           print_blank ();
+           loop runtime state
+       | Show_curl_examples ->
+           print_blank ();
+           Client_ui.print_section "curl Examples" (http_curl_examples runtime);
+           print_blank ();
+           loop runtime state
+       | Show_install_ssh ->
+           print_blank ();
+           Client_ui.print_section
+             "SSH Install Bootstrap"
+             [ runtime.client_config.transport.ssh.install_emit_command ];
+           print_blank ();
+           loop runtime state
+       | Show_install_http ->
+           print_blank ();
+           Client_ui.print_section
+             "HTTP Install Bootstrap"
+             [
+               runtime.client_config.transport.http.distribution.install_url;
+               Fmt.str
+                 "curl -fsSL %s | sh"
+                 runtime.client_config.transport.http.distribution.install_url;
+             ];
            print_blank ();
            loop runtime state
        | Quit ->
@@ -366,14 +460,25 @@ let rec loop (runtime : Client_runtime.t) state =
            loop runtime state)
 
 let run (runtime : Client_runtime.t) =
-  print_endline Client_human_constants.Text.title;
-  print_lines Client_human_constants.Text.intro_lines;
+  Client_ui.print_banner
+    ~title:Client_human_constants.Text.title
+    ~subtitle:
+      "Typed orchestration above AegisLM with a human lane, a worker lane, SSH remoting, HTTP workflow serving, and bootstrap installers."
+    [ "human"; "worker"; "ssh"; "http"; "peer" ];
+  print_wrapped_lines Client_human_constants.Text.intro_lines;
+  print_blank ();
+  Client_ui.print_section
+    "Quick Start"
+    [
+      "/help for the full deck";
+      "/mesh for SSH, HTTP, install, and peer transport commands";
+      "/curl for HTTP workflow examples";
+      "/wizard install, /wizard http, or /wizard peer for guided setup";
+    ];
   if runtime.Client_runtime.client_config.human_terminal.show_routes_on_start then (
     print_blank ();
-    print_lines (route_lines runtime);
-    print_blank ());
-  print_lines (help_lines runtime.client_config.assistant.route_model);
+    Client_ui.print_section "Route Readiness" (route_lines runtime));
   print_blank ();
-  print_lines Client_human_constants.Text.docs_lines;
+  Client_ui.print_section "Doc Shortcuts" Client_human_constants.Text.docs_lines;
   print_blank ();
   loop runtime (initial_state runtime)

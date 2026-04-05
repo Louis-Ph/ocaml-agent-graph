@@ -86,6 +86,12 @@ EOF
 
 ensure_exec_bits() {
   chmod +x "$ROOT_DIR/run.sh" "$STARTER_SCRIPT_PATH" "$ROOT_DIR/scripts/starter_common.sh" 2>/dev/null || true
+  chmod +x \
+    "$ROOT_DIR/scripts/remote_human_terminal.sh" \
+    "$ROOT_DIR/scripts/remote_machine_terminal.sh" \
+    "$ROOT_DIR/scripts/remote_install.sh" \
+    "$ROOT_DIR/scripts/http_machine_server.sh" \
+    "$ROOT_DIR/scripts/http_dist_server.sh" 2>/dev/null || true
   if [ -n "${STARTER_EXTRA_EXECUTABLE:-}" ]; then
     chmod +x "$STARTER_EXTRA_EXECUTABLE" 2>/dev/null || true
   fi

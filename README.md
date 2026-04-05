@@ -29,6 +29,7 @@ Start with:
 
 - [`doc/START_HERE.md`](doc/START_HERE.md)
 - [`doc/HUMAN_TERMINAL_ASSISTANT.md`](doc/HUMAN_TERMINAL_ASSISTANT.md)
+- [`doc/MULTI_MACHINE.md`](doc/MULTI_MACHINE.md)
 - [`doc/MAKE_YOUR_OWN_AGENT.md`](doc/MAKE_YOUR_OWN_AGENT.md)
 - [`doc/RELEASING.md`](doc/RELEASING.md)
 
@@ -123,6 +124,7 @@ The starter:
 - offers a project-local fallback switch in `./_opam` when needed
 - auto-clones `../aegis-lm` if the sibling checkout is missing
 - pins `aegis_lm`, installs dependencies, builds the human terminal client, and launches it
+- keeps SSH and HTTP bootstrap entrypoints ready for multi-machine rollout
 - reuses provider keys from your usual shell secret files and `~/.config/aegislm/env`
 
 If you want the manual path instead:
@@ -180,10 +182,61 @@ agent_graph -> runtime_services -> llm_aegis_client -> AegisLM Router -> provide
 ```
 
 Inside the human terminal, use `/wizard ...` for guided operator workflows and
-`/docs ...` to surface the most relevant local documentation.
+`/docs ...` to surface the most relevant local documentation. The terminal also
+surfaces `/mesh`, `/http-server`, `/curl`, `/install-ssh`, and `/install-http`
+for multi-machine operation.
 
 For the human terminal assistant contract and operating hierarchy, see
 [`doc/HUMAN_TERMINAL_ASSISTANT.md`](doc/HUMAN_TERMINAL_ASSISTANT.md).
+
+## Multi-Machine
+
+This repository now ships explicit multi-machine entrypoints:
+
+- human SSH terminal: `scripts/remote_human_terminal.sh`
+- worker SSH JSONL terminal: `scripts/remote_machine_terminal.sh`
+- workflow HTTP server: `scripts/http_machine_server.sh`
+- SSH bootstrap installer: `scripts/remote_install.sh --emit-installer`
+- HTTP bootstrap server: `scripts/http_dist_server.sh`
+
+Human remote session over SSH:
+
+```sh
+ssh -t user@remote '/opt/ocaml-agent-graph/scripts/remote_human_terminal.sh'
+```
+
+Programmatic worker over SSH:
+
+```sh
+ssh -T user@remote '/opt/ocaml-agent-graph/scripts/remote_machine_terminal.sh --jobs 4'
+```
+
+Programmatic worker over HTTP:
+
+```sh
+/opt/ocaml-agent-graph/scripts/http_machine_server.sh --port 8087
+curl -fsS -X POST http://host:8087/v1/run_graph \
+  -H 'Content-Type: application/json' \
+  -d '{"task_id":"mesh-demo","input":"Plan a bounded swarm rollout."}'
+```
+
+Bootstrap a fresh machine over SSH:
+
+```sh
+ssh user@remote \
+  '/opt/ocaml-agent-graph/scripts/remote_install.sh --emit-installer --origin user@remote' \
+  | sh
+```
+
+Bootstrap a fresh machine over HTTP:
+
+```sh
+/opt/ocaml-agent-graph/scripts/http_dist_server.sh \
+  --public-base-url http://machine-a.example.net:8788
+curl -fsSL http://machine-a.example.net:8788/install.sh | sh
+```
+
+For the focused guide, see [`doc/MULTI_MACHINE.md`](doc/MULTI_MACHINE.md).
 
 ## Why This Version Is Better Than The Draft
 

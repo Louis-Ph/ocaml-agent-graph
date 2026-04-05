@@ -49,6 +49,11 @@ chmod +x \
   "$ROOT_DIR/scripts/macos_starter.sh" \
   "$ROOT_DIR/scripts/ubuntu_starter.sh" \
   "$ROOT_DIR/scripts/freebsd_starter.sh" \
+  "$ROOT_DIR/scripts/remote_human_terminal.sh" \
+  "$ROOT_DIR/scripts/remote_machine_terminal.sh" \
+  "$ROOT_DIR/scripts/remote_install.sh" \
+  "$ROOT_DIR/scripts/http_machine_server.sh" \
+  "$ROOT_DIR/scripts/http_dist_server.sh" \
   "$ROOT_DIR/start-macos-client.command" >/dev/null 2>&1 || true
 
 exec /bin/sh "$STARTER_SCRIPT" "$@"

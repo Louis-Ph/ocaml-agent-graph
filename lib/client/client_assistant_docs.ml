@@ -10,6 +10,8 @@ type topic =
   | Cron
   | Swarm
   | Ssh
+  | Http
+  | Peer
   | Agent
   | Provider
   | Docs
@@ -22,7 +24,7 @@ type doc_spec = {
 }
 
 module Limits = struct
-  let max_docs = 4
+  let max_docs = 5
   let excerpt_chars = 1_400
 end
 
@@ -35,6 +37,8 @@ let topic_equal left right =
   | Cron, Cron
   | Swarm, Swarm
   | Ssh, Ssh
+  | Http, Http
+  | Peer, Peer
   | Agent, Agent
   | Provider, Provider
   | Docs, Docs -> true
@@ -48,6 +52,8 @@ let topic_label = function
   | Cron -> "cron"
   | Swarm -> "swarm"
   | Ssh -> "ssh"
+  | Http -> "http"
+  | Peer -> "peer"
   | Agent -> "agent"
   | Provider -> "provider"
   | Docs -> "docs"
@@ -58,15 +64,23 @@ let catalog =
       repo = Graph_repo;
       relative_path = "doc/HUMAN_TERMINAL_ASSISTANT.md";
       description =
-        "Operator playbook for the human terminal, cron, SSH, and swarm execution.";
-      topics = [ General; Build; Test; Install; Cron; Swarm; Ssh; Provider; Docs ];
+        "Operator playbook for the human terminal, cron, SSH, HTTP, peer wiring, and swarm execution.";
+      topics =
+        [ General; Build; Test; Install; Cron; Swarm; Ssh; Http; Peer; Provider; Docs ];
+    };
+    {
+      repo = Graph_repo;
+      relative_path = "doc/MULTI_MACHINE.md";
+      description =
+        "Multi-machine install, HTTP workflow serving, SSH wrappers, and peer-to-peer rollout patterns.";
+      topics = [ Install; Ssh; Http; Peer; Swarm; Docs; General ];
     };
     {
       repo = Graph_repo;
       relative_path = "README.md";
       description =
         "Repository overview, quick start, run.sh behavior, and AegisLM integration.";
-      topics = [ General; Build; Install; Swarm; Provider; Docs ];
+      topics = [ General; Build; Install; Swarm; Ssh; Http; Peer; Provider; Docs ];
     };
     {
       repo = Graph_repo;
@@ -97,14 +111,21 @@ let catalog =
       relative_path = "README.md";
       description =
         "AegisLM quick start, starter terminal, worker mode, and provider routing.";
-      topics = [ General; Install; Provider; Ssh; Docs ];
+      topics = [ General; Install; Provider; Ssh; Http; Peer; Docs ];
     };
     {
       repo = Aegis_repo;
       relative_path = "docs/SSH_REMOTE.md";
       description =
         "Human and machine SSH wrappers, remote install, and clean JSONL worker transport.";
-      topics = [ Ssh; Install; Swarm; Docs; Cron ];
+      topics = [ Ssh; Install; Swarm; Peer; Docs; Cron ];
+    };
+    {
+      repo = Aegis_repo;
+      relative_path = "docs/PEER_MESH.md";
+      description =
+        "HTTP and SSH peering patterns, hop guards, and explicit mesh topology.";
+      topics = [ Peer; Http; Ssh; Install; Provider; Docs; Swarm ];
     };
     {
       repo = Aegis_repo;
@@ -175,6 +196,10 @@ let topic_keywords =
     [ "swarm"; "essaim"; "parallel"; "parallele"; "worker"; "workers"; "crawler"; "webcrawler" ];
     Ssh,
     [ "ssh"; "remote"; "distant"; "wrapper"; "terminal"; "tty" ];
+    Http,
+    [ "http"; "https"; "server"; "curl"; "api"; "rest"; "web" ];
+    Peer,
+    [ "peer"; "pair"; "p2p"; "mesh"; "maillage"; "federation" ];
     Agent,
     [ "agent"; "agents"; "planner"; "summarizer"; "validator"; "graphe"; "graph" ];
     Provider,
@@ -317,8 +342,11 @@ let render_prompt_context runtime ~goal =
       Fmt.str "Workspace root:\n%s" runtime.Client_runtime.client_config.local_ops.workspace_root;
       Fmt.str "Assistant route_model:\n%s" runtime.Client_runtime.client_config.assistant.route_model;
       Fmt.str
-        "SSH wrappers:\n- human: %s\n- machine: %s"
-        runtime.client_config.ssh.human_remote_command
-        runtime.client_config.ssh.machine_remote_command;
+        "Transports:\n- ssh human: %s\n- ssh machine: %s\n- ssh install: %s\n- http workflow: %s\n- http install: %s"
+        runtime.client_config.transport.ssh.human_remote_command
+        runtime.client_config.transport.ssh.machine_remote_command
+        runtime.client_config.transport.ssh.install_emit_command
+        runtime.client_config.transport.http.workflow.base_url
+        runtime.client_config.transport.http.distribution.install_url;
       Fmt.str "Relevant documentation:\n%s" docs_text;
     ]

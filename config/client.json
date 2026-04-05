@@ -18,8 +18,23 @@
   "machine_terminal": {
     "worker_jobs": 4
   },
-  "ssh": {
-    "human_remote_command": "scripts/remote_human_terminal.sh --client-config config/client.json",
-    "machine_remote_command": "scripts/remote_machine_terminal.sh --client-config config/client.json --jobs 4"
+  "transport": {
+    "ssh": {
+      "human_remote_command": "scripts/remote_human_terminal.sh --client-config config/client.json",
+      "machine_remote_command": "scripts/remote_machine_terminal.sh --client-config config/client.json --jobs 4",
+      "install_emit_command": "scripts/remote_install.sh --emit-installer --origin user@host"
+    },
+    "http": {
+      "workflow": {
+        "base_url": "http://127.0.0.1:8087",
+        "server_command": "scripts/http_machine_server.sh --client-config config/client.json --port 8087"
+      },
+      "distribution": {
+        "base_url": "http://127.0.0.1:8788",
+        "server_command": "scripts/http_dist_server.sh --public-base-url http://127.0.0.1:8788",
+        "install_url": "http://127.0.0.1:8788/install.sh",
+        "archive_url": "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz"
+      }
+    }
   }
 }

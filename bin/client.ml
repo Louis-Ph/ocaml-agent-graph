@@ -6,6 +6,7 @@ module Client_runtime = Client.Runtime
 module Client_machine = Client.Machine
 module Client_terminal = Client.Terminal
 module Client_starter = Client.Starter
+module Client_http_server = Client.Http_server
 
 let client_config_term =
   let doc = "Path to the terminal client JSON configuration file." in
@@ -21,6 +22,10 @@ let route_model_term =
 let jobs_term =
   let doc = "Maximum concurrent jobs for the JSONL worker mode." in
   Arg.(value & opt int 4 & info [ "jobs" ] ~docv:"N" ~doc)
+
+let port_term =
+  let doc = "TCP port for the workflow HTTP server." in
+  Arg.(value & opt int 8087 & info [ "port" ] ~docv:"PORT" ~doc)
 
 let kind_term =
   let kinds =
@@ -101,6 +106,11 @@ let run_worker client_config_path jobs =
 let run_starter client_config_path =
   `Ok (exit_if_nonzero (Client_starter.run ~client_config_path ()))
 
+let run_serve_http client_config_path port =
+  match load_runtime client_config_path with
+  | `Error _ as error -> error
+  | `Ok runtime -> `Ok (Client_http_server.run ~port runtime)
+
 let ask_cmd =
   let doc = "Human-friendly terminal for configuring agent graphs." in
   Cmd.v
@@ -131,10 +141,18 @@ let starter_cmd =
     (Cmd.info "starter" ~doc)
     Term.(ret (const run_starter $ client_config_term))
 
+let serve_http_cmd =
+  let doc =
+    "Workflow HTTP server for programmatic calls over normal client/server or peer-to-peer transports."
+  in
+  Cmd.v
+    (Cmd.info "serve-http" ~doc)
+    Term.(ret (const run_serve_http $ client_config_term $ port_term))
+
 let command =
   let doc = "Human and machine terminal clients for ocaml-agent-graph." in
   Cmd.group
     (Cmd.info "ocaml-agent-graph-client" ~doc)
-    [ ask_cmd; call_cmd; worker_cmd; starter_cmd ]
+    [ ask_cmd; call_cmd; worker_cmd; starter_cmd; serve_http_cmd ]
 
 let () = exit (Cmd.eval command)

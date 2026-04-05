@@ -108,6 +108,18 @@ let graph_summary_lines t =
     Fmt.str "graph_runtime_config: %s" t.runtime_config_path;
     Fmt.str "gateway_config: %s" config.llm.gateway_config_path;
     Fmt.str
+      "transport: ssh_human=%s"
+      t.client_config.transport.ssh.human_remote_command;
+    Fmt.str
+      "transport: ssh_machine=%s"
+      t.client_config.transport.ssh.machine_remote_command;
+    Fmt.str
+      "transport: http_workflow=%s"
+      t.client_config.transport.http.workflow.base_url;
+    Fmt.str
+      "transport: http_install=%s"
+      t.client_config.transport.http.distribution.install_url;
+    Fmt.str
       "engine: timeout=%.2fs retries=%d backoff=%.2fs max_steps=%d"
       engine.timeout_seconds
       engine.retry_attempts
@@ -151,6 +163,45 @@ let graph_summary_to_yojson t =
       "client_config_path", `String t.client_config_path;
       "graph_runtime_path", `String t.runtime_config_path;
       "gateway_config_path", `String config.llm.gateway_config_path;
+      ( "transport",
+        `Assoc
+          [
+            ( "ssh",
+              `Assoc
+                [
+                  ( "human_remote_command",
+                    `String t.client_config.transport.ssh.human_remote_command );
+                  ( "machine_remote_command",
+                    `String t.client_config.transport.ssh.machine_remote_command );
+                  ( "install_emit_command",
+                    `String t.client_config.transport.ssh.install_emit_command );
+                ] );
+            ( "http",
+              `Assoc
+                [
+                  ( "workflow",
+                    `Assoc
+                      [
+                        ( "base_url",
+                          `String t.client_config.transport.http.workflow.base_url );
+                        ( "server_command",
+                          `String t.client_config.transport.http.workflow.server_command );
+                      ] );
+                  ( "distribution",
+                    `Assoc
+                      [
+                        ( "base_url",
+                          `String t.client_config.transport.http.distribution.base_url );
+                        ( "server_command",
+                          `String
+                            t.client_config.transport.http.distribution.server_command );
+                        ( "install_url",
+                          `String t.client_config.transport.http.distribution.install_url );
+                        ( "archive_url",
+                          `String t.client_config.transport.http.distribution.archive_url );
+                      ] );
+                ] );
+          ] );
       ( "engine",
         `Assoc
           [

@@ -23,5 +23,6 @@
   yojson
   fmt
   aegis_lm
+  cohttp-lwt-unix
   cmdliner
   (alcotest :with-test)))

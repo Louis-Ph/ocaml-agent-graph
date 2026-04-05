@@ -1,0 +1,96 @@
+let terminal_width () =
+  match Sys.getenv_opt "COLUMNS" with
+  | Some raw ->
+      (match int_of_string_opt raw with
+       | Some width when width >= 48 -> width
+       | _ -> 88)
+  | None -> 88
+
+let supports_color () =
+  Unix.isatty Unix.stdout
+  && not
+       (match Sys.getenv_opt "NO_COLOR" with
+        | Some _ -> true
+        | None -> false)
+  &&
+  match Sys.getenv_opt "TERM" with
+  | Some "dumb" -> false
+  | _ -> true
+
+module Style = struct
+  let paint code text =
+    if supports_color () then Fmt.str "\027[%sm%s\027[0m" code text else text
+
+  let accent text = paint "36" text
+  let muted text = paint "90" text
+  let good text = paint "32" text
+  let bold text = paint "1" text
+end
+
+let wrap_text ?(indent = 0) text =
+  let width = max 40 (terminal_width () - indent) in
+  let words = String.split_on_char ' ' text |> List.filter (fun word -> word <> "") in
+  let rec fold current_length current_line acc = function
+    | [] ->
+        List.rev
+          (if current_line = []
+           then acc
+           else String.concat " " (List.rev current_line) :: acc)
+    | word :: rest ->
+        let word_length = String.length word in
+        let next_length =
+          if current_line = [] then word_length else current_length + 1 + word_length
+        in
+        if next_length <= width
+        then fold next_length (word :: current_line) acc rest
+        else if current_line = []
+        then fold word_length [ word ] acc rest
+        else
+          fold
+            word_length
+            [ word ]
+            (String.concat " " (List.rev current_line) :: acc)
+            rest
+  in
+  fold 0 [] [] words
+
+let print_wrapped ?(indent = 0) text =
+  let prefix = String.make indent ' ' in
+  if String.trim text = ""
+  then print_endline ""
+  else wrap_text ~indent text |> List.iter (fun line -> print_endline (prefix ^ line))
+
+let print_wrapped_lines ?(indent = 0) lines =
+  List.iter (print_wrapped ~indent) lines
+
+let divider () =
+  let width = min 96 (max 52 (terminal_width ())) in
+  String.make width '='
+
+let print_banner ~title ~subtitle badges =
+  let line = divider () in
+  print_endline (Style.accent line);
+  print_endline (Style.bold title);
+  print_wrapped subtitle;
+  if badges <> [] then
+    print_wrapped
+      (Fmt.str
+         "lanes: %s"
+         (badges |> List.map Style.good |> String.concat " | "));
+  print_endline (Style.accent line)
+
+let print_section title lines =
+  print_endline (Style.accent title);
+  print_wrapped_lines ~indent:2 lines
+
+let print_label_value_rows rows =
+  let label_width =
+    rows
+    |> List.fold_left
+         (fun max_width (label, _) -> max max_width (String.length label))
+         0
+  in
+  rows
+  |> List.iter (fun (label, value) ->
+         print_wrapped
+           (Fmt.str "%-*s  %s" label_width label value))

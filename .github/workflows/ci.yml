@@ -20,11 +20,11 @@ jobs:
         with:
           path: ocaml-agent-graph
 
-      - name: Checkout sibling aegis-lm
+      - name: Checkout sibling bulkhead-lm
         uses: actions/checkout@v6
         with:
-          repository: Louis-Ph/aegis-lm
-          path: aegis-lm
+          repository: Louis-Ph/bulkhead-lm
+          path: bulkhead-lm
 
       - name: Install Ubuntu system dependencies
         run: |
@@ -36,8 +36,8 @@ jobs:
         with:
           ocaml-compiler: 5.2.1
 
-      - name: Pin sibling aegis_lm
-        run: opam pin add aegis_lm ../aegis-lm --yes --no-action
+      - name: Pin sibling bulkhead_lm
+        run: opam pin add bulkhead_lm ../bulkhead-lm --yes --no-action
 
       - name: Install opam dependencies
         run: opam install . --deps-only --with-test --yes

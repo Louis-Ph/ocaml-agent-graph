@@ -59,7 +59,7 @@ let config_json ~graph_runtime_path ~assistant_route_model ~prompt_file
       ( "human_terminal",
         `Assoc
           [
-            ("show_routes_on_start", `Bool true);
+            ("show_routes_on_start", `Bool false);
             ("conversation_keep_turns", `Int 8);
           ] );
       ("machine_terminal", `Assoc [ ("worker_jobs", `Int worker_jobs) ]);
@@ -188,7 +188,7 @@ let build_config ~client_config_path () =
               }
             in
             let human_terminal : Client_config.Human_terminal.t =
-              { show_routes_on_start = true; conversation_keep_turns = 8 }
+              { show_routes_on_start = false; conversation_keep_turns = 8 }
             in
             let machine_terminal : Client_config.Machine_terminal.t =
               { worker_jobs }

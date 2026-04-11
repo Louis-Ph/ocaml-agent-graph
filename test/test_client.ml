@@ -81,16 +81,21 @@ let make_runtime_config route_model =
     llm;
   }
 
+let make_test_backend
+    ?(provider_kind = Bulkhead_lm.Config.Openai_compat)
+    ?(api_base = "https://api.example.test/v1")
+    route_model
+  =
+  Bulkhead_lm.Config_test_support.backend
+    ~provider_id:"test-provider"
+    ~provider_kind
+    ~api_base
+    ~upstream_model:route_model
+    ~api_key_env:"IGNORED"
+    ()
+
 let make_llm_client route_model =
-  let backend =
-    Bulkhead_lm.Config_test_support.backend
-      ~provider_id:"test-provider"
-      ~provider_kind:Bulkhead_lm.Config.Openai_compat
-      ~api_base:"https://api.example.test/v1"
-      ~upstream_model:route_model
-      ~api_key_env:"IGNORED"
-      ()
-  in
+  let backend = make_test_backend route_model in
   let config =
     Bulkhead_lm.Config_test_support.sample_config
       ~virtual_keys:
@@ -422,6 +427,15 @@ let test_client_runtime_graph_summary_mentions_routes () =
     true
     (contains_substring ~substring:"transport: http_workflow=http://127.0.0.1:8087" summary)
 
+let test_infer_http_provider_kind_recognizes_openrouter () =
+  let provider_kind =
+    Llm.Bulkhead_client.infer_http_provider_kind "https://openrouter.ai/api/v1"
+  in
+  Alcotest.(check string)
+    "openrouter provider inferred"
+    "openrouter_openai"
+    provider_kind
+
 let test_machine_run_lines_preserves_distinct_requests () =
   let runtime = make_client_runtime "assistant-route" in
   let lines =
@@ -489,6 +503,10 @@ let () =
             "graph summary mentions routes"
             `Quick
             test_client_runtime_graph_summary_mentions_routes;
+          Alcotest.test_case
+            "recognizes openrouter http endpoints"
+            `Quick
+            test_infer_http_provider_kind_recognizes_openrouter;
           Alcotest.test_case
             "machine run_lines preserves distinct requests"
             `Quick

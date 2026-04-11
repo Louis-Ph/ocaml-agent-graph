@@ -37,16 +37,40 @@ type t = {
   route_access_by_model : route_access String_map.t;
 }
 
-let provider_kind_to_string = function
-  | Bulkhead_lm.Config.Openai_compat -> "openai_compat"
-  | Bulkhead_lm.Config.Anthropic -> "anthropic"
-  | Bulkhead_lm.Config.Google_openai -> "google_openai"
-  | Bulkhead_lm.Config.Mistral_openai -> "mistral_openai"
-  | Bulkhead_lm.Config.Ollama_openai -> "ollama_openai"
-  | Bulkhead_lm.Config.Alibaba_openai -> "alibaba_openai"
-  | Bulkhead_lm.Config.Moonshot_openai -> "moonshot_openai"
-  | Bulkhead_lm.Config.Bulkhead_peer -> "bulkhead_peer"
-  | Bulkhead_lm.Config.Bulkhead_ssh_peer -> "bulkhead_ssh_peer"
+let contains_substring ~substring value =
+  let substring_length = String.length substring in
+  let value_length = String.length value in
+  let rec loop index =
+    if index + substring_length > value_length then false
+    else if String.sub value index substring_length = substring then true
+    else loop (index + 1)
+  in
+  if substring_length = 0 then true else loop 0
+
+let infer_http_provider_kind api_base =
+  let normalized_api_base = String.lowercase_ascii api_base in
+  if contains_substring ~substring:"openrouter" normalized_api_base
+  then "openrouter_openai"
+  else "openai_compat"
+
+let provider_kind_to_string (backend : Bulkhead_lm.Config.backend) =
+  (match backend.provider_kind with
+   | Bulkhead_lm.Config.Openai_compat -> "openai_compat"
+   | Bulkhead_lm.Config.Anthropic -> "anthropic"
+   | Bulkhead_lm.Config.Google_openai -> "google_openai"
+   | Bulkhead_lm.Config.Mistral_openai -> "mistral_openai"
+   | Bulkhead_lm.Config.Ollama_openai -> "ollama_openai"
+   | Bulkhead_lm.Config.Alibaba_openai -> "alibaba_openai"
+   | Bulkhead_lm.Config.Moonshot_openai -> "moonshot_openai"
+   | Bulkhead_lm.Config.Bulkhead_peer -> "bulkhead_peer"
+   | Bulkhead_lm.Config.Bulkhead_ssh_peer -> "bulkhead_ssh_peer"
+   (* Newer BulkheadLM releases may add HTTP provider kinds before this project is rebuilt.
+      Keep summaries operational by inferring the family from the backend target. *)
+   | _ ->
+       (match backend.target with
+        | Bulkhead_lm.Config.Http_target api_base -> infer_http_provider_kind api_base
+        | Bulkhead_lm.Config.Ssh_target _ -> "bulkhead_ssh_peer"))
+    [@warning "-11"]
 
 let env_is_ready env_name =
   match Sys.getenv_opt env_name with
@@ -56,7 +80,7 @@ let env_is_ready env_name =
 let backend_access_of_backend (backend : Bulkhead_lm.Config.backend) =
   {
     provider_id = backend.provider_id;
-    provider_kind = provider_kind_to_string backend.provider_kind;
+    provider_kind = provider_kind_to_string backend;
     upstream_model = backend.upstream_model;
     target = Bulkhead_lm.Config.backend_target_label backend;
     api_key_env = backend.api_key_env;

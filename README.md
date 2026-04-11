@@ -146,6 +146,7 @@ The framework now uses `BulkheadLM` for real chat calls:
 - `bulkhead-lm/config/example.gateway.json` chooses the provider routes
 - provider API keys still come from the environment seen by `bulkhead_lm`
 - startup validation now checks that every configured agent route exists in the loaded BulkheadLM gateway config
+- `BulkheadLM` remains the router/provider layer that yields the rudimentary route-bound agents composed here into typed swarms
 
 The shipped demo config currently uses the `claude-sonnet` route through
 `BulkheadLM`.

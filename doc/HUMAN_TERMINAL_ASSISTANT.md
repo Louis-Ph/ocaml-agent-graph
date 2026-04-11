@@ -4,11 +4,12 @@ This document defines the hierarchy for the human terminal client.
 
 ## Product Hierarchy
 
-`BulkheadLM` is the primary gateway and the producer of rudimentary provider-facing
-agents.
+`BulkheadLM` is the primary router/gateway and the producer of rudimentary
+provider-facing agents.
 
 `ocaml-agent-graph` sits above it.
-It turns those routed model calls into a more intelligent and auditable graph:
+It composes those routed provider-facing agents into a more intelligent and
+auditable graph:
 
 - typed agents
 - explicit routing

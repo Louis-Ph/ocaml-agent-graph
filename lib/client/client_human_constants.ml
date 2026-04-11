@@ -58,8 +58,8 @@ module Text = struct
 
   let intro_lines =
     [
-      "BulkheadLM remains the primary provider gateway and rudimentary-agent layer.";
-      "ocaml-agent-graph adds typed orchestration, graph control, install flows, and smarter swarms on top.";
+      "BulkheadLM remains the primary provider router/gateway and rudimentary-agent layer.";
+      "ocaml-agent-graph composes those routed provider-facing agents into typed orchestration, graph control, install flows, and smarter swarms.";
       "The human terminal now covers local work, SSH remoting, HTTP workflow serving, and pair-style machine calls.";
     ]
 

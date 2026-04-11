@@ -382,7 +382,13 @@ let test_assistant_prompt_mentions_bulkhead_hierarchy_and_docs () =
     "mentions hierarchy"
     true
     (contains_substring
-       ~substring:"BulkheadLM is the primary provider gateway and rudimentary-agent layer."
+       ~substring:"BulkheadLM is the primary provider router/gateway and rudimentary-agent layer."
+       prompt);
+  Alcotest.(check bool)
+    "mentions swarm composition hierarchy"
+    true
+    (contains_substring
+       ~substring:"Its routed provider-facing agents are the low-level building blocks that ocaml-agent-graph composes into typed agents, graph policies, and smarter swarms."
        prompt);
   Alcotest.(check bool)
     "mentions assistant playbook"

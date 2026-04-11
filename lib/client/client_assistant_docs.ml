@@ -338,7 +338,7 @@ let render_prompt_context runtime ~goal =
   String.concat
     "\n\n"
     [
-      "Operating hierarchy:\n- BulkheadLM is the primary provider gateway and rudimentary-agent layer.\n- ocaml-agent-graph turns those routed model calls into typed agents, graph policies, and smarter swarms.\n- The human terminal assistant should connect both projects to the user's operational goal.";
+      "Operating hierarchy:\n- BulkheadLM is the primary provider router/gateway and rudimentary-agent layer.\n- Its routed provider-facing agents are the low-level building blocks that ocaml-agent-graph composes into typed agents, graph policies, and smarter swarms.\n- The human terminal assistant should connect both projects to the user's operational goal.";
       Fmt.str "Workspace root:\n%s" runtime.Client_runtime.client_config.local_ops.workspace_root;
       Fmt.str "Assistant route_model:\n%s" runtime.Client_runtime.client_config.assistant.route_model;
       Fmt.str

@@ -5,6 +5,13 @@
     "system_prompt_file": "prompts/graph_terminal_assistant.md",
     "max_tokens": 700
   },
+  "messenger_spokesperson": {
+    "public_model": "swarm-spokesperson",
+    "route_model": "claude-sonnet",
+    "system_prompt_file": "prompts/swarm_messenger_spokesperson.md",
+    "max_tokens": 500,
+    "authorization_token_env": "AGENT_GRAPH_MESSENGER_TOKEN"
+  },
   "local_ops": {
     "workspace_root": "..",
     "max_read_bytes": 32000,

@@ -31,9 +31,33 @@ let capabilities_json (runtime : Client_runtime.t) =
           `String (Client_machine.call_kind_to_string Client_machine.Assistant);
           `String (Client_machine.call_kind_to_string Client_machine.Inspect_graph);
           `String (Client_machine.call_kind_to_string Client_machine.Run_graph);
+          `String
+            (Client_machine.call_kind_to_string
+               Client_machine.Messenger_spokesperson);
         ];
+      "messenger_spokesperson",
+      Client_messenger_spokesperson.capabilities_json runtime;
       "graph_summary", Client_runtime.graph_summary_to_yojson runtime;
     ]
+
+let authorization_header req =
+  Cohttp.Header.get (Cohttp.Request.headers req) "authorization"
+  |> Option.value ~default:""
+  |> String.trim
+
+let authorize_messenger runtime req =
+  match runtime.Client_runtime.client_config.messenger_spokesperson with
+  | None -> Ok ()
+  | Some config ->
+      (match Client_messenger_spokesperson.expected_authorization config with
+       | Error message -> Error message
+       | Ok None -> Ok ()
+       | Ok (Some expected) ->
+           let presented = authorization_header req in
+           if String.equal presented expected then Ok ()
+           else
+             Error
+               "Unauthorized messenger spokesperson request. Provide the configured bearer token.")
 
 let request_kind_of_uri uri =
   match Uri.get_query_param uri "kind" with
@@ -77,6 +101,19 @@ let callback runtime _conn req body =
        | Error message -> respond_error message
        | Ok kind ->
            Cohttp_lwt.Body.to_string body >>= invoke_request runtime ~kind
+           >>= (function
+                 | Ok json -> respond_json json
+                 | Error message -> respond_error message))
+  | `GET, "/v1/messenger/models" ->
+      (match authorize_messenger runtime req with
+       | Error message -> respond_error ~status:`Unauthorized message
+       | Ok () -> respond_json (Client_messenger_spokesperson.models_json runtime))
+  | `POST, "/v1/messenger/chat/completions" ->
+      (match authorize_messenger runtime req with
+       | Error message -> respond_error ~status:`Unauthorized message
+       | Ok () ->
+           Cohttp_lwt.Body.to_string body
+           >>= invoke_request runtime ~kind:Client_machine.Messenger_spokesperson
            >>= (function
                  | Ok json -> respond_json json
                  | Error message -> respond_error message))

@@ -48,6 +48,17 @@ let config_json ~graph_runtime_path ~assistant_route_model ~prompt_file
             ("system_prompt_file", `String prompt_file);
             ("max_tokens", `Int 700);
           ] );
+      ( "messenger_spokesperson",
+        `Assoc
+          [
+            ( "public_model",
+              `String Client_config.Defaults.default_messenger_public_model );
+            ("route_model", `String assistant_route_model);
+            ( "system_prompt_file",
+              `String Client_config.Defaults.default_messenger_prompt_file );
+            ("max_tokens", `Int 500);
+            ("authorization_token_env", `String "AGENT_GRAPH_MESSENGER_TOKEN");
+          ] );
       ( "local_ops",
         `Assoc
           [
@@ -222,6 +233,7 @@ let build_config ~client_config_path () =
               {
                 graph_runtime_path;
                 assistant;
+                messenger_spokesperson = None;
                 local_ops;
                 human_terminal;
                 machine_terminal;

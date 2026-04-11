@@ -24,7 +24,7 @@ module Command = struct
 end
 
 module Wizard = struct
-  let topics = [ "build"; "test"; "install"; "cron"; "swarm"; "ssh"; "http"; "peer" ]
+  let topics = [ "build"; "test"; "install"; "cron"; "swarm"; "messenger"; "ssh"; "http"; "peer" ]
 end
 
 let commands =
@@ -79,7 +79,7 @@ module Text = struct
       "  /explore    list a directory under the configured workspace root";
       "  /open PATH  preview a local text file under the workspace root";
       "  /run CMD    execute a local command under the workspace root";
-      "  /docs TOPIC show the most relevant local docs for build, test, install, cron, swarm, ssh, http, or peer";
+      "  /docs TOPIC show the most relevant local docs for build, test, install, cron, swarm, messenger, ssh, http, or peer";
       "  /wizard TXT run the proactive starter wizard for a concrete goal";
       "  /ssh-human  print the SSH wrapper for the human terminal";
       "  /ssh-machine print the SSH wrapper for the machine worker";
@@ -99,10 +99,11 @@ module Text = struct
       "  install -> start from ./run.sh or ask /wizard install local human terminal";
       "  cron    -> ask /wizard cron ... so the assistant can propose a safe schedule and commands";
       "  swarm   -> ask /wizard swarm ... and inspect the adaptive webcrawler, HTTP API, or worker mode";
+      "  messenger -> wire BulkheadLM messenger connectors to the swarm spokesperson endpoint";
       "  ssh     -> inspect /ssh-human, /ssh-machine, and /install-ssh before remote execution";
       "  http    -> start /http-server, then use /curl or /install-http";
       "  peer    -> use /mesh to compare normal client/server and direct peer-style transports";
-      "  docs    -> use /docs build, /docs swarm, /docs ssh, /docs http, or /docs peer";
+      "  docs    -> use /docs build, /docs swarm, /docs messenger, /docs ssh, /docs http, or /docs peer";
     ]
 
   let wizard_lines =
@@ -113,6 +114,7 @@ module Text = struct
       "  /wizard install a local human terminal for a new user";
       "  /wizard cron a nightly swarm run and save logs safely";
       "  /wizard swarm execute the adaptive webcrawler remotely over ssh";
+      "  /wizard messenger expose the swarm spokesperson for Telegram or WhatsApp through BulkheadLM";
       "  /wizard http expose the machine workflow API and show curl calls";
       "  /wizard peer wire two machines through ssh or http";
       Fmt.str
@@ -128,6 +130,7 @@ module Text = struct
       "  /docs install";
       "  /docs cron";
       "  /docs swarm";
+      "  /docs messenger";
       "  /docs ssh";
       "  /docs http";
       "  /docs peer";

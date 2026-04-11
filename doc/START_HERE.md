@@ -71,7 +71,7 @@ The starter script:
 Inside the terminal, you can:
 
 - chat with the assistant
-- run `/wizard ...` for build, test, install, cron, ssh, http, peer, or swarm guidance
+- run `/wizard ...` for build, test, install, cron, messenger, ssh, http, peer, or swarm guidance
 - run `/docs ...` to surface the most relevant local documentation
 - run `/mesh` to print the SSH and HTTP transport map
 - run `/curl` to print HTTP workflow examples
@@ -83,6 +83,7 @@ Inside the terminal, you can:
 For a focused multi-machine guide, also read:
 
 - [MULTI_MACHINE.md](MULTI_MACHINE.md)
+- [MESSENGER_CONNECTORS.md](MESSENGER_CONNECTORS.md)
 
 You will see:
 

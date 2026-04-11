@@ -81,6 +81,64 @@ let make_runtime_config route_model =
     llm;
   }
 
+let make_runtime_config_with_routes
+    ~planner_route_model
+    ~summarizer_route_model
+    ~validator_route_model
+    ()
+  =
+  let llm =
+    {
+      Config.Runtime.Llm.gateway_config_path = "/unused/bulkhead.json";
+      authorization_token_plaintext = Some "sk-test";
+      authorization_token_env = None;
+      planner =
+        {
+          Config.Runtime.Llm.Agent_profile.route_model = planner_route_model;
+          system_prompt = "planner prompt";
+          max_tokens = Some 128;
+          confidence = 0.91;
+        };
+      summarizer =
+        {
+          Config.Runtime.Llm.Agent_profile.route_model = summarizer_route_model;
+          system_prompt = "summarizer prompt";
+          max_tokens = Some 128;
+          confidence = 0.88;
+        };
+      validator =
+        {
+          Config.Runtime.Llm.Agent_profile.route_model = validator_route_model;
+          system_prompt = "validator prompt";
+          max_tokens = Some 128;
+          confidence = 0.94;
+        };
+    }
+  in
+  {
+    Config.Runtime.engine =
+      {
+        Config.Runtime.Engine.timeout_seconds = 1.0;
+        retry_attempts = 0;
+        retry_backoff_seconds = 0.0;
+        max_steps = 8;
+      };
+    routing =
+      {
+        Config.Runtime.Routing.long_text_threshold = 48;
+        short_text_agent = Core.Agent_name.Summarizer;
+        planner_agent = Core.Agent_name.Planner;
+        parallel_agents =
+          [ Core.Agent_name.Summarizer; Core.Agent_name.Validator ];
+      };
+    demo =
+      {
+        Config.Runtime.Demo.task_id = "client-test-task";
+        input = "unused";
+      };
+    llm;
+  }
+
 let make_test_backend
     ?(provider_kind = Bulkhead_lm.Config.Openai_compat)
     ?(api_base = "https://api.example.test/v1")
@@ -112,6 +170,30 @@ let make_llm_client route_model =
   let store = Bulkhead_lm.Runtime_state.create config in
   Llm.Bulkhead_client.of_store ~authorization:"Bearer sk-test" store
 
+let make_llm_client_with_mock responses routes =
+  let config =
+    Bulkhead_lm.Config_test_support.sample_config
+      ~virtual_keys:
+        [
+          Bulkhead_lm.Config_test_support.virtual_key
+            ~token_plaintext:"sk-test"
+            ~name:"test"
+            ~allowed_routes:
+              (routes
+               |> List.map (fun (route : Bulkhead_lm.Config.route) -> route.public_model))
+            ();
+        ]
+      ~routes
+      ()
+  in
+  let provider = Bulkhead_lm.Provider_mock.make responses in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _backend -> provider)
+      config
+  in
+  Llm.Bulkhead_client.of_store ~authorization:"Bearer sk-test" store
+
 let make_client_runtime route_model =
   let runtime_config = make_runtime_config route_model in
   let llm_client = make_llm_client route_model in
@@ -124,6 +206,141 @@ let make_client_runtime route_model =
           system_prompt = "assistant";
           max_tokens = Some 700;
         };
+      messenger_spokesperson =
+        Some
+          {
+            Client.Config.Messenger_spokesperson.public_model = "swarm-spokesperson";
+            route_model;
+            system_prompt = "spokesperson";
+            max_tokens = Some 500;
+            authorization_token_plaintext = None;
+            authorization_token_env = Some "AGENT_GRAPH_MESSENGER_TOKEN";
+          };
+      local_ops =
+        {
+          Client.Config.Local_ops.workspace_root = ".";
+          max_read_bytes = 32_000;
+          max_exec_output_bytes = 12_000;
+          command_timeout_ms = 10_000;
+        };
+      human_terminal =
+        {
+          Client.Config.Human_terminal.show_routes_on_start = true;
+          conversation_keep_turns = 8;
+        };
+      machine_terminal = { Client.Config.Machine_terminal.worker_jobs = 4 };
+      transport =
+        {
+          Client.Config.Transport.ssh =
+            {
+              Client.Config.Transport.Ssh.human_remote_command = "ssh human";
+              machine_remote_command = "ssh machine";
+              install_emit_command = "ssh install";
+            };
+          http =
+            {
+              Client.Config.Transport.Http.workflow =
+                {
+                  Client.Config.Transport.Http_workflow.base_url = "http://127.0.0.1:8087";
+                  server_command = "serve-http";
+                };
+              distribution =
+                {
+                  Client.Config.Transport.Http_distribution.base_url = "http://127.0.0.1:8788";
+                  server_command = "serve-dist";
+                  install_url = "http://127.0.0.1:8788/install.sh";
+                  archive_url = "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz";
+                };
+            };
+        };
+    }
+  in
+  Client.Runtime.of_parts
+    ~client_config_path:"/tmp/client.json"
+    ~client_config
+    ~runtime_config_path:"/tmp/runtime.json"
+    ~runtime_config
+    ~llm_client
+
+let make_spokesperson_runtime () =
+  let runtime_config =
+    make_runtime_config_with_routes
+      ~planner_route_model:"planner-route"
+      ~summarizer_route_model:"summarizer-route"
+      ~validator_route_model:"validator-route"
+      ()
+  in
+  let routes =
+    [
+      Bulkhead_lm.Config_test_support.route
+        ~public_model:"planner-route"
+        ~backends:[ make_test_backend "planner-route" ]
+        ();
+      Bulkhead_lm.Config_test_support.route
+        ~public_model:"summarizer-route"
+        ~backends:[ make_test_backend "summarizer-route" ]
+        ();
+      Bulkhead_lm.Config_test_support.route
+        ~public_model:"validator-route"
+        ~backends:[ make_test_backend "validator-route" ]
+        ();
+      Bulkhead_lm.Config_test_support.route
+        ~public_model:"assistant-route"
+        ~backends:[ make_test_backend "assistant-route" ]
+        ();
+    ]
+  in
+  let llm_client =
+    make_llm_client_with_mock
+      [
+        ( "planner-route",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"planner-route"
+               ~content:
+                 "Assess the client request\nRun the swarm\nPrepare a spokesperson summary"
+               ()) );
+        ( "summarizer-route",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"summarizer-route"
+               ~content:"The client wants a messenger-accessible swarm spokesperson."
+               ()) );
+        ( "validator-route",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"validator-route"
+               ~content:"PASS | strengths: direct client channel | risks: configure auth token"
+               ()) );
+        ( "assistant-route",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"assistant-route"
+               ~content:
+                 "Bonjour, je parle au nom de l'essaim. Votre demande peut passer par le porte-parole messenger."
+               ()) );
+      ]
+      routes
+  in
+  let client_config =
+    {
+      Client.Config.graph_runtime_path = "/tmp/runtime.json";
+      assistant =
+        {
+          Client.Config.Assistant.route_model = "assistant-route";
+          system_prompt = "assistant";
+          max_tokens = Some 700;
+        };
+      messenger_spokesperson =
+        Some
+          {
+            Client.Config.Messenger_spokesperson.public_model = "swarm-spokesperson";
+            route_model = "assistant-route";
+            system_prompt = "spokesperson";
+            max_tokens = Some 500;
+            authorization_token_plaintext = Some "sk-messenger";
+            authorization_token_env = None;
+          };
       local_ops =
         {
           Client.Config.Local_ops.workspace_root = ".";
@@ -175,9 +392,11 @@ let test_client_config_loads_prompt_and_paths () =
       let prompt_dir = Filename.concat dir "prompts" in
       Unix.mkdir prompt_dir 0o755;
       let prompt_path = Filename.concat prompt_dir "assistant.md" in
+      let messenger_prompt_path = Filename.concat prompt_dir "spokesperson.md" in
       let runtime_path = Filename.concat dir "runtime.json" in
       let client_path = Filename.concat dir "client.json" in
       write_file prompt_path "assistant prompt body";
+      write_file messenger_prompt_path "swarm spokesperson prompt";
       write_file runtime_path "{}";
       write_file
         client_path
@@ -188,6 +407,13 @@ let test_client_config_loads_prompt_and_paths () =
     "route_model": "claude-sonnet",
     "system_prompt_file": "prompts/assistant.md",
     "max_tokens": 512
+  },
+  "messenger_spokesperson": {
+    "public_model": "swarm-spokesperson",
+    "route_model": "claude-sonnet",
+    "system_prompt_file": "prompts/spokesperson.md",
+    "max_tokens": 333,
+    "authorization_token_env": "AGENT_GRAPH_MESSENGER_TOKEN"
   },
   "local_ops": {
     "workspace_root": ".",
@@ -230,6 +456,12 @@ let test_client_config_loads_prompt_and_paths () =
             "prompt file loaded"
             "assistant prompt body"
             config.assistant.system_prompt;
+          Alcotest.(check (option string))
+            "messenger spokesperson loaded"
+            (Some "swarm-spokesperson")
+            (config.messenger_spokesperson
+             |> Option.map (fun spokesperson ->
+                    spokesperson.Client.Config.Messenger_spokesperson.public_model));
           Alcotest.(check string)
             "runtime path resolved"
             runtime_path
@@ -369,6 +601,20 @@ let test_assistant_docs_selects_ssh_http_and_peer_references () =
     true
     (List.mem "docs/PEER_MESH.md" paths)
 
+let test_assistant_docs_selects_messenger_references () =
+  let docs =
+    Client.Assistant_docs.selected_doc_specs
+      "wire a telegram messenger webhook to the swarm spokesperson"
+  in
+  let paths =
+    docs
+    |> List.map (fun (spec : Client.Assistant_docs.doc_spec) -> spec.relative_path)
+  in
+  Alcotest.(check bool)
+    "includes messenger wiring guide"
+    true
+    (List.mem "doc/MESSENGER_CONNECTORS.md" paths)
+
 let test_assistant_prompt_mentions_bulkhead_hierarchy_and_docs () =
   let runtime = make_client_runtime "assistant-route" in
   let prompt =
@@ -429,6 +675,10 @@ let test_client_runtime_graph_summary_mentions_routes () =
     true
     (contains_substring ~substring:"route_model=assistant-route" summary);
   Alcotest.(check bool)
+    "messenger spokesperson mentioned"
+    true
+    (contains_substring ~substring:"messenger_spokesperson: public_model=swarm-spokesperson" summary);
+  Alcotest.(check bool)
     "http workflow mentioned"
     true
     (contains_substring ~substring:"transport: http_workflow=http://127.0.0.1:8087" summary)
@@ -441,6 +691,41 @@ let test_infer_http_provider_kind_recognizes_openrouter () =
     "openrouter provider inferred"
     "openrouter_openai"
     provider_kind
+
+let test_messenger_spokesperson_runs_swarm_and_replies () =
+  let runtime = make_spokesperson_runtime () in
+  let request : Bulkhead_lm.Openai_types.chat_request =
+    {
+      model = "swarm-spokesperson";
+      messages =
+        [
+          {
+            Bulkhead_lm.Openai_types.role = "user";
+            content = "Peux-tu parler au nom de l'essaim sur Telegram ?";
+          };
+        ];
+      stream = false;
+      max_tokens = Some 400;
+    }
+  in
+  match Lwt_main.run (Client.Messenger_spokesperson.respond runtime request) with
+  | Error message -> Alcotest.fail message
+  | Ok response ->
+      Alcotest.(check string)
+        "public model preserved"
+        "swarm-spokesperson"
+        response.model;
+      let content =
+        response.choices
+        |> List.hd
+        |> fun choice -> choice.Bulkhead_lm.Openai_types.message.content
+      in
+      Alcotest.(check bool)
+        "spokesperson text returned"
+        true
+        (contains_substring
+           ~substring:"porte-parole messenger"
+           content)
 
 let test_machine_run_lines_preserves_distinct_requests () =
   let runtime = make_client_runtime "assistant-route" in
@@ -495,6 +780,10 @@ let () =
             `Quick
             test_assistant_docs_selects_ssh_http_and_peer_references;
           Alcotest.test_case
+            "selects messenger docs"
+            `Quick
+            test_assistant_docs_selects_messenger_references;
+          Alcotest.test_case
             "prompt mentions hierarchy and docs"
             `Quick
             test_assistant_prompt_mentions_bulkhead_hierarchy_and_docs;
@@ -513,6 +802,10 @@ let () =
             "recognizes openrouter http endpoints"
             `Quick
             test_infer_http_provider_kind_recognizes_openrouter;
+          Alcotest.test_case
+            "messenger spokesperson runs swarm and replies"
+            `Quick
+            test_messenger_spokesperson_runs_swarm_and_replies;
           Alcotest.test_case
             "machine run_lines preserves distinct requests"
             `Quick

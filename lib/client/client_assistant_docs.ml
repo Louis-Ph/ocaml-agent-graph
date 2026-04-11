@@ -9,6 +9,7 @@ type topic =
   | Install
   | Cron
   | Swarm
+  | Messenger
   | Ssh
   | Http
   | Peer
@@ -36,6 +37,7 @@ let topic_equal left right =
   | Install, Install
   | Cron, Cron
   | Swarm, Swarm
+  | Messenger, Messenger
   | Ssh, Ssh
   | Http, Http
   | Peer, Peer
@@ -51,6 +53,7 @@ let topic_label = function
   | Install -> "install"
   | Cron -> "cron"
   | Swarm -> "swarm"
+  | Messenger -> "messenger"
   | Ssh -> "ssh"
   | Http -> "http"
   | Peer -> "peer"
@@ -66,7 +69,7 @@ let catalog =
       description =
         "Operator playbook for the human terminal, cron, SSH, HTTP, peer wiring, and swarm execution.";
       topics =
-        [ General; Build; Test; Install; Cron; Swarm; Ssh; Http; Peer; Provider; Docs ];
+        [ General; Build; Test; Install; Cron; Swarm; Messenger; Ssh; Http; Peer; Provider; Docs ];
     };
     {
       repo = Graph_repo;
@@ -80,7 +83,7 @@ let catalog =
       relative_path = "README.md";
       description =
         "Repository overview, quick start, run.sh behavior, and BulkheadLM integration.";
-      topics = [ General; Build; Install; Swarm; Ssh; Http; Peer; Provider; Docs ];
+      topics = [ General; Build; Install; Swarm; Messenger; Ssh; Http; Peer; Provider; Docs ];
     };
     {
       repo = Graph_repo;
@@ -105,6 +108,13 @@ let catalog =
       relative_path = "demos/professional_buyer/README.md";
       description = "A full procurement swarm that chains planning, crawling, extraction, and scoring.";
       topics = [ Swarm; Agent; Docs ];
+    };
+    {
+      repo = Graph_repo;
+      relative_path = "doc/MESSENGER_CONNECTORS.md";
+      description =
+        "Messenger connector architecture and the BulkheadLM-to-swarm spokesperson wiring.";
+      topics = [ Messenger; Swarm; Http; Provider; Install; Docs; General ];
     };
     {
       repo = Bulkhead_repo;
@@ -194,6 +204,8 @@ let topic_keywords =
     [ "cron"; "crontab"; "schedule"; "planifier"; "timer"; "launchd"; "nightly" ];
     Swarm,
     [ "swarm"; "essaim"; "parallel"; "parallele"; "worker"; "workers"; "crawler"; "webcrawler" ];
+    Messenger,
+    [ "messenger"; "telegram"; "whatsapp"; "discord"; "wechat"; "line"; "viber"; "instagram"; "google chat"; "webhook" ];
     Ssh,
     [ "ssh"; "remote"; "distant"; "wrapper"; "terminal"; "tty" ];
     Http,

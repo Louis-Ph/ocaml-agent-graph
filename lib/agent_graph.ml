@@ -25,6 +25,7 @@ module Client = struct
   module Ui = Client_ui
   module Assistant_docs = Client_assistant_docs
   module Assistant = Client_assistant
+  module Messenger_spokesperson = Client_messenger_spokesperson
   module Machine = Client_machine
   module Http_server = Client_http_server
   module Terminal = Client_terminal

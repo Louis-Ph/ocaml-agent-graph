@@ -33,6 +33,7 @@ It should help the user:
 - install or bootstrap a local terminal setup
 - prepare cron or timer-based recurring runs
 - execute or supervise swarms of agents
+- expose the messenger spokesperson endpoint and explain how `BulkheadLM` connectors should call it
 - explain when to use human SSH versus machine SSH
 - expose the HTTP workflow API and ready-to-paste `curl` examples
 - explain the difference between a normal client/server split and a direct peer-style connection

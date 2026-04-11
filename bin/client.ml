@@ -33,6 +33,7 @@ let kind_term =
       "assistant", Client_machine.Assistant;
       "inspect_graph", Client_machine.Inspect_graph;
       "run_graph", Client_machine.Run_graph;
+      "messenger_spokesperson", Client_machine.Messenger_spokesperson;
     ]
   in
   let doc = "Kind of machine request to read from stdin." in
@@ -143,7 +144,7 @@ let starter_cmd =
 
 let serve_http_cmd =
   let doc =
-    "Workflow HTTP server for programmatic calls over normal client/server or peer-to-peer transports."
+    "Workflow HTTP server for programmatic calls plus the OpenAI-compatible messenger spokesperson endpoint."
   in
   Cmd.v
     (Cmd.info "serve-http" ~doc)

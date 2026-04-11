@@ -216,6 +216,10 @@ let http_curl_examples (runtime : Client_runtime.t) =
        -d '{\"task_id\":\"mesh-demo\",\"input\":\"Plan a bounded swarm \
        rollout.\"}'"
       base_url;
+    Fmt.str
+      "curl -fsS -X POST %s/v1/messenger/chat/completions -H 'Content-Type: \
+       application/json' -d '{\"model\":\"swarm-spokesperson\",\"messages\":[{\"role\":\"user\",\"content\":\"Speak to me as the swarm spokesperson.\"}],\"stream\":false}'"
+      base_url;
   ]
 
 let print_transport_dashboard runtime =

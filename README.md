@@ -151,6 +151,41 @@ The framework now uses `BulkheadLM` for real chat calls:
 The shipped demo config currently uses the `claude-sonnet` route through
 `BulkheadLM`.
 
+## Messenger Spokesperson
+
+Each client config can now expose one client-facing swarm spokesperson through an
+OpenAI-compatible endpoint:
+
+- `POST /v1/messenger/chat/completions`
+- `GET /v1/messenger/models`
+
+The intended hierarchy is:
+
+- `BulkheadLM` keeps ownership of Telegram, WhatsApp, Messenger, Discord, and other connector webhooks
+- `ocaml-agent-graph` executes the real swarm and returns one spokesperson reply for the client
+
+The default sample client config exposes:
+
+- public model: `swarm-spokesperson`
+- internal narrator route: `claude-sonnet`
+
+So the sibling `bulkhead-lm` repo can point an `openai_compat` backend to:
+
+```text
+http://127.0.0.1:8087/v1/messenger
+```
+
+and use:
+
+- `upstream_model = "swarm-spokesperson"`
+
+This lets a Telegram or WhatsApp connector in `bulkhead-lm` speak to one
+client-facing spokesperson that is backed by the swarm execution from this
+repository.
+
+For the full wiring pattern, see
+[`doc/MESSENGER_CONNECTORS.md`](doc/MESSENGER_CONNECTORS.md).
+
 ## Demo
 
 ```sh

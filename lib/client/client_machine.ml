@@ -4,11 +4,13 @@ type call_kind =
   | Assistant
   | Inspect_graph
   | Run_graph
+  | Messenger_spokesperson
 
 type call_response =
   | Assistant_response of Client_assistant.reply
   | Graph_summary_response of Yojson.Safe.t
   | Run_graph_response of Yojson.Safe.t
+  | Messenger_spokesperson_response of Yojson.Safe.t
 
 type worker_request = {
   line_no : int;
@@ -46,26 +48,30 @@ let call_kind_to_string = function
   | Assistant -> "assistant"
   | Inspect_graph -> "inspect_graph"
   | Run_graph -> "run_graph"
+  | Messenger_spokesperson -> "messenger_spokesperson"
 
 let call_kind_of_string = function
   | "assistant" -> Ok Assistant
   | "inspect_graph" -> Ok Inspect_graph
   | "run_graph" -> Ok Run_graph
+  | "messenger_spokesperson" -> Ok Messenger_spokesperson
   | value ->
       Error
         (Fmt.str
-           "Unsupported client kind: %s. Expected one of assistant, inspect_graph, run_graph."
+           "Unsupported client kind: %s. Expected one of assistant, inspect_graph, run_graph, messenger_spokesperson."
            value)
 
 let call_response_to_yojson = function
   | Assistant_response reply -> Client_assistant.reply_to_yojson reply
   | Graph_summary_response json -> json
   | Run_graph_response json -> json
+  | Messenger_spokesperson_response json -> json
 
 let response_text = function
   | Assistant_response reply -> reply.message
   | Graph_summary_response json -> Yojson.Safe.pretty_to_string json
   | Run_graph_response json -> Yojson.Safe.pretty_to_string json
+  | Messenger_spokesperson_response json -> Yojson.Safe.pretty_to_string json
 
 let load_attachments (runtime : Client_runtime.t) paths =
   let open Client_local_ops in
@@ -174,6 +180,19 @@ let invoke_json (runtime : Client_runtime.t) ~kind json =
            in
            run_graph_json runtime task_id input
            >|= Result.map (fun value -> Run_graph_response value))
+  | Messenger_spokesperson ->
+      (match Bulkhead_lm.Openai_types.chat_request_of_yojson json with
+       | Error field ->
+           Lwt.return
+             (Error
+                (Fmt.str
+                   "messenger_spokesperson requests require a valid OpenAI chat request field: %s"
+                   field))
+       | Ok request ->
+           Client_messenger_spokesperson.respond runtime request
+           >|= Result.map (fun response ->
+                  Messenger_spokesperson_response
+                    (Bulkhead_lm.Openai_types.chat_response_to_yojson response)))
 
 let request_kind_json kind = `String (call_kind_to_string kind)
 

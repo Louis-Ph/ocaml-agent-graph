@@ -8,6 +8,17 @@ module Assistant = struct
   }
 end
 
+module Messenger_spokesperson = struct
+  type t = {
+    public_model : string;
+    route_model : string;
+    system_prompt : string;
+    max_tokens : int option;
+    authorization_token_plaintext : string option;
+    authorization_token_env : string option;
+  }
+end
+
 module Local_ops = struct
   type t = {
     workspace_root : string;
@@ -69,6 +80,7 @@ end
 type t = {
   graph_runtime_path : string;
   assistant : Assistant.t;
+  messenger_spokesperson : Messenger_spokesperson.t option;
   local_ops : Local_ops.t;
   human_terminal : Human_terminal.t;
   machine_terminal : Machine_terminal.t;
@@ -81,6 +93,9 @@ module Defaults = struct
   let default_client_config_path = "config/client.json"
   let default_http_workflow_base_url = "http://127.0.0.1:8087"
   let default_http_distribution_base_url = "http://127.0.0.1:8788"
+  let default_messenger_public_model = "swarm-spokesperson"
+  let default_messenger_prompt_file = "prompts/swarm_messenger_spokesperson.md"
+  let default_messenger_api_path = "/v1/messenger"
 
   let ssh_human_remote_command ~client_config_path =
     Fmt.str
@@ -126,6 +141,56 @@ let parse_assistant ~base_dir json =
           system_prompt;
           max_tokens = Config_support.member_int_option "max_tokens" json;
         }
+
+let parse_messenger_spokesperson ~base_dir assistant json =
+  match json with
+  | `Assoc _ ->
+      if
+        match json |> member "enabled" with
+        | `Null -> true
+        | `Bool value -> value
+        | _ -> true
+      then
+        let prompt_path =
+          json
+          |> member "system_prompt_file"
+          |> function
+          | `Null ->
+              Defaults.default_messenger_prompt_file
+              |> Config_support.resolve_relative_path ~base_dir
+          | value ->
+              value
+              |> to_string
+              |> Config_support.resolve_relative_path ~base_dir
+        in
+        (match Config_support.load_text_file prompt_path with
+         | Error _ as error -> error
+         | Ok system_prompt ->
+             Ok
+               (Some
+                  {
+                    Messenger_spokesperson.public_model =
+                      (match json |> member "public_model" with
+                       | `Null -> Defaults.default_messenger_public_model
+                       | value -> value |> to_string);
+                    route_model =
+                      (match json |> member "route_model" with
+                       | `Null -> assistant.Assistant.route_model
+                       | value -> value |> to_string);
+                    system_prompt;
+                    max_tokens = Config_support.member_int_option "max_tokens" json;
+                    authorization_token_plaintext =
+                      Config_support.member_string_option
+                        "authorization_token_plaintext"
+                        json;
+                    authorization_token_env =
+                      Config_support.member_string_option
+                        "authorization_token_env"
+                        json;
+                  }))
+      else Ok None
+  | `Null -> Ok None
+  | _ -> Error "Invalid messenger_spokesperson configuration."
 
 let parse_local_ops ~base_dir json =
   {
@@ -272,27 +337,36 @@ let load path =
     match parse_assistant ~base_dir (json |> member "assistant") with
     | Error _ as error -> error
     | Ok assistant ->
-        let machine_terminal =
-          json
-          |> member "machine_terminal"
-          |> parse_machine_terminal
-        in
-        Ok
-          {
-            graph_runtime_path =
-              json
-              |> member "graph_runtime_path"
-              |> to_string
-              |> Config_support.resolve_relative_path ~base_dir;
-            assistant;
-            local_ops = json |> member "local_ops" |> parse_local_ops ~base_dir;
-            human_terminal =
-              json
-              |> member "human_terminal"
-              |> parse_human_terminal;
-            machine_terminal;
-            transport = parse_transport ~worker_jobs:machine_terminal.worker_jobs json;
-          }
+        (match
+           parse_messenger_spokesperson
+             ~base_dir
+             assistant
+             (json |> member "messenger_spokesperson")
+         with
+         | Error _ as error -> error
+         | Ok messenger_spokesperson ->
+             let machine_terminal =
+               json
+               |> member "machine_terminal"
+               |> parse_machine_terminal
+             in
+             Ok
+               {
+                 graph_runtime_path =
+                   json
+                   |> member "graph_runtime_path"
+                   |> to_string
+                   |> Config_support.resolve_relative_path ~base_dir;
+                 assistant;
+                 messenger_spokesperson;
+                 local_ops = json |> member "local_ops" |> parse_local_ops ~base_dir;
+                 human_terminal =
+                   json
+                   |> member "human_terminal"
+                   |> parse_human_terminal;
+                 machine_terminal;
+                 transport = parse_transport ~worker_jobs:machine_terminal.worker_jobs json;
+               })
   with
   | Sys_error message -> Error (Fmt.str "Cannot read %s: %s" path message)
   | Yojson.Json_error message ->

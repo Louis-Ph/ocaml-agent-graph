@@ -10,6 +10,7 @@ DEFAULT_ENV_FILES="$HOME/.zshrc.secret:$HOME/.zshrc.secrets:$HOME/.bashrc.secret
 STARTER_ENV_FILES=${AGENT_GRAPH_STARTER_ENV_FILES:-$DEFAULT_ENV_FILES}
 BUILD_LOG=""
 OPAM_BIN=""
+BULKHEAD_LM_PIN_REFRESH_REQUIRED=0
 
 say() {
   printf '%s\n' "$1"
@@ -275,18 +276,34 @@ bulkhead_lm_pin_matches() {
   pin_list=$("$OPAM_BIN" pin list 2>/dev/null || true)
   case "$pin_list" in
     *"$desired_dir"*)
-      return 0
+      ;;
+    *)
+      return 1
       ;;
   esac
 
   pin_src=$("$OPAM_BIN" show bulkhead_lm --raw 2>/dev/null | sed -n 's/^[[:space:]]*src:[[:space:]]*"\(.*\)".*$/\1/p' | head -n 1)
   case "$pin_src" in
     *"$desired_dir"*)
-      return 0
+      ;;
+    *)
+      return 1
       ;;
   esac
 
-  return 1
+  current_revision=""
+  if command -v git >/dev/null 2>&1; then
+    current_revision=$(git -C "$desired_dir" rev-parse HEAD 2>/dev/null || true)
+  fi
+
+  if [ -n "$current_revision" ]; then
+    pinned_revision=$(printf '%s\n' "$pin_list" | sed -n 's/^bulkhead_lm\..*(at \([0-9a-f][0-9a-f]*\)).*$/\1/p' | head -n 1)
+    if [ -n "$pinned_revision" ] && [ "$pinned_revision" != "$current_revision" ]; then
+      return 1
+    fi
+  fi
+
+  return 0
 }
 
 pin_bulkhead_lm_dependency() {
@@ -294,11 +311,13 @@ pin_bulkhead_lm_dependency() {
     return 0
   fi
   ensure_build_log
+  say "Refreshing bulkhead_lm pin to $DEFAULT_BULKHEAD_LM_DIR ..."
   if ! "$OPAM_BIN" pin add bulkhead_lm "$DEFAULT_BULKHEAD_LM_DIR" --yes --no-action >"$BUILD_LOG" 2>&1; then
     say_err "Unable to pin bulkhead_lm from $DEFAULT_BULKHEAD_LM_DIR."
     say_err "See $BUILD_LOG for details."
     return 1
   fi
+  BULKHEAD_LM_PIN_REFRESH_REQUIRED=1
   return 0
 }
 
@@ -347,6 +366,15 @@ find_local_client_runner() {
 ensure_project_buildable() {
   install_prompt=$1
   prepare_local_dependencies || return 1
+  if [ "$BULKHEAD_LM_PIN_REFRESH_REQUIRED" = "1" ]; then
+    say "bulkhead_lm changed in the active switch; reinstalling project dependencies before building."
+    if ! install_project_deps; then
+      say_err "Automatic dependency installation failed after refreshing bulkhead_lm."
+      say_err "See $BUILD_LOG for details."
+      return 1
+    fi
+    BULKHEAD_LM_PIN_REFRESH_REQUIRED=0
+  fi
   if build_client; then
     reset_build_log
     return 0

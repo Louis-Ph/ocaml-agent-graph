@@ -79,6 +79,7 @@ let make_runtime_config route_model =
         input = "unused";
       };
     llm;
+    discussion = Config.Runtime.Discussion.disabled;
     memory = Config.Runtime.Memory.disabled;
   }
 
@@ -166,6 +167,7 @@ let make_runtime_config_with_routes
         input = "unused";
       };
     llm;
+    discussion = Config.Runtime.Discussion.disabled;
     memory = Config.Runtime.Memory.disabled;
   }
 

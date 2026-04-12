@@ -89,5 +89,30 @@ let record_parallel_join agents context =
   in
   record_event context ~label:"parallel.join" ~detail
 
+let record_discussion_turn
+    context
+    (turn : Core_payload.discussion_turn)
+  =
+  let detail =
+    Fmt.str
+      "round=%d speaker=%s -> %s"
+      turn.round_index
+      turn.speaker
+      (Core_payload.summary (Core_payload.Text turn.content))
+  in
+  add_message
+    context
+    {
+      Core_message.role = Core_message.Speaker turn.speaker;
+      content = turn.content;
+    }
+  |> record_event ~label:"discussion.turn.completed" ~detail
+
+let record_discussion_round context ~round_index ~turn_count =
+  record_event
+    context
+    ~label:"discussion.round.completed"
+    ~detail:(Fmt.str "round=%d turns=%d" round_index turn_count)
+
 let step_budget_exhausted context ~max_steps =
   context.step_count >= max_steps

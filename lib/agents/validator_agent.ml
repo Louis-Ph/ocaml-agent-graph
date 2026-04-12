@@ -44,6 +44,25 @@ let validate_plan steps =
          Fmt.str "%s:%s" label (bool_to_status status))
   |> String.concat " | "
 
+let validate_discussion (discussion : Core_payload.discussion) =
+  let agenda_present = discussion.agenda <> [] in
+  let enough_turns = List.length discussion.turns >= 2 in
+  let multiple_speakers =
+    discussion.turns
+    |> List.map (fun (turn : Core_payload.discussion_turn) -> turn.speaker)
+    |> List.sort_uniq String.compare
+    |> List.length
+    |> fun count -> count >= 2
+  in
+  [
+    ("agenda_present", agenda_present);
+    ("enough_turns", enough_turns);
+    ("multiple_speakers", multiple_speakers);
+  ]
+  |> List.map (fun (label, status) ->
+         Fmt.str "%s:%s" label (bool_to_status status))
+  |> String.concat " | "
+
 let llm_instruction payload =
   Fmt.str
     "Validate the payload below.\nReturn one compact line with a verdict, the main strengths, and the main risks.\nDo not use markdown bullets.\n\nPayload:\n%s"
@@ -127,6 +146,34 @@ let run services context = function
            let summary =
              match String.trim completion.content with
              | "" -> validate_plan steps
+             | content -> content
+           in
+           let metrics, notes = llm_metrics profile completion in
+           Core_payload.Text ("Validation: " ^ summary), metrics, notes
+       | Error message ->
+           ( Core_payload.Error ("Validator LLM call failed: " ^ message),
+             Core_payload.zero_metrics,
+             [
+               "Validator failed to obtain a response from BulkheadLM.";
+               route_access_note services profile;
+             ] ))
+  | Core_payload.Discussion discussion ->
+      let payload = Core_payload.Discussion discussion in
+      let profile =
+        services.Runtime_services.config.Runtime_config.llm.validator
+      in
+      Llm_bulkhead_client.invoke_chat
+        services.llm_client
+        ~agent:id
+        ~profile
+        ~context
+        ~payload
+        ~instruction:(llm_instruction payload)
+      >|= (function
+       | Ok completion ->
+           let summary =
+             match String.trim completion.content with
+             | "" -> validate_discussion discussion
              | content -> content
            in
            let metrics, notes = llm_metrics profile completion in

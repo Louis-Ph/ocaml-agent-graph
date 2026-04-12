@@ -36,9 +36,16 @@ let make_llm_config
 
 let llm_config = make_llm_config ()
 
+let disabled_discussion = Config.Runtime.Discussion.disabled
+
 let disabled_memory = Config.Runtime.Memory.disabled
 
-let make_config ?(llm = llm_config) ?(memory = disabled_memory) () =
+let make_config
+    ?(llm = llm_config)
+    ?(discussion = disabled_discussion)
+    ?(memory = disabled_memory)
+    ()
+  =
   {
     Config.Runtime.engine =
       {
@@ -61,6 +68,7 @@ let make_config ?(llm = llm_config) ?(memory = disabled_memory) () =
         input = "unused";
       };
     llm;
+    discussion;
     memory;
   }
 
@@ -88,6 +96,36 @@ let contains_substring ~substring value =
     else loop (index + 1)
   in
   if substring_length = 0 then true else loop 0
+
+let make_discussion_config () =
+  {
+    Config.Runtime.Discussion.enabled = true;
+    rounds = 2;
+    final_agent = Core.Agent_name.Summarizer;
+    participants =
+      [
+        {
+          Config.Runtime.Discussion.Participant.name = "architect";
+          profile =
+            {
+              Config.Runtime.Llm.Agent_profile.route_model = "architect-model";
+              system_prompt = "architect";
+              max_tokens = Some 96;
+              confidence = 0.9;
+            };
+        };
+        {
+          Config.Runtime.Discussion.Participant.name = "critic";
+          profile =
+            {
+              Config.Runtime.Llm.Agent_profile.route_model = "critic-model";
+              system_prompt = "critic";
+              max_tokens = Some 96;
+              confidence = 0.92;
+            };
+        };
+      ];
+  }
 
 let make_bulkhead_config ?routes () =
   let backend provider_id model =
@@ -118,20 +156,24 @@ let make_bulkhead_config ?routes () =
             ();
         ]
   in
+  let allowed_routes =
+    routes
+    |> List.map (fun (route : Bulkhead_lm.Config.route) -> route.public_model)
+  in
   Bulkhead_lm.Config_test_support.sample_config
     ~virtual_keys:
       [
         Bulkhead_lm.Config_test_support.virtual_key
           ~token_plaintext:"sk-test"
           ~name:"test"
-          ~allowed_routes:[ "planner-model"; "summarizer-model"; "validator-model" ]
+          ~allowed_routes
           ();
       ]
     ~routes
     ()
 
-let make_services ?(config = config) responses =
-  let bulkhead_config = make_bulkhead_config () in
+let make_services ?(config = config) ?routes responses =
+  let bulkhead_config = make_bulkhead_config ?routes () in
   let provider = Bulkhead_lm.Provider_mock.make responses in
   let store =
     Bulkhead_lm.Runtime_state.create
@@ -306,6 +348,120 @@ let test_batch_notes_include_provider_access () =
         (String.starts_with ~prefix:"Summarizer used route_model=" (List.hd summarizer_item.notes))
   | _ -> Alcotest.fail "Expected a batch payload with provider access notes"
 
+let test_long_text_discussion_path () =
+  let discussion = make_discussion_config () in
+  let config = make_config ~discussion () in
+  let route provider_id public_model =
+    Bulkhead_lm.Config_test_support.route
+      ~public_model
+      ~backends:
+        [
+          Bulkhead_lm.Config_test_support.backend
+            ~provider_id
+            ~provider_kind:Bulkhead_lm.Config.Openai_compat
+            ~api_base:"https://api.example.test/v1"
+            ~upstream_model:public_model
+            ~api_key_env:"IGNORED"
+            ();
+        ]
+      ()
+  in
+  let routes =
+    [
+      route "planner-provider" "planner-model";
+      route "summarizer-provider" "summarizer-model";
+      route "validator-provider" "validator-model";
+      route "architect-provider" "architect-model";
+      route "critic-provider" "critic-model";
+    ]
+  in
+  let services =
+    make_services
+      ~config
+      ~routes
+      [
+        ( "planner-model",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"planner-model"
+               ~content:
+                 "Define the target module hierarchy\nDebate risks and interface boundaries\nConverge on an implementation sequence"
+               ()) );
+        ( "architect-model",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"architect-model"
+               ~content:"Split the workflow into planner, discussion runner, and final summarizer modules."
+               ()) );
+        ( "critic-model",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"critic-model"
+               ~content:"Validate every discussion route up front and cover the branch with tests."
+               ()) );
+        ( "architect-model",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"architect-model"
+               ~content:"Keep the transcript typed so the summarizer can consume one stable payload."
+               ()) );
+        ( "critic-model",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"critic-model"
+               ~content:"Do not hide participant failures; record events and stop only if nobody contributes."
+               ()) );
+        ( "summarizer-model",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"summarizer-model"
+               ~content:"The group converged on a typed discussion workflow with explicit route validation and auditable events."
+               ()) );
+      ]
+  in
+  let payload, context =
+    run
+      ~config
+      ~services
+      "Design a group discussion workflow of multiple BulkheadLM agents with proper hierarchy, route validation, and a final synthesis."
+  in
+  match payload with
+  | Core.Payload.Text summary ->
+      let discussion_turn_events =
+        context.Core.Context.events
+        |> List.filter (fun (event : Core.Context.event) ->
+               String.equal event.label "discussion.turn.completed")
+      in
+      Alcotest.(check string)
+        "discussion final summary"
+        "Summary: The group converged on a typed discussion workflow with explicit route validation and auditable events."
+        summary;
+      Alcotest.(check int)
+        "planner and summarizer counted as top-level steps"
+        2
+        context.step_count;
+      Alcotest.(check int)
+        "four discussion turns completed"
+        4
+        (List.length discussion_turn_events);
+      Alcotest.(check bool)
+        "discussion started event recorded"
+        true
+        (context.Core.Context.events
+         |> List.exists (fun (event : Core.Context.event) ->
+                String.equal event.label "discussion.started"));
+      Alcotest.(check bool)
+        "architect contribution kept in events"
+        true
+        (discussion_turn_events
+         |> List.exists (fun (event : Core.Context.event) ->
+                contains_substring
+                  ~substring:"speaker=architect"
+                  event.detail))
+  | _ ->
+      Alcotest.fail
+        "Expected a final summarized text payload after discussion orchestration"
+
 let make_memory_config sqlite_path =
   {
     Config.Runtime.Memory.enabled = true;
@@ -350,49 +506,105 @@ let reserve_local_port () =
 let with_bridge_server f =
   let port = reserve_local_port () in
   let requests = ref [] in
-  let stop, stopper = Lwt.wait () in
-  let callback _conn req body =
-    let* body_text = Cohttp_lwt.Body.to_string body in
-    let body_json =
-      try Yojson.Safe.from_string body_text with
-      | Yojson.Json_error _ -> `String body_text
-    in
-    requests :=
-      {
-        path = Uri.path (Cohttp.Request.uri req);
-        session_key =
-          Uri.get_query_param (Cohttp.Request.uri req) "session_key";
-        authorization =
-          Cohttp.Header.get
-            (Cohttp.Request.headers req)
-            "authorization";
-        body = body_json;
-      }
-      :: !requests;
-    Cohttp_lwt_unix.Server.respond_string
-      ~status:`OK
-      ~headers:(Cohttp.Header.of_list [ "content-type", "application/json" ])
-      ~body:"{\"ok\":true}"
-      ()
+  let stop = ref false in
+  let server_socket = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+  Unix.setsockopt server_socket Unix.SO_REUSEADDR true;
+  Unix.bind server_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, port));
+  Unix.listen server_socket 8;
+  let parse_header line =
+    match String.split_on_char ':' line with
+    | [] | [ _ ] -> None
+    | name :: value ->
+        Some
+          ( String.lowercase_ascii (String.trim name),
+            String.concat ":" value |> String.trim )
   in
-  let server =
-    Cohttp_lwt_unix.Server.make ~callback ()
+  let handle_client client_socket =
+    let input_channel = Unix.in_channel_of_descr client_socket in
+    let output_channel = Unix.out_channel_of_descr client_socket in
+    Fun.protect
+      ~finally:(fun () ->
+        close_in_noerr input_channel;
+        close_out_noerr output_channel)
+      (fun () ->
+        let request_line = input_line input_channel |> String.trim in
+        let rec read_headers acc =
+          let line = input_line input_channel |> String.trim in
+          if line = ""
+          then List.rev acc
+          else read_headers (line :: acc)
+        in
+        let headers =
+          read_headers []
+          |> List.filter_map parse_header
+        in
+        let content_length =
+          match List.assoc_opt "content-length" headers with
+          | Some value ->
+              (match int_of_string_opt value with
+               | Some length -> length
+               | None -> 0)
+          | None -> 0
+        in
+        let body_text = really_input_string input_channel content_length in
+        let target =
+          match String.split_on_char ' ' request_line with
+          | _method :: value :: _ -> value
+          | _ -> "/"
+        in
+        let uri =
+          Uri.of_string (Fmt.str "http://127.0.0.1:%d%s" port target)
+        in
+        let body_json =
+          try Yojson.Safe.from_string body_text with
+          | Yojson.Json_error _ -> `String body_text
+        in
+        requests :=
+          {
+            path = Uri.path uri;
+            session_key = Uri.get_query_param uri "session_key";
+            authorization = List.assoc_opt "authorization" headers;
+            body = body_json;
+          }
+          :: !requests;
+        output_string
+          output_channel
+          "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 11\r\nConnection: close\r\n\r\n{\"ok\":true}";
+        flush output_channel)
   in
   let server_thread =
     Thread.create
       (fun () ->
-        Lwt_main.run
-          (Cohttp_lwt_unix.Server.create
-             ~mode:(`TCP (`Port port))
-             ~stop
-             server))
+        let rec loop () =
+          if !stop
+          then ()
+          else
+            try
+              let client_socket, _ = Unix.accept server_socket in
+              handle_client client_socket;
+              loop ()
+            with
+            | Unix.Unix_error ((Unix.EBADF | Unix.EINVAL), _, _) when !stop -> ()
+            | End_of_file when !stop -> ()
+        in
+        loop ())
       ()
   in
   Fun.protect
     ~finally:(fun () ->
-      if Lwt.is_sleeping stop then Lwt.wakeup_later stopper ();
+      stop := true;
+      (try Unix.close server_socket with
+       | Unix.Unix_error _ -> ());
+      (try
+         let wake_socket = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+         Unix.connect wake_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, port));
+         Unix.close wake_socket
+       with
+       | Unix.Unix_error _ -> ());
       Thread.join server_thread)
-    (fun () -> f port requests)
+    (fun () ->
+      Thread.delay 0.05;
+      f port requests)
 
 let test_memory_persists_between_runs () =
   let sqlite_path = Filename.temp_file "agent-graph-memory" ".sqlite" in
@@ -571,6 +783,70 @@ let test_runtime_config_loads_memory_policy_file () =
             (Some "swarm")
             bridge.session_key_prefix
 
+let test_runtime_config_loads_discussion_workflow () =
+  let temp_path = Filename.temp_file "agent-graph-discussion" ".json" in
+  let runtime_json =
+    {|{
+  "engine": { "timeout_seconds": 1.0, "retry_attempts": 0, "retry_backoff_seconds": 0.0, "max_steps": 8 },
+  "routing": {
+    "long_text_threshold": 48,
+    "short_text_agent": "summarizer",
+    "planner_agent": "planner",
+    "parallel_agents": ["summarizer", "validator"]
+  },
+  "llm": {
+    "gateway_config_path": "/unused/in-tests.json",
+    "authorization_token_plaintext": "sk-test",
+    "planner": { "route_model": "planner-model", "system_prompt": "planner", "max_tokens": 128, "confidence": 0.91 },
+    "summarizer": { "route_model": "summarizer-model", "system_prompt": "summarizer", "max_tokens": 128, "confidence": 0.88 },
+    "validator": { "route_model": "validator-model", "system_prompt": "validator", "max_tokens": 128, "confidence": 0.94 }
+  },
+  "discussion": {
+    "enabled": true,
+    "rounds": 3,
+    "final_agent": "summarizer",
+    "participants": [
+      {
+        "name": "architect",
+        "route_model": "architect-model",
+        "system_prompt": "architect",
+        "max_tokens": 90,
+        "confidence": 0.9
+      },
+      {
+        "name": "critic",
+        "route_model": "critic-model",
+        "system_prompt": "critic",
+        "max_tokens": 90,
+        "confidence": 0.92
+      }
+    ]
+  },
+  "demo": { "task_id": "demo", "input": "unused" }
+}|}
+  in
+  write_file temp_path runtime_json;
+  match Config.Runtime.load temp_path with
+  | Error message ->
+      Alcotest.failf "expected discussion config to load: %s" message
+  | Ok loaded ->
+      Alcotest.(check bool)
+        "discussion enabled"
+        true
+        loaded.discussion.enabled;
+      Alcotest.(check int)
+        "discussion rounds"
+        3
+        loaded.discussion.rounds;
+      Alcotest.(check string)
+        "discussion final agent"
+        "summarizer"
+        (Core.Agent_name.to_string loaded.discussion.final_agent);
+      Alcotest.(check int)
+        "discussion participant count"
+        2
+        (List.length loaded.discussion.participants)
+
 let test_memory_bulkhead_bridge_syncs_session () =
   with_bridge_server (fun port requests ->
       let sqlite_path = Filename.temp_file "agent-graph-memory-bridge" ".sqlite" in
@@ -695,6 +971,35 @@ let test_validate_agent_profiles_rejects_missing_route () =
            ~substring:"route_model=missing-planner-route"
            message)
 
+let test_validate_discussion_routes_rejects_missing_route () =
+  let config = make_config ~discussion:(make_discussion_config ()) () in
+  let store = Bulkhead_lm.Runtime_state.create (make_bulkhead_config ()) in
+  let llm_client =
+    Llm.Bulkhead_client.of_store
+      ~authorization:"Bearer sk-test"
+      store
+  in
+  match
+    try Ok (Runtime.Services.of_llm_client ~config llm_client) with
+    | Failure message -> Error message
+  with
+  | Ok _ ->
+      Alcotest.fail
+        "Expected runtime service creation to reject missing discussion routes"
+  | Error message ->
+      Alcotest.(check bool)
+        "discussion validation prefix"
+        true
+        (contains_substring
+           ~substring:"discussion workflow"
+           message);
+      Alcotest.(check bool)
+        "missing architect route called out"
+        true
+        (contains_substring
+           ~substring:"route_model=architect-model"
+           message)
+
 let test_brave_result_parsing () =
   let html =
     {|
@@ -768,12 +1073,27 @@ let () =
           Alcotest.test_case "long text -> plan -> batch" `Quick test_long_text_parallel_path;
           Alcotest.test_case "batch notes include provider access" `Quick test_batch_notes_include_provider_access;
         ] );
+      ( "discussion",
+        [
+          Alcotest.test_case
+            "long text -> plan -> discussion -> final summary"
+            `Quick
+            test_long_text_discussion_path;
+          Alcotest.test_case
+            "loads discussion workflow config"
+            `Quick
+            test_runtime_config_loads_discussion_workflow;
+        ] );
       ( "llm",
         [
           Alcotest.test_case
             "reject missing BulkheadLM routes"
             `Quick
             test_validate_agent_profiles_rejects_missing_route;
+          Alcotest.test_case
+            "reject missing discussion routes"
+            `Quick
+            test_validate_discussion_routes_rejects_missing_route;
         ] );
       ( "memory",
         [

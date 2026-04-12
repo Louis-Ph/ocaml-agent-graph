@@ -83,6 +83,19 @@ let agent_profile_summaries (runtime_config : Runtime_config.t) =
              trim_preview ~max_chars:120 profile.system_prompt;
          })
 
+let discussion_participant_summaries (runtime_config : Runtime_config.t) =
+  runtime_config.discussion.participants
+  |> List.map (fun (participant : Runtime_config.Discussion.Participant.t) ->
+         let profile = participant.profile in
+         Fmt.str
+           "%s(route_model=%s max_tokens=%s confidence=%.2f)"
+           participant.name
+           profile.route_model
+           (match profile.max_tokens with
+            | Some value -> string_of_int value
+            | None -> "none")
+           profile.confidence)
+
 let messenger_spokesperson_summary (client_config : Client_config.t) =
   match client_config.messenger_spokesperson with
   | None -> None
@@ -236,6 +249,14 @@ let graph_summary_lines t =
       (routing.parallel_agents
        |> List.map Core_agent_name.to_string
        |> String.concat ", ");
+    Fmt.str
+      "discussion: enabled=%b rounds=%d final=%s participants=%s"
+      config.discussion.enabled
+      config.discussion.rounds
+      (Core_agent_name.to_string config.discussion.final_agent)
+      (match discussion_participant_summaries config with
+       | [] -> "(none)"
+       | participants -> String.concat ", " participants);
     Fmt.str "assistant_route_model: %s" t.client_config.assistant.route_model;
     "messenger:";
   ]
@@ -329,6 +350,28 @@ let graph_summary_to_yojson t =
                 (routing.parallel_agents
                  |> List.map Core_agent_name.to_string
                  |> List.map (fun value -> `String value)) );
+          ] );
+      ( "discussion",
+        `Assoc
+          [
+            "enabled", `Bool config.discussion.enabled;
+            "rounds", `Int config.discussion.rounds;
+            "final_agent", `String (Core_agent_name.to_string config.discussion.final_agent);
+            ( "participants",
+              `List
+                (config.discussion.participants
+                 |> List.map (fun (participant : Runtime_config.Discussion.Participant.t) ->
+                        let profile = participant.profile in
+                        `Assoc
+                          [
+                            "name", `String participant.name;
+                            "route_model", `String profile.route_model;
+                            ( "max_tokens",
+                              match profile.max_tokens with
+                              | Some value -> `Int value
+                              | None -> `Null );
+                            "confidence", `Float profile.confidence;
+                          ])) );
           ] );
       "assistant_route_model", `String t.client_config.assistant.route_model;
       ( "messenger_spokesperson",

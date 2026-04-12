@@ -57,6 +57,34 @@ module Llm = struct
     ]
 end
 
+module Discussion = struct
+  module Participant = struct
+    type t = {
+      name : string;
+      profile : Llm.Agent_profile.t;
+    }
+  end
+
+  type t = {
+    enabled : bool;
+    rounds : int;
+    final_agent : Core_agent_name.t;
+    participants : Participant.t list;
+  }
+
+  let disabled =
+    {
+      enabled = false;
+      rounds = 2;
+      final_agent = Core_agent_name.Summarizer;
+      participants = [];
+    }
+
+  let route_models t =
+    t.participants
+    |> List.map (fun participant -> participant.Participant.profile.route_model)
+end
+
 module Memory = struct
   module Storage = struct
     type mode =
@@ -131,6 +159,7 @@ type t = {
   routing : Routing.t;
   demo : Demo.t;
   llm : Llm.t;
+  discussion : Discussion.t;
   memory : Memory.t;
 }
 
@@ -236,6 +265,78 @@ let non_empty_string_member name json =
   |> function
   | Some value when value <> "" -> Some value
   | _ -> None
+
+let parse_discussion_participant json =
+  match non_empty_string_member "name" json with
+  | None ->
+      Error
+        "Invalid discussion participant configuration: name is required."
+  | Some name ->
+      Ok
+        {
+          Discussion.Participant.name;
+          profile = parse_agent_profile json;
+        }
+
+let discussion_supports_agent = function
+  | Core_agent_name.Summarizer | Validator -> true
+  | Planner -> false
+
+let parse_discussion json =
+  let enabled = bool_member_with_default "enabled" json ~default:false in
+  let rounds =
+    json
+    |> member "rounds"
+    |> to_int_option
+    |> Option.value ~default:Discussion.disabled.rounds
+  in
+  let final_agent =
+    json
+    |> member "final_agent"
+    |> to_string_option
+    |> Option.value
+         ~default:(Core_agent_name.to_string Discussion.disabled.final_agent)
+    |> agent_of_string
+  in
+  let participants =
+    match json |> member "participants" with
+    | `Null -> Ok []
+    | `List values ->
+        let rec loop acc = function
+          | [] -> Ok (List.rev acc)
+          | (`Assoc _ as participant_json) :: rest ->
+              (match parse_discussion_participant participant_json with
+               | Ok participant -> loop (participant :: acc) rest
+               | Error _ as error -> error)
+          | _ :: _ ->
+              Error
+                "Invalid discussion configuration: participants must be objects."
+        in
+        loop [] values
+    | _ ->
+        Error
+          "Invalid discussion configuration: participants must be a list."
+  in
+  if rounds <= 0
+  then Error "Invalid discussion configuration: rounds must be >= 1."
+  else if enabled && not (discussion_supports_agent final_agent)
+  then
+    Error
+      "Invalid discussion configuration: final_agent must be summarizer or validator."
+  else
+    match participants with
+    | Error _ as error -> error
+    | Ok participants when enabled && participants = [] ->
+        Error
+          "Invalid discussion configuration: enable discussion only when at least one participant is configured."
+    | Ok participants ->
+        Ok
+          {
+            Discussion.enabled;
+            rounds;
+            final_agent;
+            participants;
+          }
 
 let parse_bulkhead_bridge json =
   match non_empty_string_member "endpoint_url" json with
@@ -355,6 +456,13 @@ let load path =
   try
     let json = Yojson.Safe.from_file path in
     let base_dir = Filename.dirname path in
+    let discussion =
+      match json |> member "discussion" with
+      | `Null -> Ok Discussion.disabled
+      | (`Assoc _ as discussion_json) -> parse_discussion discussion_json
+      | _ ->
+          Error "Invalid discussion configuration: expected an object."
+    in
     let memory =
       match Config_support.member_string_option "memory_policy_path" json with
       | None -> Ok Memory.disabled
@@ -367,15 +475,17 @@ let load path =
           let memory_json = Yojson.Safe.from_file resolved_path in
           parse_memory ~base_dir:(Filename.dirname resolved_path) memory_json
     in
-    (match memory with
-    | Error _ as error -> error
-    | Ok memory ->
+    (match discussion, memory with
+    | (Error _ as error), _ -> error
+    | _, (Error _ as error) -> error
+    | Ok discussion, Ok memory ->
         Ok
           {
             engine = json |> member "engine" |> parse_engine;
             routing = json |> member "routing" |> parse_routing;
             demo = json |> member "demo" |> parse_demo;
             llm = json |> member "llm" |> parse_llm ~base_dir;
+            discussion;
             memory;
           })
   with

@@ -3,6 +3,7 @@ type role =
   | User
   | Assistant
   | Agent of Core_agent_name.t
+  | Speaker of string
 
 type t = {
   role : role;
@@ -14,4 +15,4 @@ let role_to_string = function
   | User -> "user"
   | Assistant -> "assistant"
   | Agent agent -> Core_agent_name.to_string agent
-
+  | Speaker speaker -> speaker

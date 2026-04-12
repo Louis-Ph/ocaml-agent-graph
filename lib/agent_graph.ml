@@ -73,6 +73,7 @@ module Orchestration = struct
   module Graph = Orchestration_graph
   module Decider = Orchestration_decider
   module Aggregator = Orchestration_aggregator
+  module Discussion = Orchestration_discussion
   module Orchestrator = Orchestration_orchestrator
 end
 

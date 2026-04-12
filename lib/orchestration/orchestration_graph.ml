@@ -2,6 +2,7 @@ type node =
   | Intake
   | Planning
   | Fan_out
+  | Discussion
   | Finalize
 
 type route = {
@@ -19,7 +20,14 @@ let route (config : Runtime_config.t) context payload =
     | Core_payload.Batch _ ->
         { node = Finalize; decision = Stop Core_decision.Batch_ready }
     | Core_payload.Plan _ ->
-        { node = Fan_out; decision = Parallel config.routing.parallel_agents }
+        if config.discussion.enabled
+        then { node = Discussion; decision = Discuss }
+        else { node = Fan_out; decision = Parallel config.routing.parallel_agents }
+    | Core_payload.Discussion _ ->
+        if Core_context.has_completed_agent context config.discussion.final_agent
+        then { node = Finalize; decision = Stop Core_decision.No_further_route }
+        else
+          { node = Finalize; decision = Next config.discussion.final_agent }
     | Core_payload.Text text ->
         if Core_context.has_completed_agent context config.routing.short_text_agent
            || Core_context.has_completed_agent context config.routing.planner_agent

@@ -7,6 +7,7 @@ type stop_reason =
 type t =
   | Next of Core_agent_name.t
   | Parallel of Core_agent_name.t list
+  | Discuss
   | Stop of stop_reason
 
 let stop_reason_to_string = function
@@ -22,5 +23,5 @@ let to_string = function
       |> List.map Core_agent_name.to_string
       |> String.concat ", "
       |> Fmt.str "Parallel(%s)"
+  | Discuss -> "Discuss"
   | Stop reason -> Fmt.str "Stop(%s)" (stop_reason_to_string reason)
-

@@ -98,6 +98,7 @@ ocaml-agent-graph/
       orchestration_graph.ml
       orchestration_decider.ml
       orchestration_aggregator.ml
+      orchestration_discussion.ml
       orchestration_orchestrator.ml
     agent_graph.ml
   test/
@@ -113,10 +114,19 @@ Plan         -> [ summarizer || validator ] -> Batch -> Stop
 Error/Batch  -> Stop
 ```
 
+Optional discussion workflow:
+
+```text
+Text(long)   -> planner -> Plan
+Plan         -> discussion(participant_1 -> participant_2 -> ... for N rounds)
+Discussion   -> summarizer/validator -> Stop
+```
+
 That gives a strongly typed shape close to a tiny LangGraph:
 
 - `orchestration_graph.ml` describes the routing states
 - `orchestration_orchestrator.ml` executes the loop
+- `orchestration_discussion.ml` runs the structured multi-agent discussion rounds
 - `llm_bulkhead_client.ml` talks to BulkheadLM and then to real provider routes
 - `runtime_engine.ml` owns timeouts and retries
 - `runtime_parallel_executor.ml` owns concurrent fan-out
@@ -151,10 +161,12 @@ dune runtest
 The framework now uses `BulkheadLM` for real chat calls:
 
 - `config/runtime.json` chooses the `route_model` per agent
+- the optional `discussion` block in `config/runtime.json` declares named discussion participants, the number of rounds, and the final synthesis agent
 - `config/memory_policy.json` chooses how durable memory is stored, reloaded, and checkpoint-compressed
 - `bulkhead-lm/config/example.gateway.json` chooses the provider routes
 - provider API keys still come from the environment seen by `bulkhead_lm`
 - startup validation now checks that every configured agent route exists in the loaded BulkheadLM gateway config
+- startup validation also checks that every configured discussion participant route exists before the workflow runs
 - `BulkheadLM` remains the router/provider layer that yields the rudimentary route-bound agents composed here into typed swarms
 
 The default memory policy uses the BulkheadLM SQLite path, keeps the last few

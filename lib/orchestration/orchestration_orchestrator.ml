@@ -33,6 +33,11 @@ let rec execute_loop ~services ~config ~registry context payload =
       in
       let merged_payload = Orchestration_aggregator.merge items in
       execute_loop ~services ~config ~registry next_context merged_payload
+  | Discuss ->
+      let* discussion_payload, next_context =
+        Orchestration_discussion.run ~services ~config context payload
+      in
+      execute_loop ~services ~config ~registry next_context discussion_payload
 
 let loop ~services ~config ~registry context payload =
   let prepared_context =

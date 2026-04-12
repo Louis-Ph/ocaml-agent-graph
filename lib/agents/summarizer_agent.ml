@@ -34,6 +34,29 @@ let summarize_plan steps =
   |> List.mapi (fun index step -> Fmt.str "%d) %s" (index + 1) step)
   |> String.concat " | "
 
+let summarize_discussion (discussion : Core_payload.discussion) =
+  let agenda_summary =
+    match discussion.agenda with
+    | [] -> "no explicit agenda"
+    | steps -> summarize_plan steps
+  in
+  let recent_turns =
+    discussion.turns
+    |> List.rev
+    |> take 2
+    |> List.rev
+    |> List.map (fun (turn : Core_payload.discussion_turn) ->
+           Fmt.str "%s: %s" turn.speaker turn.content)
+    |> String.concat " | "
+  in
+  if recent_turns = ""
+  then Fmt.str "Discussion agenda: %s." agenda_summary
+  else
+    Fmt.str
+      "Discussion agenda: %s. Latest contributions: %s"
+      agenda_summary
+      recent_turns
+
 let llm_instruction payload =
   Fmt.str
     "Write a concise summary of the payload below.\nUse plain English.\nKeep the answer under 80 words.\nDo not add headings.\n\nPayload:\n%s"
@@ -117,6 +140,34 @@ let run services context = function
            let summary =
              match String.trim completion.content with
              | "" -> summarize_plan steps
+             | content -> content
+           in
+           let metrics, notes = llm_metrics profile completion in
+           Core_payload.Text ("Summary: " ^ summary), metrics, notes
+       | Error message ->
+           ( Core_payload.Error ("Summarizer LLM call failed: " ^ message),
+             Core_payload.zero_metrics,
+             [
+               "Summarizer failed to obtain a response from BulkheadLM.";
+               route_access_note services profile;
+             ] ))
+  | Core_payload.Discussion discussion ->
+      let payload = Core_payload.Discussion discussion in
+      let profile =
+        services.Runtime_services.config.Runtime_config.llm.summarizer
+      in
+      Llm_bulkhead_client.invoke_chat
+        services.llm_client
+        ~agent:id
+        ~profile
+        ~context
+        ~payload
+        ~instruction:(llm_instruction payload)
+      >|= (function
+       | Ok completion ->
+           let summary =
+             match String.trim completion.content with
+             | "" -> summarize_discussion discussion
              | content -> content
            in
            let metrics, notes = llm_metrics profile completion in

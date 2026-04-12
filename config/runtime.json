@@ -33,6 +33,7 @@
       "confidence": 0.94
     }
   },
+  "memory_policy_path": "memory_policy.json",
   "demo": {
     "task_id": "demo-task-001",
     "input": "Design a modular OCaml multi-agent runtime with typed state transitions, auditable orchestration, retries, timeouts, and a parallel validation stage."

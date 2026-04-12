@@ -35,7 +35,9 @@ let make_llm_config
 
 let llm_config = make_llm_config ()
 
-let make_config ?(llm = llm_config) () =
+let disabled_memory = Config.Runtime.Memory.disabled
+
+let make_config ?(llm = llm_config) ?(memory = disabled_memory) () =
   {
     Config.Runtime.engine =
       {
@@ -58,11 +60,18 @@ let make_config ?(llm = llm_config) () =
         input = "unused";
       };
     llm;
+    memory;
   }
 
 let config = make_config ()
 
 let registry = Agents.Defaults.make_registry ()
+
+let write_file path content =
+  let channel = open_out_bin path in
+  Fun.protect
+    ~finally:(fun () -> close_out_noerr channel)
+    (fun () -> output_string channel content)
 
 let has_prefix prefix value =
   let prefix_length = String.length prefix in
@@ -120,7 +129,7 @@ let make_bulkhead_config ?routes () =
     ~routes
     ()
 
-let make_services responses =
+let make_services ?(config = config) responses =
   let bulkhead_config = make_bulkhead_config () in
   let provider = Bulkhead_lm.Provider_mock.make responses in
   let store =
@@ -135,8 +144,8 @@ let make_services responses =
   in
   Runtime.Services.of_llm_client ~config llm_client
 
-let run ~services input =
-  let context = Core.Context.empty ~task_id:"test-task" ~metadata:[] in
+let run ?(config = config) ?(task_id = "test-task") ?(metadata = []) ~services input =
+  let context = Core.Context.empty ~task_id ~metadata in
   Lwt_main.run
     (Orchestration.Orchestrator.loop
        ~services
@@ -288,6 +297,184 @@ let test_batch_notes_include_provider_access () =
         (String.starts_with ~prefix:"Summarizer used route_model=" (List.hd summarizer_item.notes))
   | _ -> Alcotest.fail "Expected a batch payload with provider access notes"
 
+let make_memory_config sqlite_path =
+  {
+    Config.Runtime.Memory.enabled = true;
+    session_namespace = "test-memory";
+    session_id_metadata_key = None;
+    storage =
+      {
+        Config.Runtime.Memory.Storage.mode =
+          Config.Runtime.Memory.Storage.Explicit_sqlite;
+        sqlite_path = Some sqlite_path;
+      };
+    reload = { Config.Runtime.Memory.Reload.recent_turn_buffer = 2 };
+    compression =
+      {
+        Config.Runtime.Memory.Compression.reply_checkpoints = [ 2 ];
+        continue_every_replies = 2;
+        summary_max_chars = 800;
+        summary_max_tokens = Some 96;
+        summary_prompt =
+          "Compress the durable swarm memory into a short factual note.";
+      };
+  }
+
+let test_memory_persists_between_runs () =
+  let sqlite_path = Filename.temp_file "agent-graph-memory" ".sqlite" in
+  let memory = make_memory_config sqlite_path in
+  let config = make_config ~memory () in
+  let responses =
+    [
+      ( "summarizer-model",
+        Ok
+          (Bulkhead_lm.Provider_mock.sample_chat_response
+             ~model:"summarizer-model"
+             ~content:"A short LLM summary."
+             ()) );
+    ]
+  in
+  let services1 = make_services ~config responses in
+  let _payload1, _context1 =
+    run
+      ~config
+      ~services:services1
+      ~task_id:"persisted-task"
+      "Remember the bridge retrofit notes."
+  in
+  let services2 = make_services ~config responses in
+  let _payload2, context2 =
+    run
+      ~config
+      ~services:services2
+      ~task_id:"persisted-task"
+      "Add the new budget estimate."
+  in
+  let rendered_history =
+    context2.Core.Context.history
+    |> List.rev
+    |> List.map (fun (message : Core.Message.t) -> message.content)
+    |> String.concat "\n"
+  in
+  Alcotest.(check bool)
+    "previous user input reloaded"
+    true
+    (contains_substring
+       ~substring:"Remember the bridge retrofit notes."
+       rendered_history);
+  Alcotest.(check bool)
+    "previous assistant reply reloaded"
+    true
+    (contains_substring
+       ~substring:"A short LLM summary."
+       rendered_history)
+
+let test_memory_compresses_on_checkpoint () =
+  let sqlite_path = Filename.temp_file "agent-graph-memory-compress" ".sqlite" in
+  let memory = make_memory_config sqlite_path in
+  let config = make_config ~memory () in
+  let responses =
+    [
+      ( "summarizer-model",
+        Ok
+          (Bulkhead_lm.Provider_mock.sample_chat_response
+             ~model:"summarizer-model"
+             ~content:"Compressed durable memory."
+             ()) );
+    ]
+  in
+  let services = make_services ~config responses in
+  let _ =
+    run
+      ~config
+      ~services
+      ~task_id:"checkpoint-task"
+      "First memory-bearing request."
+  in
+  let _ =
+    run
+      ~config
+      ~services
+      ~task_id:"checkpoint-task"
+      "Second memory-bearing request."
+  in
+  let memory_runtime =
+    match services.Runtime.Services.memory_runtime with
+    | Some runtime -> runtime
+    | None -> Alcotest.fail "expected memory runtime to be enabled"
+  in
+  let session =
+    Memory.Store.load_session
+      memory_runtime.store
+      { Memory.Store.namespace = "test-memory"; session_key = "checkpoint-task" }
+      ~recent_turn_buffer:4
+  in
+  Alcotest.(check (option string))
+    "summary created"
+    (Some "Compressed durable memory.")
+    session.summary;
+  Alcotest.(check int) "compression count increments" 1 session.compression_count
+
+let test_runtime_config_loads_memory_policy_file () =
+  let temp_dir = Filename.temp_file "agent-graph-config" ".tmp" in
+  Sys.remove temp_dir;
+  Unix.mkdir temp_dir 0o755;
+  let memory_policy_path = Filename.concat temp_dir "memory_policy.json" in
+  let runtime_config_path = Filename.concat temp_dir "runtime.json" in
+  let memory_policy =
+    {|{
+  "enabled": true,
+  "session_namespace": "loaded-from-file",
+  "storage": { "mode": "explicit_sqlite", "sqlite_path": "./memory.sqlite" },
+  "reload": { "recent_turn_buffer": 3 },
+  "compression": {
+    "reply_checkpoints": [5, 8],
+    "continue_every_replies": 4,
+    "summary_max_chars": 1234,
+    "summary_prompt": "Keep only the durable facts."
+  }
+}|}
+  in
+  let runtime_json =
+    {|{
+  "engine": { "timeout_seconds": 1.0, "retry_attempts": 0, "retry_backoff_seconds": 0.0, "max_steps": 8 },
+  "routing": {
+    "long_text_threshold": 48,
+    "short_text_agent": "summarizer",
+    "planner_agent": "planner",
+    "parallel_agents": ["summarizer", "validator"]
+  },
+  "llm": {
+    "gateway_config_path": "/unused/in-tests.json",
+    "authorization_token_plaintext": "sk-test",
+    "planner": { "route_model": "planner-model", "system_prompt": "planner", "max_tokens": 128, "confidence": 0.91 },
+    "summarizer": { "route_model": "summarizer-model", "system_prompt": "summarizer", "max_tokens": 128, "confidence": 0.88 },
+    "validator": { "route_model": "validator-model", "system_prompt": "validator", "max_tokens": 128, "confidence": 0.94 }
+  },
+  "memory_policy_path": "memory_policy.json",
+  "demo": { "task_id": "demo", "input": "unused" }
+}|}
+  in
+  write_file memory_policy_path memory_policy;
+  write_file runtime_config_path runtime_json;
+  match Config.Runtime.load runtime_config_path with
+  | Error message ->
+      Alcotest.failf "expected runtime config with memory policy to load: %s" message
+  | Ok loaded ->
+      Alcotest.(check bool) "memory enabled" true loaded.memory.enabled;
+      Alcotest.(check string)
+        "memory namespace loaded"
+        "loaded-from-file"
+        loaded.memory.session_namespace;
+      Alcotest.(check int)
+        "reload buffer loaded"
+        3
+        loaded.memory.reload.recent_turn_buffer;
+      Alcotest.(check (list int))
+        "checkpoints loaded"
+        [ 5; 8 ]
+        loaded.memory.compression.reply_checkpoints
+
 let test_validate_agent_profiles_rejects_missing_route () =
   let routes =
     [
@@ -414,6 +601,21 @@ let () =
             "reject missing BulkheadLM routes"
             `Quick
             test_validate_agent_profiles_rejects_missing_route;
+        ] );
+      ( "memory",
+        [
+          Alcotest.test_case
+            "persists between runs"
+            `Quick
+            test_memory_persists_between_runs;
+          Alcotest.test_case
+            "compresses on checkpoint"
+            `Quick
+            test_memory_compresses_on_checkpoint;
+          Alcotest.test_case
+            "loads external memory policy file"
+            `Quick
+            test_runtime_config_loads_memory_policy_file;
         ] );
       ( "crawler",
         [

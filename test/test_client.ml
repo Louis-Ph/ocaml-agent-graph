@@ -79,6 +79,7 @@ let make_runtime_config route_model =
         input = "unused";
       };
     llm;
+    memory = Config.Runtime.Memory.disabled;
   }
 
 let make_runtime_config_with_routes
@@ -137,6 +138,7 @@ let make_runtime_config_with_routes
         input = "unused";
       };
     llm;
+    memory = Config.Runtime.Memory.disabled;
   }
 
 let make_test_backend

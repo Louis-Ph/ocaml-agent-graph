@@ -57,11 +57,69 @@ module Llm = struct
     ]
 end
 
+module Memory = struct
+  module Storage = struct
+    type mode =
+      | Bulkhead_gateway_sqlite
+      | Explicit_sqlite
+
+    type t = {
+      mode : mode;
+      sqlite_path : string option;
+    }
+  end
+
+  module Reload = struct
+    type t = {
+      recent_turn_buffer : int;
+    }
+  end
+
+  module Compression = struct
+    type t = {
+      reply_checkpoints : int list;
+      continue_every_replies : int;
+      summary_max_chars : int;
+      summary_max_tokens : int option;
+      summary_prompt : string;
+    }
+  end
+
+  type t = {
+    enabled : bool;
+    session_namespace : string;
+    session_id_metadata_key : string option;
+    storage : Storage.t;
+    reload : Reload.t;
+    compression : Compression.t;
+  }
+
+  let disabled =
+    {
+      enabled = false;
+      session_namespace = "default";
+      session_id_metadata_key = None;
+      storage =
+        { Storage.mode = Bulkhead_gateway_sqlite; sqlite_path = None };
+      reload = { Reload.recent_turn_buffer = 4 };
+      compression =
+        {
+          Compression.reply_checkpoints = [ 5; 7; 10; 15; 20 ];
+          continue_every_replies = 5;
+          summary_max_chars = 2400;
+          summary_max_tokens = None;
+          summary_prompt =
+            "Compress this durable swarm memory into a short, factual note.";
+        };
+    }
+end
+
 type t = {
   engine : Engine.t;
   routing : Routing.t;
   demo : Demo.t;
   llm : Llm.t;
+  memory : Memory.t;
 }
 
 let default_path = "config/runtime.json"
@@ -133,17 +191,137 @@ let parse_llm ~base_dir json =
     validator = json |> member "validator" |> parse_agent_profile;
   }
 
+let bool_member_with_default name json ~default =
+  match json |> member name with
+  | `Bool value -> value
+  | _ -> default
+
+let parse_storage_mode value =
+  match String.lowercase_ascii (String.trim value) with
+  | "bulkhead_gateway_sqlite" -> Ok Memory.Storage.Bulkhead_gateway_sqlite
+  | "explicit_sqlite" -> Ok Memory.Storage.Explicit_sqlite
+  | invalid ->
+      Error
+        (Fmt.str
+           "Invalid memory storage mode: %s. Expected bulkhead_gateway_sqlite or explicit_sqlite."
+           invalid)
+
+let list_of_ints_member name json =
+  match json |> member name with
+  | `List values ->
+      values
+      |> List.filter_map (function
+             | `Int value -> Some value
+             | `Intlit value -> Some (int_of_string value)
+             | _ -> None)
+  | _ -> []
+
+let parse_memory ~base_dir json =
+  let storage_json = json |> member "storage" in
+  let reload_json = json |> member "reload" in
+  let compression_json = json |> member "compression" in
+  let storage_mode =
+    storage_json
+    |> member "mode"
+    |> to_string_option
+    |> Option.value ~default:"bulkhead_gateway_sqlite"
+    |> parse_storage_mode
+  in
+  storage_mode
+  |> Result.map (fun storage_mode ->
+         {
+           Memory.enabled =
+             bool_member_with_default "enabled" json ~default:true;
+           session_namespace =
+             json
+             |> member "session_namespace"
+             |> to_string_option
+             |> Option.value ~default:"default";
+           session_id_metadata_key =
+             Config_support.member_string_option
+               "session_id_metadata_key"
+               json;
+           storage =
+             {
+               Memory.Storage.mode = storage_mode;
+               sqlite_path =
+                 storage_json
+                 |> member "sqlite_path"
+                 |> to_string_option
+                 |> Option.map
+                      (Config_support.resolve_relative_path ~base_dir);
+             };
+           reload =
+             {
+               Memory.Reload.recent_turn_buffer =
+                 max
+                   0
+                   (reload_json
+                   |> member "recent_turn_buffer"
+                   |> to_int_option
+                   |> Option.value ~default:4);
+             };
+           compression =
+             {
+               Memory.Compression.reply_checkpoints =
+                 (match list_of_ints_member "reply_checkpoints" compression_json with
+                 | [] -> [ 5; 7; 10; 15; 20 ]
+                 | values -> values |> List.sort_uniq Int.compare);
+               continue_every_replies =
+                 max
+                   1
+                   (compression_json
+                   |> member "continue_every_replies"
+                   |> to_int_option
+                   |> Option.value ~default:5);
+               summary_max_chars =
+                 max
+                   120
+                   (compression_json
+                   |> member "summary_max_chars"
+                   |> to_int_option
+                   |> Option.value ~default:2400);
+               summary_max_tokens =
+                 compression_json
+                 |> member "summary_max_tokens"
+                 |> to_int_option;
+               summary_prompt =
+                 compression_json
+                 |> member "summary_prompt"
+                 |> to_string_option
+                 |> Option.value
+                      ~default:
+                        "Compress this durable swarm memory into a short, factual note.";
+             };
+         })
+
 let load path =
   try
     let json = Yojson.Safe.from_file path in
     let base_dir = Filename.dirname path in
-    Ok
-      {
-        engine = json |> member "engine" |> parse_engine;
-        routing = json |> member "routing" |> parse_routing;
-        demo = json |> member "demo" |> parse_demo;
-        llm = json |> member "llm" |> parse_llm ~base_dir;
-      }
+    let memory =
+      match Config_support.member_string_option "memory_policy_path" json with
+      | None -> Ok Memory.disabled
+      | Some memory_policy_path ->
+          let resolved_path =
+            Config_support.resolve_relative_path
+              ~base_dir
+              memory_policy_path
+          in
+          let memory_json = Yojson.Safe.from_file resolved_path in
+          parse_memory ~base_dir:(Filename.dirname resolved_path) memory_json
+    in
+    (match memory with
+    | Error _ as error -> error
+    | Ok memory ->
+        Ok
+          {
+            engine = json |> member "engine" |> parse_engine;
+            routing = json |> member "routing" |> parse_routing;
+            demo = json |> member "demo" |> parse_demo;
+            llm = json |> member "llm" |> parse_llm ~base_dir;
+            memory;
+          })
   with
   | Sys_error message -> Error (Fmt.str "Cannot read %s: %s" path message)
   | Yojson.Json_error message ->

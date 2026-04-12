@@ -18,9 +18,11 @@ The project keeps the research-facing concerns explicit:
 - typed agent identifiers instead of ad hoc strings
 - hierarchical modules instead of a single file blob
 - runtime policies externalized in [`config/runtime.json`](config/runtime.json)
+- durable swarm memory policy externalized in [`config/memory_policy.json`](config/memory_policy.json)
 - real LLM communication delegated to [`bulkhead_lm`](../bulkhead-lm/README.md)
 - explicit graph routing, not implicit control flow
 - retries, timeouts, parallel fan-out, aggregation, and audit context
+- persistent SQLite-backed swarm memory with reload + checkpoint compression
 - `alcotest` coverage for the simple and parallel execution paths
 
 ## Docs
@@ -60,6 +62,7 @@ ocaml-agent-graph/
   bin/
     ocaml_agent_graph_demo.ml
   config/
+    memory_policy.json
     runtime.json
   lib/
     core/
@@ -73,6 +76,10 @@ ocaml-agent-graph/
     llm/
       llm_prompt.ml
       llm_bulkhead_client.ml
+    memory/
+      memory_store.ml
+      memory_compressor.ml
+      memory_runtime.ml
     agents/
       agent_intf.ml
       planner_agent.ml
@@ -143,10 +150,15 @@ dune runtest
 The framework now uses `BulkheadLM` for real chat calls:
 
 - `config/runtime.json` chooses the `route_model` per agent
+- `config/memory_policy.json` chooses how durable memory is stored, reloaded, and checkpoint-compressed
 - `bulkhead-lm/config/example.gateway.json` chooses the provider routes
 - provider API keys still come from the environment seen by `bulkhead_lm`
 - startup validation now checks that every configured agent route exists in the loaded BulkheadLM gateway config
 - `BulkheadLM` remains the router/provider layer that yields the rudimentary route-bound agents composed here into typed swarms
+
+The default memory policy uses the BulkheadLM SQLite path, keeps the last few
+user/assistant turns verbatim, and compresses older memory at configured
+checkpoints into a durable summary.
 
 The shipped demo config currently uses the `claude-sonnet` route through
 `BulkheadLM`.

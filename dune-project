@@ -22,6 +22,7 @@
   lwt
   yojson
   fmt
+  sqlite3
   bulkhead_lm
   cohttp-lwt-unix
   cmdliner

@@ -46,6 +46,13 @@ let messenger_authorization_summary
   | None, Some env_name -> Fmt.str "env:%s" env_name
   | None, None -> "open"
 
+let memory_storage_summary (memory : Runtime_config.Memory.t) =
+  match memory.storage.mode, memory.storage.sqlite_path with
+  | Runtime_config.Memory.Storage.Bulkhead_gateway_sqlite, _ ->
+      "bulkhead_gateway_sqlite"
+  | Explicit_sqlite, Some path -> "explicit_sqlite:" ^ path
+  | Explicit_sqlite, None -> "explicit_sqlite:(missing path)"
+
 let agent_profile_summaries (runtime_config : Runtime_config.t) =
   Runtime_config.Llm.agent_bindings runtime_config.llm
   |> List.map (fun (agent, profile) ->
@@ -148,6 +155,20 @@ let graph_summary_lines t =
              summary.system_prompt_preview)
   in
   let route_lines = route_summaries t |> List.map (fun line -> "- " ^ line) in
+  let memory_lines =
+    if not config.memory.enabled then [ "memory: disabled" ]
+    else
+      [
+        Fmt.str
+          "memory: namespace=%s storage=%s recent_turn_buffer=%d checkpoints=%s"
+          config.memory.session_namespace
+          (memory_storage_summary config.memory)
+          config.memory.reload.recent_turn_buffer
+          (config.memory.compression.reply_checkpoints
+           |> List.map string_of_int
+           |> String.concat ", ");
+      ]
+  in
   let messenger_lines =
     match messenger_spokesperson_summary t.client_config with
     | None -> [ "messenger_spokesperson: disabled" ]
@@ -199,6 +220,7 @@ let graph_summary_lines t =
     Fmt.str "assistant_route_model: %s" t.client_config.assistant.route_model;
     "messenger:";
   ]
+  @ memory_lines
   @ messenger_lines
   @ [
     "agent_profiles:";

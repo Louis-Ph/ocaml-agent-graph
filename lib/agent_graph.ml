@@ -62,6 +62,12 @@ module Runtime = struct
   module Services = Runtime_services
 end
 
+module Memory = struct
+  module Store = Memory_store
+  module Compressor = Memory_compressor
+  module Runtime = Memory_runtime
+end
+
 module Orchestration = struct
   module Graph = Orchestration_graph
   module Decider = Orchestration_decider

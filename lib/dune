@@ -3,4 +3,4 @@
 (library
  (name agent_graph)
  (public_name ocaml-agent-graph)
- (libraries lwt.unix yojson fmt unix threads str bulkhead_lm cohttp-lwt-unix))
+ (libraries lwt.unix yojson fmt unix threads str sqlite3 bulkhead_lm cohttp-lwt-unix))

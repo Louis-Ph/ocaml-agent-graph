@@ -1,0 +1,17 @@
+{
+  "enabled": true,
+  "session_namespace": "swarm-demo",
+  "storage": {
+    "mode": "bulkhead_gateway_sqlite"
+  },
+  "reload": {
+    "recent_turn_buffer": 4
+  },
+  "compression": {
+    "reply_checkpoints": [5, 7, 10, 15, 20],
+    "continue_every_replies": 5,
+    "summary_max_chars": 2400,
+    "summary_max_tokens": 220,
+    "summary_prompt": "Compress this durable swarm memory into one short factual note. Preserve stable goals, constraints, names, preferences, decisions, blockers, and unresolved items."
+  }
+}

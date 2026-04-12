@@ -1,6 +1,7 @@
 type t = {
   config : Runtime_config.t;
   llm_client : Llm_bulkhead_client.t;
+  memory_runtime : Memory_runtime.t option;
 }
 
 let create config =
@@ -13,6 +14,15 @@ let create config =
            config.Runtime_config.llm
        with
        | Error _ as error -> error
-       | Ok () -> Ok { config; llm_client })
+       | Ok () ->
+           (match Memory_runtime.create config llm_client with
+            | Error _ as error -> error
+            | Ok memory_runtime -> Ok { config; llm_client; memory_runtime }))
 
-let of_llm_client ~config llm_client = { config; llm_client }
+let of_llm_client ~config llm_client =
+  let memory_runtime =
+    match Memory_runtime.create config llm_client with
+    | Ok value -> value
+    | Error message -> failwith message
+  in
+  { config; llm_client; memory_runtime }

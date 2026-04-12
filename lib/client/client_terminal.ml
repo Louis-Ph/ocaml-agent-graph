@@ -2,7 +2,13 @@ type state = {
   active_route_model : string;
   conversation : Bulkhead_lm.Openai_types.message list;
   attachments : Client_assistant.attachment list;
+  graph_session_id : string;
+  graph_run_count : int;
 }
+
+type graph_request_kind =
+  | Graph
+  | Discussion
 
 type command =
   | Empty
@@ -19,6 +25,8 @@ type command =
   | Explore_path of string
   | Open_path of string
   | Run_command of string
+  | Run_graph of string
+  | Run_discussion of string
   | Show_docs of string option
   | Run_wizard of string option
   | Show_ssh_human
@@ -99,7 +107,23 @@ let parse_command input =
     let command = tail Client_human_constants.Command.run in
     if command = "" then Invalid "/run expects a command."
     else Run_command command
+  else if trimmed = Client_human_constants.Command.graph then
+    Invalid Client_human_constants.Text.graph_prompt_required
+  else if starts Client_human_constants.Command.graph then
+    let prompt = tail Client_human_constants.Command.graph in
+    if prompt = "" then Invalid Client_human_constants.Text.graph_prompt_required
+    else Run_graph prompt
+  else if trimmed = Client_human_constants.Command.discussion then
+    Invalid Client_human_constants.Text.discussion_prompt_required
+  else if starts Client_human_constants.Command.discussion then
+    let prompt = tail Client_human_constants.Command.discussion in
+    if prompt = "" then
+      Invalid Client_human_constants.Text.discussion_prompt_required
+    else Run_discussion prompt
   else Prompt trimmed
+
+let make_graph_session_id () =
+  Fmt.str "human-graph-%d" (int_of_float (Unix.gettimeofday () *. 1000.0))
 
 let initial_state (runtime : Client_runtime.t) =
   {
@@ -107,6 +131,8 @@ let initial_state (runtime : Client_runtime.t) =
       runtime.Client_runtime.client_config.assistant.route_model;
     conversation = [];
     attachments = [];
+    graph_session_id = make_graph_session_id ();
+    graph_run_count = 0;
   }
 
 let update_terminal_context (runtime : Client_runtime.t) =
@@ -190,6 +216,87 @@ let print_doc_lines runtime goal =
   Client_ui.print_section "Relevant Docs"
     (Client_assistant_docs.doc_overview_lines runtime ~goal);
   print_blank ()
+
+let render_graph_attachment attachment =
+  Client_assistant.render_attachment attachment
+
+let graph_input_with_attachments prompt_text attachments =
+  match attachments with
+  | [] -> prompt_text
+  | _ ->
+      Fmt.str
+        "%s\n\nAttached files:\n%s"
+        prompt_text
+        (attachments
+         |> List.map render_graph_attachment
+         |> String.concat "\n\n")
+
+let prepare_graph_request runtime state ~request_kind prompt_text =
+  let attachments = List.rev state.attachments in
+  let prompt_text =
+    match request_kind with
+    | Graph -> prompt_text
+    | Discussion ->
+        Fmt.str
+          "Run the typed graph in discussion mode for the request below.\nMake the planner produce an agenda, let the configured participants debate it for the configured rounds, then return the final synthesis.\n\nRequest:\n%s"
+          prompt_text
+  in
+  let input = graph_input_with_attachments prompt_text attachments in
+  let task_id =
+    Fmt.str "%s-%03d" state.graph_session_id (state.graph_run_count + 1)
+  in
+  let metadata =
+    match runtime.Client_runtime.runtime_config.memory.session_id_metadata_key with
+    | Some metadata_key -> [ metadata_key, state.graph_session_id ]
+    | None -> []
+  in
+  task_id, metadata, input
+
+let event_line (event : Core_context.event) =
+  Fmt.str
+    "%02d  %s  %s"
+    event.step_index
+    event.label
+    event.detail
+
+let run_graph_request runtime state ~request_kind prompt_text =
+  if
+    request_kind = Discussion
+    && not runtime.Client_runtime.runtime_config.discussion.enabled
+  then (
+    print_endline Client_human_constants.Text.discussion_disabled;
+    state)
+  else
+    let task_id, metadata, input =
+      prepare_graph_request runtime state ~request_kind prompt_text
+    in
+    match
+      Lwt_main.run
+        (Client_machine.run_graph runtime ~task_id ~metadata input)
+    with
+    | payload, context ->
+        print_blank ();
+        Client_ui.print_section "Graph Result"
+          ( [
+              Fmt.str "task_id: %s" context.Core_context.task_id;
+              Fmt.str "payload: %s" (Core_payload.summary payload);
+              Fmt.str "completed_agents: %s"
+                (match Core_context.completed_agent_names context with
+                 | [] -> "none"
+                 | names -> String.concat ", " names);
+              Fmt.str "step_count: %d" context.Core_context.step_count;
+            ]
+          @ String.split_on_char '\n' (Core_payload.to_pretty_string payload) );
+        print_blank ();
+        Client_ui.print_section ~style:Client_ui.Style.muted "Execution Trace"
+          (match List.rev context.Core_context.events with
+           | [] -> [ "No orchestration event was recorded." ]
+           | events -> List.map event_line events);
+        print_blank ();
+        { state with
+          attachments = [];
+          graph_run_count = state.graph_run_count + 1
+        }
 
 let transport_rows (runtime : Client_runtime.t) =
   [
@@ -389,6 +496,17 @@ let rec loop (runtime : Client_runtime.t) state =
           | Ok plan -> print_exec_result (run_exec_plan runtime plan));
           print_blank ();
           loop runtime state
+      | Run_graph prompt_text ->
+          let state =
+            run_graph_request runtime state ~request_kind:Graph prompt_text
+          in
+          loop runtime state
+      | Run_discussion prompt_text ->
+          let state =
+            run_graph_request runtime state ~request_kind:Discussion
+              prompt_text
+          in
+          loop runtime state
       | Show_docs topic_opt ->
           print_doc_lines runtime
             (Option.value topic_opt ~default:"general operations");
@@ -479,6 +597,8 @@ let run (runtime : Client_runtime.t) =
   Client_ui.print_section ~style:Client_ui.Style.muted "Quick Start"
     [
       "/help for the full deck";
+      "/graph ... to execute the typed graph directly";
+      "/discussion ... to launch the configured multi-agent discussion workflow";
       "/mesh for SSH, HTTP, install, and peer transport commands";
       "/curl for HTTP workflow examples";
       "/wizard install, /wizard http, or /wizard peer for guided setup";

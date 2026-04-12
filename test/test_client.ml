@@ -10,6 +10,11 @@ let contains_substring ~substring value =
   in
   if substring_length = 0 then true else loop 0
 
+let has_prefix prefix value =
+  let prefix_length = String.length prefix in
+  String.length value >= prefix_length
+  && String.sub value 0 prefix_length = prefix
+
 let with_temp_dir prefix f =
   let base = Filename.concat (Filename.get_temp_dir_name ()) prefix in
   let rec choose attempt =
@@ -757,9 +762,76 @@ let test_terminal_parse_command_supports_docs_and_wizard () =
   (match Client.Terminal.parse_command "/install-http" with
    | Client.Terminal.Show_install_http -> ()
    | _ -> Alcotest.fail "Expected /install-http to parse as Show_install_http");
+  (match Client.Terminal.parse_command "/graph design the orchestration" with
+   | Client.Terminal.Run_graph "design the orchestration" -> ()
+   | _ -> Alcotest.fail "Expected /graph ... to parse as Run_graph");
+  (match Client.Terminal.parse_command "/discussion compare two graph shapes" with
+   | Client.Terminal.Run_discussion "compare two graph shapes" -> ()
+   | _ -> Alcotest.fail "Expected /discussion ... to parse as Run_discussion");
   match Client.Terminal.parse_command "/wizard cron nightly swarm" with
   | Client.Terminal.Run_wizard (Some "cron nightly swarm") -> ()
   | _ -> Alcotest.fail "Expected /wizard ... to parse as Run_wizard"
+
+let test_terminal_prepare_discussion_request_keeps_session_and_attachments () =
+  let runtime_config =
+    {
+      (make_memory_runtime_config "assistant-route" "/tmp/terminal-memory.sqlite")
+      with
+      discussion =
+        {
+          Config.Runtime.Discussion.enabled = true;
+          rounds = 2;
+          final_agent = Core.Agent_name.Summarizer;
+          participants = [];
+        };
+    }
+  in
+  let runtime =
+    make_client_runtime_with_runtime_config "assistant-route" runtime_config
+  in
+  let attachment : Client.Assistant.attachment =
+    {
+      path = "/tmp/spec.md";
+      content = "Module hierarchy and audit requirements.";
+      bytes_read = 38;
+      truncated = false;
+    }
+  in
+  let state =
+    {
+      (Client.Terminal.initial_state runtime) with
+      attachments = [ attachment ];
+    }
+  in
+  let task_id, metadata, input =
+    Client.Terminal.prepare_graph_request
+      runtime
+      state
+      ~request_kind:Client.Terminal.Discussion
+      "Refactor the orchestration."
+  in
+  Alcotest.(check bool)
+    "task id derives from graph session"
+    true
+    (has_prefix state.graph_session_id task_id);
+  Alcotest.(check (list (pair string string)))
+    "session metadata propagated"
+    [ ("session_id", state.graph_session_id) ]
+    metadata;
+  Alcotest.(check bool)
+    "discussion wrapper added"
+    true
+    (contains_substring
+       ~substring:"Run the typed graph in discussion mode"
+       input);
+  Alcotest.(check bool)
+    "attachment block added"
+    true
+    (contains_substring ~substring:"Attached files:" input);
+  Alcotest.(check bool)
+    "attachment content included"
+    true
+    (contains_substring ~substring:"Module hierarchy and audit requirements." input)
 
 let test_client_runtime_graph_summary_mentions_routes () =
   let route_model = "assistant-route" in
@@ -1020,6 +1092,10 @@ let () =
             "terminal parses docs and wizard commands"
             `Quick
             test_terminal_parse_command_supports_docs_and_wizard;
+          Alcotest.test_case
+            "terminal prepares discussion requests with session and attachments"
+            `Quick
+            test_terminal_prepare_discussion_request_keeps_session_and_attachments;
         ] );
       ( "runtime",
         [

@@ -34,7 +34,7 @@
     }
   },
   "discussion": {
-    "enabled": false,
+    "enabled": true,
     "rounds": 2,
     "final_agent": "summarizer",
     "participants": [

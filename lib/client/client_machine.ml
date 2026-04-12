@@ -147,7 +147,12 @@ let event_to_yojson (event : Core_context.event) =
       "timestamp", `Float event.timestamp;
     ]
 
-let run_graph_json (runtime : Client_runtime.t) ~task_id ~metadata input =
+let run_graph
+    (runtime : Client_runtime.t)
+    ~task_id
+    ~metadata
+    input
+  =
   let services =
     Runtime_services.of_llm_client
       ~config:runtime.Client_runtime.runtime_config
@@ -161,6 +166,9 @@ let run_graph_json (runtime : Client_runtime.t) ~task_id ~metadata input =
      ~registry
      context
      (Core_payload.Text input))
+
+let run_graph_json (runtime : Client_runtime.t) ~task_id ~metadata input =
+  run_graph runtime ~task_id ~metadata input
   >|= fun (payload, context) ->
   Ok
     (`Assoc

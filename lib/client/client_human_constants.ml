@@ -12,6 +12,8 @@ module Command = struct
   let explore = "/explore"
   let open_file = "/open"
   let run = "/run"
+  let graph = "/graph"
+  let discussion = "/discussion"
   let docs = "/docs"
   let wizard = "/wizard"
   let ssh_human = "/ssh-human"
@@ -42,6 +44,8 @@ let commands =
     Command.explore;
     Command.open_file;
     Command.run;
+    Command.graph;
+    Command.discussion;
     Command.docs;
     Command.wizard;
     Command.ssh_human;
@@ -79,6 +83,8 @@ module Text = struct
       "  /explore    list a directory under the configured workspace root";
       "  /open PATH  preview a local text file under the workspace root";
       "  /run CMD    execute a local command under the workspace root";
+      "  /graph TXT  execute the typed graph directly from this terminal";
+      "  /discussion TXT  execute the graph and force the multi-agent discussion path";
       "  /docs TOPIC show the most relevant local docs for build, test, install, cron, swarm, messenger, ssh, http, or peer";
       "  /wizard TXT run the proactive starter wizard for a concrete goal";
       "  /ssh-human  print the SSH wrapper for the human terminal";
@@ -96,6 +102,8 @@ module Text = struct
       "Operational workflows:";
       "  build   -> ask the assistant to update code, then run /run opam exec -- dune build @all";
       "  test    -> validate with /run opam exec -- dune runtest";
+      "  graph   -> use /graph ... to execute the real typed graph from the human terminal";
+      "  discussion -> use /discussion ... to run the configured multi-agent discussion workflow";
       "  install -> start from ./run.sh or ask /wizard install local human terminal";
       "  cron    -> ask /wizard cron ... so the assistant can propose a safe schedule and commands";
       "  swarm   -> ask /wizard swarm ... and inspect the adaptive webcrawler, HTTP API, or worker mode";
@@ -147,5 +155,9 @@ module Text = struct
   let file_attached path = Fmt.str "Attached for the next prompt: %s" path
   let files_cleared = "Attached files were cleared."
   let files_empty = "No file is attached right now."
+  let graph_prompt_required = "/graph expects a request to execute."
+  let discussion_prompt_required = "/discussion expects a request to execute."
+  let discussion_disabled =
+    "The discussion workflow is disabled in the runtime config. Set discussion.enabled=true in config/runtime.json, then retry."
   let goodbye = "Bye."
 end

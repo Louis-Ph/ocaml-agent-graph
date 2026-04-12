@@ -462,6 +462,41 @@ let test_long_text_discussion_path () =
       Alcotest.fail
         "Expected a final summarized text payload after discussion orchestration"
 
+let test_discussion_live_output_turn_message () =
+  let turn =
+    {
+      Core.Payload.speaker = "architect";
+      round_index = 2;
+      content =
+        "Split the workflow into explicit modules.\nKeep the transcript typed.";
+      metrics = Core.Payload.zero_metrics;
+      notes = [];
+    }
+  in
+  let rendered =
+    Orchestration.Discussion.Live_output.turn_completed_message
+      ~max_rounds:4
+      turn
+  in
+  Alcotest.(check bool)
+    "header keeps round hierarchy"
+    true
+    (contains_substring
+       ~substring:"Discussion turn 2/4 speaker=architect"
+       rendered);
+  Alcotest.(check bool)
+    "first content line indented"
+    true
+    (contains_substring
+       ~substring:"\n    Split the workflow into explicit modules."
+       rendered);
+  Alcotest.(check bool)
+    "second content line indented"
+    true
+    (contains_substring
+       ~substring:"\n    Keep the transcript typed."
+       rendered)
+
 let make_memory_config sqlite_path =
   {
     Config.Runtime.Memory.enabled = true;
@@ -1079,6 +1114,10 @@ let () =
             "long text -> plan -> discussion -> final summary"
             `Quick
             test_long_text_discussion_path;
+          Alcotest.test_case
+            "formats live turn output"
+            `Quick
+            test_discussion_live_output_turn_message;
           Alcotest.test_case
             "loads discussion workflow config"
             `Quick

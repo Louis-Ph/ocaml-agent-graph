@@ -1,5 +1,73 @@
 open Lwt.Syntax
 
+module Event_label = struct
+  let started = "discussion.started"
+  let failed = "discussion.failed"
+  let round_started = "discussion.round.started"
+  let turn_failed = "discussion.turn.failed"
+  let turn_skipped = "discussion.turn.skipped"
+end
+
+module Live_output = struct
+  let indent_prefix = "    "
+
+  let indent_block content =
+    content
+    |> String.split_on_char '\n'
+    |> List.map (fun line -> indent_prefix ^ line)
+    |> String.concat "\n"
+
+  let participant_names participants =
+    participants
+    |> List.map (fun (participant : Runtime_config.Discussion.Participant.t) ->
+           participant.name)
+    |> String.concat ", "
+
+  let started_message (config : Runtime_config.Discussion.t) =
+    Fmt.str
+      "Discussion started: rounds=%d final_agent=%s participants=%s"
+      config.rounds
+      (Core_agent_name.to_string config.final_agent)
+      (participant_names config.participants)
+
+  let round_started_message ~round_index ~max_rounds ~participants =
+    Fmt.str
+      "Discussion round %d/%d started with %s"
+      round_index
+      max_rounds
+      (participant_names participants)
+
+  let round_completed_message ~round_index ~max_rounds ~turn_count =
+    Fmt.str
+      "Discussion round %d/%d completed with %d turn(s)"
+      round_index
+      max_rounds
+      turn_count
+
+  let turn_completed_message ~max_rounds (turn : Core_payload.discussion_turn) =
+    Fmt.str
+      "Discussion turn %d/%d speaker=%s\n%s"
+      turn.round_index
+      max_rounds
+      turn.speaker
+      (indent_block turn.content)
+
+  let turn_failed_message ~round_index ~max_rounds ~speaker ~error =
+    Fmt.str
+      "Discussion turn %d/%d speaker=%s failed: %s"
+      round_index
+      max_rounds
+      speaker
+      error
+
+  let turn_skipped_message ~round_index ~max_rounds ~speaker =
+    Fmt.str
+      "Discussion turn %d/%d speaker=%s skipped: empty completion"
+      round_index
+      max_rounds
+      speaker
+end
+
 module Prompt_templates = struct
   let max_contribution_words = 120
 
@@ -145,10 +213,17 @@ let invoke_participant
   in
   match result with
   | Error message ->
+      Runtime_logger.log
+        Runtime_logger.Warning
+        (Live_output.turn_failed_message
+           ~round_index
+           ~max_rounds:discussion.max_rounds
+           ~speaker:participant.name
+           ~error:message);
       let context =
         Core_context.record_event
           context
-          ~label:"discussion.turn.failed"
+          ~label:Event_label.turn_failed
           ~detail:
             (Fmt.str
                "round=%d speaker=%s error=%s"
@@ -161,10 +236,18 @@ let invoke_participant
       let content = String.trim completion.content in
       if content = ""
       then
+        let () =
+          Runtime_logger.log
+            Runtime_logger.Warning
+            (Live_output.turn_skipped_message
+               ~round_index
+               ~max_rounds:discussion.max_rounds
+               ~speaker:participant.name)
+        in
         let context =
           Core_context.record_event
             context
-            ~label:"discussion.turn.skipped"
+            ~label:Event_label.turn_skipped
             ~detail:
               (Fmt.str
                  "round=%d speaker=%s reason=empty_completion"
@@ -186,6 +269,11 @@ let invoke_participant
         let context =
           Core_context.record_discussion_turn context turn
         in
+        Runtime_logger.log
+          Runtime_logger.Info
+          (Live_output.turn_completed_message
+             ~max_rounds:discussion.max_rounds
+             turn);
         Lwt.return (Some turn, context)
 
 let run_round
@@ -229,7 +317,7 @@ let run
       let context =
         Core_context.record_event
           context
-          ~label:"discussion.failed"
+          ~label:Event_label.failed
           ~detail:message
       in
       Lwt.return (Core_payload.Error message, context)
@@ -245,7 +333,7 @@ let run
       let context =
         Core_context.record_event
           context
-          ~label:"discussion.started"
+          ~label:Event_label.started
           ~detail:
             (Fmt.str
                "rounds=%d final_agent=%s participants=%s"
@@ -253,14 +341,25 @@ let run
                (Core_agent_name.to_string config.discussion.final_agent)
                participant_names)
       in
+      Runtime_logger.log
+        Runtime_logger.Info
+        (Live_output.started_message config.discussion);
       let rec loop context (discussion : Core_payload.discussion) round_index =
         if round_index > discussion.max_rounds
         then Lwt.return (Core_payload.Discussion discussion, context)
         else
+          let () =
+            Runtime_logger.log
+              Runtime_logger.Info
+              (Live_output.round_started_message
+                 ~round_index
+                 ~max_rounds:discussion.max_rounds
+                 ~participants:config.discussion.participants)
+          in
           let context =
             Core_context.record_event
               context
-              ~label:"discussion.round.started"
+              ~label:Event_label.round_started
               ~detail:(Fmt.str "round=%d" round_index)
           in
           let* discussion, context, turn_count =
@@ -280,6 +379,12 @@ let run
               ~round_index
               ~turn_count
           in
+          Runtime_logger.log
+            Runtime_logger.Info
+            (Live_output.round_completed_message
+               ~round_index
+               ~max_rounds:discussion.max_rounds
+               ~turn_count);
           if turn_count = 0
           then
             if discussion.turns = []
@@ -287,10 +392,11 @@ let run
               let message =
                 "Discussion workflow produced no participant contribution."
               in
+              Runtime_logger.log Runtime_logger.Warning message;
               let context =
                 Core_context.record_event
                   context
-                  ~label:"discussion.failed"
+                  ~label:Event_label.failed
                   ~detail:message
               in
               Lwt.return (Core_payload.Error message, context)

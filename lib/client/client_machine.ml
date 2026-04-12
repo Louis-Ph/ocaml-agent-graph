@@ -39,6 +39,54 @@ let string_list_member name json =
   | Some _ -> Error (Fmt.str "Invalid %s list." name)
   | None -> Ok []
 
+let metadata_entries json =
+  match member "metadata" json with
+  | None -> Ok []
+  | Some (`Assoc fields) ->
+      Ok
+        (fields
+         |> List.filter_map (fun (key, value) ->
+                match value with
+                | `String text when String.trim key <> "" && String.trim text <> "" ->
+                    Some (String.trim key, String.trim text)
+                | _ -> None))
+  | Some (`List values) ->
+      let rec loop acc = function
+        | [] -> Ok (List.rev acc)
+        | (`Assoc fields) :: rest ->
+            let key =
+              match List.assoc_opt "key" fields with
+              | Some (`String value) when String.trim value <> "" ->
+                  Ok (String.trim value)
+              | _ -> Error "metadata list entries require a non-empty key."
+            in
+            let value =
+              match List.assoc_opt "value" fields with
+              | Some (`String entry) when String.trim entry <> "" ->
+                  Ok (String.trim entry)
+              | _ -> Error "metadata list entries require a non-empty value."
+            in
+            (match key, value with
+             | Ok key, Ok value -> loop ((key, value) :: acc) rest
+             | Error message, _ | _, Error message -> Error message)
+        | _ :: _ ->
+            Error "metadata must be an object or a list of {key, value} objects."
+      in
+      loop [] values
+  | Some _ -> Error "metadata must be an object or a list."
+
+let inject_session_id
+    (runtime : Client_runtime.t)
+    metadata
+    ~(session_id : string option)
+  =
+  match runtime.runtime_config.memory.session_id_metadata_key, session_id with
+  | Some metadata_key, Some session_id when String.trim session_id <> "" ->
+      let session_id = String.trim session_id in
+      (metadata_key, session_id)
+      :: List.remove_assoc metadata_key metadata
+  | _ -> metadata
+
 let bool_member_with_default name json ~default =
   match member name json with
   | Some (`Bool value) -> value
@@ -99,33 +147,34 @@ let event_to_yojson (event : Core_context.event) =
       "timestamp", `Float event.timestamp;
     ]
 
-let run_graph_json (runtime : Client_runtime.t) task_id input =
-  match Runtime_services.create runtime.Client_runtime.runtime_config with
-  | Error _ as error -> Lwt.return error
-  | Ok services ->
-      let registry = Default_agents.make_registry () in
-      let context = Core_context.empty ~task_id ~metadata:[] in
-      (Orchestration_orchestrator.loop
-         ~services
-         ~config:runtime.runtime_config
-         ~registry
-         context
-         (Core_payload.Text input))
-      >|= function
-      | payload, context ->
-          Ok
-            (`Assoc
-               [
-                 "task_id", `String context.task_id;
-                 "payload_summary", `String (Core_payload.summary payload);
-                 "payload_pretty", `String (Core_payload.to_pretty_string payload);
-                 ( "completed_agents",
-                   `List
-                     (Core_context.completed_agent_names context
-                      |> List.map (fun value -> `String value)) );
-                 "step_count", `Int context.step_count;
-                 "events", `List (List.rev context.events |> List.map event_to_yojson);
-               ])
+let run_graph_json (runtime : Client_runtime.t) ~task_id ~metadata input =
+  let services =
+    Runtime_services.of_llm_client
+      ~config:runtime.Client_runtime.runtime_config
+      runtime.llm_client
+  in
+  let registry = Default_agents.make_registry () in
+  let context = Core_context.empty ~task_id ~metadata in
+  (Orchestration_orchestrator.loop
+     ~services
+     ~config:runtime.runtime_config
+     ~registry
+     context
+     (Core_payload.Text input))
+  >|= fun (payload, context) ->
+  Ok
+    (`Assoc
+       [
+         "task_id", `String context.task_id;
+         "payload_summary", `String (Core_payload.summary payload);
+         "payload_pretty", `String (Core_payload.to_pretty_string payload);
+         ( "completed_agents",
+           `List
+             (Core_context.completed_agent_names context
+              |> List.map (fun value -> `String value)) );
+         "step_count", `Int context.step_count;
+         "events", `List (List.rev context.events |> List.map event_to_yojson);
+       ])
 
 let assistant_request (runtime : Client_runtime.t) json =
   let prompt =
@@ -173,13 +222,22 @@ let invoke_json (runtime : Client_runtime.t) ~kind json =
       (match string_member_opt "input" json with
        | None -> Lwt.return (Error "run_graph requests require a non-empty input.")
        | Some input ->
-           let task_id =
-             Option.value
-               (string_member_opt "task_id" json)
-               ~default:runtime.runtime_config.demo.task_id
-           in
-           run_graph_json runtime task_id input
-           >|= Result.map (fun value -> Run_graph_response value))
+           (match metadata_entries json with
+            | Error _ as error -> Lwt.return error
+            | Ok metadata ->
+                let task_id =
+                  Option.value
+                    (string_member_opt "task_id" json)
+                    ~default:runtime.runtime_config.demo.task_id
+                in
+                let metadata =
+                  inject_session_id
+                    runtime
+                    metadata
+                    ~session_id:(string_member_opt "session_id" json)
+                in
+                run_graph_json runtime ~task_id ~metadata input
+                >|= Result.map (fun value -> Run_graph_response value)))
   | Messenger_spokesperson ->
       (match Bulkhead_lm.Openai_types.chat_request_of_yojson json with
        | Error field ->
@@ -189,7 +247,10 @@ let invoke_json (runtime : Client_runtime.t) ~kind json =
                    "messenger_spokesperson requests require a valid OpenAI chat request field: %s"
                    field))
        | Ok request ->
-           Client_messenger_spokesperson.respond runtime request
+           Client_messenger_spokesperson.respond
+             runtime
+             ?session_id:(string_member_opt "session_id" json)
+             request
            >|= Result.map (fun response ->
                   Messenger_spokesperson_response
                     (Bulkhead_lm.Openai_types.chat_response_to_yojson response)))

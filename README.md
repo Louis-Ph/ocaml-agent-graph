@@ -77,6 +77,7 @@ ocaml-agent-graph/
       llm_prompt.ml
       llm_bulkhead_client.ml
     memory/
+      memory_bulkhead_bridge.ml
       memory_store.ml
       memory_compressor.ml
       memory_runtime.ml
@@ -160,6 +161,13 @@ The default memory policy uses the BulkheadLM SQLite path, keeps the last few
 user/assistant turns verbatim, and compresses older memory at configured
 checkpoints into a durable summary.
 
+If `session_id_metadata_key` is configured, external callers can keep one
+stable swarm memory session across many requests by passing that session id in
+client metadata. The optional `bulkhead_bridge` block can also project the
+resulting durable summary plus recent turns into BulkheadLM's authenticated
+control-plane memory session endpoint, so the swarm can replace BulkheadLM
+conversation memory instead of only clearing it.
+
 The shipped demo config currently uses the `claude-sonnet` route through
 `BulkheadLM`.
 
@@ -194,6 +202,12 @@ and use:
 This lets a Telegram or WhatsApp connector in `bulkhead-lm` speak to one
 client-facing spokesperson that is backed by the swarm execution from this
 repository.
+
+When the runtime memory policy sets `session_id_metadata_key = "session_id"`,
+the spokesperson endpoint can also accept a top-level `session_id` field in the
+OpenAI-compatible request JSON. That lets an external wrapper keep the swarm
+memory stable across many connector turns while still letting BulkheadLM own the
+transport/webhook side.
 
 For the full wiring pattern, see
 [`doc/MESSENGER_CONNECTORS.md`](doc/MESSENGER_CONNECTORS.md).

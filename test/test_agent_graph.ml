@@ -1,4 +1,5 @@
 open Agent_graph
+open Lwt.Syntax
 
 let make_llm_config
     ?(planner_route_model = "planner-model")
@@ -144,15 +145,23 @@ let make_services ?(config = config) responses =
   in
   Runtime.Services.of_llm_client ~config llm_client
 
-let run ?(config = config) ?(task_id = "test-task") ?(metadata = []) ~services input =
+let run_lwt
+    ?(config = config)
+    ?(task_id = "test-task")
+    ?(metadata = [])
+    ~services
+    input
+  =
   let context = Core.Context.empty ~task_id ~metadata in
-  Lwt_main.run
-    (Orchestration.Orchestrator.loop
-       ~services
-       ~config
-       ~registry
-       context
-       (Core.Payload.Text input))
+  Orchestration.Orchestrator.loop
+    ~services
+    ~config
+    ~registry
+    context
+    (Core.Payload.Text input)
+
+let run ?(config = config) ?(task_id = "test-task") ?(metadata = []) ~services input =
+  Lwt_main.run (run_lwt ~config ~task_id ~metadata ~services input)
 
 let test_short_text_path () =
   let services =
@@ -318,7 +327,72 @@ let make_memory_config sqlite_path =
         summary_prompt =
           "Compress the durable swarm memory into a short factual note.";
       };
+    bulkhead_bridge = None;
   }
+
+type captured_bridge_request = {
+  path : string;
+  session_key : string option;
+  authorization : string option;
+  body : Yojson.Safe.t;
+}
+
+let reserve_local_port () =
+  let socket = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+  Fun.protect
+    ~finally:(fun () -> Unix.close socket)
+    (fun () ->
+      Unix.bind socket (Unix.ADDR_INET (Unix.inet_addr_loopback, 0));
+      match Unix.getsockname socket with
+      | Unix.ADDR_INET (_, port) -> port
+      | _ -> failwith "Expected an INET socket")
+
+let with_bridge_server f =
+  let port = reserve_local_port () in
+  let requests = ref [] in
+  let stop, stopper = Lwt.wait () in
+  let callback _conn req body =
+    let* body_text = Cohttp_lwt.Body.to_string body in
+    let body_json =
+      try Yojson.Safe.from_string body_text with
+      | Yojson.Json_error _ -> `String body_text
+    in
+    requests :=
+      {
+        path = Uri.path (Cohttp.Request.uri req);
+        session_key =
+          Uri.get_query_param (Cohttp.Request.uri req) "session_key";
+        authorization =
+          Cohttp.Header.get
+            (Cohttp.Request.headers req)
+            "authorization";
+        body = body_json;
+      }
+      :: !requests;
+    Cohttp_lwt_unix.Server.respond_string
+      ~status:`OK
+      ~headers:(Cohttp.Header.of_list [ "content-type", "application/json" ])
+      ~body:"{\"ok\":true}"
+      ()
+  in
+  let server =
+    Cohttp_lwt_unix.Server.make ~callback ()
+  in
+  let server_thread =
+    Thread.create
+      (fun () ->
+        Lwt_main.run
+          (Cohttp_lwt_unix.Server.create
+             ~mode:(`TCP (`Port port))
+             ~stop
+             server))
+      ()
+  in
+  Fun.protect
+    ~finally:(fun () ->
+      if Lwt.is_sleeping stop then Lwt.wakeup_later stopper ();
+      Thread.join server_thread)
+    (fun () -> f port requests)
 
 let test_memory_persists_between_runs () =
   let sqlite_path = Filename.temp_file "agent-graph-memory" ".sqlite" in
@@ -425,6 +499,7 @@ let test_runtime_config_loads_memory_policy_file () =
     {|{
   "enabled": true,
   "session_namespace": "loaded-from-file",
+  "session_id_metadata_key": "session_id",
   "storage": { "mode": "explicit_sqlite", "sqlite_path": "./memory.sqlite" },
   "reload": { "recent_turn_buffer": 3 },
   "compression": {
@@ -432,6 +507,12 @@ let test_runtime_config_loads_memory_policy_file () =
     "continue_every_replies": 4,
     "summary_max_chars": 1234,
     "summary_prompt": "Keep only the durable facts."
+  },
+  "bulkhead_bridge": {
+    "endpoint_url": "http://127.0.0.1:4110/_bulkhead/control/api/memory/session",
+    "session_key_prefix": "swarm",
+    "authorization_token_env": "BULKHEAD_LM_ADMIN_TOKEN",
+    "timeout_seconds": 4.0
   }
 }|}
   in
@@ -473,7 +554,99 @@ let test_runtime_config_loads_memory_policy_file () =
       Alcotest.(check (list int))
         "checkpoints loaded"
         [ 5; 8 ]
-        loaded.memory.compression.reply_checkpoints
+        loaded.memory.compression.reply_checkpoints;
+      Alcotest.(check (option string))
+        "session id key loaded"
+        (Some "session_id")
+        loaded.memory.session_id_metadata_key;
+      match loaded.memory.bulkhead_bridge with
+      | None -> Alcotest.fail "expected bulkhead bridge configuration to load"
+      | Some bridge ->
+          Alcotest.(check string)
+            "bridge endpoint loaded"
+            "http://127.0.0.1:4110/_bulkhead/control/api/memory/session"
+            bridge.endpoint_url;
+          Alcotest.(check (option string))
+            "bridge prefix loaded"
+            (Some "swarm")
+            bridge.session_key_prefix
+
+let test_memory_bulkhead_bridge_syncs_session () =
+  with_bridge_server (fun port requests ->
+      let sqlite_path = Filename.temp_file "agent-graph-memory-bridge" ".sqlite" in
+      let memory =
+        {
+          (make_memory_config sqlite_path) with
+          bulkhead_bridge =
+            Some
+              {
+                Config.Runtime.Memory.Bulkhead_bridge.endpoint_url =
+                  Fmt.str
+                    "http://127.0.0.1:%d/_bulkhead/control/api/memory/session"
+                    port;
+                session_key_prefix = Some "swarm";
+                authorization_token_plaintext = Some "admin-token";
+                authorization_token_env = None;
+                timeout_seconds = 1.0;
+              };
+        }
+      in
+      let config = make_config ~memory () in
+      let services =
+        make_services
+          ~config
+          [
+            ( "summarizer-model",
+              Ok
+                (Bulkhead_lm.Provider_mock.sample_chat_response
+                   ~model:"summarizer-model"
+                   ~content:"A short LLM summary."
+                   ()) );
+          ]
+      in
+      let _payload, context =
+        Lwt_main.run
+          (run_lwt
+             ~config
+             ~task_id:"bridge-task"
+             ~services
+             "Mirror this swarm memory into BulkheadLM.")
+      in
+      let request =
+        match List.rev !requests with
+        | [ request ] -> request
+        | requests ->
+            Alcotest.failf
+              "expected exactly one bridge request, got %d"
+              (List.length requests)
+      in
+      Alcotest.(check (option string))
+        "query session key"
+        (Some "swarm:test-memory:bridge-task")
+        request.session_key;
+      Alcotest.(check (option string))
+        "authorization header"
+        (Some "Bearer admin-token")
+        request.authorization;
+      let open Yojson.Safe.Util in
+      Alcotest.(check string)
+        "body session key"
+        "swarm:test-memory:bridge-task"
+        (request.body |> member "session_key" |> to_string);
+      Alcotest.(check int)
+        "body compressed turn count"
+        0
+        (request.body |> member "compressed_turn_count" |> to_int);
+      Alcotest.(check int)
+        "recent turns mirrored"
+        2
+        (request.body |> member "recent_turns" |> to_list |> List.length);
+      Alcotest.(check bool)
+        "sync event recorded"
+        true
+        (context.Core.Context.events
+         |> List.exists (fun (event : Core.Context.event) ->
+                String.equal event.label "memory.bulkhead_synced")))
 
 let test_validate_agent_profiles_rejects_missing_route () =
   let routes =
@@ -616,6 +789,10 @@ let () =
             "loads external memory policy file"
             `Quick
             test_runtime_config_loads_memory_policy_file;
+          Alcotest.test_case
+            "syncs durable memory into BulkheadLM"
+            `Quick
+            test_memory_bulkhead_bridge_syncs_session;
         ] );
       ( "crawler",
         [

@@ -53,6 +53,23 @@ let memory_storage_summary (memory : Runtime_config.Memory.t) =
   | Explicit_sqlite, Some path -> "explicit_sqlite:" ^ path
   | Explicit_sqlite, None -> "explicit_sqlite:(missing path)"
 
+let memory_bulkhead_bridge_summary (memory : Runtime_config.Memory.t) =
+  match memory.bulkhead_bridge with
+  | None -> "disabled"
+  | Some bridge ->
+      Fmt.str
+        "endpoint=%s auth=%s prefix=%s timeout=%.1fs"
+        bridge.endpoint_url
+        (match
+           bridge.authorization_token_plaintext,
+           bridge.authorization_token_env
+         with
+         | Some _, _ -> "inline-token"
+         | None, Some env_name -> "env:" ^ env_name
+         | None, None -> "open")
+        (Option.value bridge.session_key_prefix ~default:"(none)")
+        bridge.timeout_seconds
+
 let agent_profile_summaries (runtime_config : Runtime_config.t) =
   Runtime_config.Llm.agent_bindings runtime_config.llm
   |> List.map (fun (agent, profile) ->
@@ -160,13 +177,15 @@ let graph_summary_lines t =
     else
       [
         Fmt.str
-          "memory: namespace=%s storage=%s recent_turn_buffer=%d checkpoints=%s"
+          "memory: namespace=%s storage=%s session_id_key=%s recent_turn_buffer=%d checkpoints=%s bridge=%s"
           config.memory.session_namespace
           (memory_storage_summary config.memory)
+          (Option.value config.memory.session_id_metadata_key ~default:"(task_id)")
           config.memory.reload.recent_turn_buffer
           (config.memory.compression.reply_checkpoints
            |> List.map string_of_int
-           |> String.concat ", ");
+           |> String.concat ", ")
+          (memory_bulkhead_bridge_summary config.memory);
       ]
   in
   let messenger_lines =
@@ -333,6 +352,26 @@ let graph_summary_to_yojson t =
         `List
           (agent_profile_summaries config
            |> List.map agent_profile_summary_to_yojson) );
+      ( "memory",
+        if not config.memory.enabled then `Assoc [ "enabled", `Bool false ]
+        else
+          `Assoc
+            [
+              "enabled", `Bool true;
+              "namespace", `String config.memory.session_namespace;
+              ( "session_id_metadata_key",
+                match config.memory.session_id_metadata_key with
+                | Some value -> `String value
+                | None -> `Null );
+              "storage", `String (memory_storage_summary config.memory);
+              "recent_turn_buffer", `Int config.memory.reload.recent_turn_buffer;
+              ( "reply_checkpoints",
+                `List
+                  (config.memory.compression.reply_checkpoints
+                   |> List.map (fun value -> `Int value)) );
+              "bulkhead_bridge",
+              `String (memory_bulkhead_bridge_summary config.memory);
+            ] );
       ( "routes",
         `List (route_summaries t |> List.map (fun value -> `String value)) );
     ]

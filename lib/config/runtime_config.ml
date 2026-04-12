@@ -85,6 +85,16 @@ module Memory = struct
     }
   end
 
+  module Bulkhead_bridge = struct
+    type t = {
+      endpoint_url : string;
+      session_key_prefix : string option;
+      authorization_token_plaintext : string option;
+      authorization_token_env : string option;
+      timeout_seconds : float;
+    }
+  end
+
   type t = {
     enabled : bool;
     session_namespace : string;
@@ -92,6 +102,7 @@ module Memory = struct
     storage : Storage.t;
     reload : Reload.t;
     compression : Compression.t;
+    bulkhead_bridge : Bulkhead_bridge.t option;
   }
 
   let disabled =
@@ -111,6 +122,7 @@ module Memory = struct
           summary_prompt =
             "Compress this durable swarm memory into a short, factual note.";
         };
+      bulkhead_bridge = None;
     }
 end
 
@@ -216,10 +228,50 @@ let list_of_ints_member name json =
              | _ -> None)
   | _ -> []
 
+let non_empty_string_member name json =
+  json
+  |> member name
+  |> to_string_option
+  |> Option.map String.trim
+  |> function
+  | Some value when value <> "" -> Some value
+  | _ -> None
+
+let parse_bulkhead_bridge json =
+  match non_empty_string_member "endpoint_url" json with
+  | None ->
+      Error
+        "Invalid memory bulkhead_bridge configuration: endpoint_url is required."
+  | Some endpoint_url ->
+      Ok
+        {
+          Memory.Bulkhead_bridge.endpoint_url;
+          session_key_prefix = non_empty_string_member "session_key_prefix" json;
+          authorization_token_plaintext =
+            non_empty_string_member "authorization_token_plaintext" json;
+          authorization_token_env =
+            non_empty_string_member "authorization_token_env" json;
+          timeout_seconds =
+            (json
+            |> member "timeout_seconds"
+            |> to_float_option
+            |> Option.value ~default:5.0
+            |> max 0.1);
+        }
+
 let parse_memory ~base_dir json =
   let storage_json = json |> member "storage" in
   let reload_json = json |> member "reload" in
   let compression_json = json |> member "compression" in
+  let bulkhead_bridge =
+    match json |> member "bulkhead_bridge" with
+    | `Null -> Ok None
+    | (`Assoc _ as bridge_json) ->
+        parse_bulkhead_bridge bridge_json |> Result.map Option.some
+    | _ ->
+        Error
+          "Invalid memory bulkhead_bridge configuration: expected an object."
+  in
   let storage_mode =
     storage_json
     |> member "mode"
@@ -227,73 +279,77 @@ let parse_memory ~base_dir json =
     |> Option.value ~default:"bulkhead_gateway_sqlite"
     |> parse_storage_mode
   in
-  storage_mode
-  |> Result.map (fun storage_mode ->
-         {
-           Memory.enabled =
-             bool_member_with_default "enabled" json ~default:true;
-           session_namespace =
-             json
-             |> member "session_namespace"
-             |> to_string_option
-             |> Option.value ~default:"default";
-           session_id_metadata_key =
-             Config_support.member_string_option
-               "session_id_metadata_key"
-               json;
-           storage =
-             {
-               Memory.Storage.mode = storage_mode;
-               sqlite_path =
-                 storage_json
-                 |> member "sqlite_path"
-                 |> to_string_option
-                 |> Option.map
-                      (Config_support.resolve_relative_path ~base_dir);
-             };
-           reload =
-             {
-               Memory.Reload.recent_turn_buffer =
-                 max
-                   0
-                   (reload_json
-                   |> member "recent_turn_buffer"
-                   |> to_int_option
-                   |> Option.value ~default:4);
-             };
-           compression =
-             {
-               Memory.Compression.reply_checkpoints =
-                 (match list_of_ints_member "reply_checkpoints" compression_json with
-                 | [] -> [ 5; 7; 10; 15; 20 ]
-                 | values -> values |> List.sort_uniq Int.compare);
-               continue_every_replies =
-                 max
-                   1
-                   (compression_json
-                   |> member "continue_every_replies"
-                   |> to_int_option
-                   |> Option.value ~default:5);
-               summary_max_chars =
-                 max
-                   120
-                   (compression_json
-                   |> member "summary_max_chars"
-                   |> to_int_option
-                   |> Option.value ~default:2400);
-               summary_max_tokens =
-                 compression_json
-                 |> member "summary_max_tokens"
-                 |> to_int_option;
-               summary_prompt =
-                 compression_json
-                 |> member "summary_prompt"
-                 |> to_string_option
-                 |> Option.value
-                      ~default:
-                        "Compress this durable swarm memory into a short, factual note.";
-             };
-         })
+  match bulkhead_bridge, storage_mode with
+  | (Error _ as error), _ -> error
+  | _, (Error _ as error) -> error
+  | Ok bulkhead_bridge, Ok storage_mode ->
+      Ok
+        {
+          Memory.enabled =
+            bool_member_with_default "enabled" json ~default:true;
+          session_namespace =
+            json
+            |> member "session_namespace"
+            |> to_string_option
+            |> Option.value ~default:"default";
+          session_id_metadata_key =
+            Config_support.member_string_option
+              "session_id_metadata_key"
+              json;
+          storage =
+            {
+              Memory.Storage.mode = storage_mode;
+              sqlite_path =
+                storage_json
+                |> member "sqlite_path"
+                |> to_string_option
+                |> Option.map
+                     (Config_support.resolve_relative_path ~base_dir);
+            };
+          reload =
+            {
+              Memory.Reload.recent_turn_buffer =
+                max
+                  0
+                  (reload_json
+                  |> member "recent_turn_buffer"
+                  |> to_int_option
+                  |> Option.value ~default:4);
+            };
+          compression =
+            {
+              Memory.Compression.reply_checkpoints =
+                (match list_of_ints_member "reply_checkpoints" compression_json with
+                | [] -> [ 5; 7; 10; 15; 20 ]
+                | values -> values |> List.sort_uniq Int.compare);
+              continue_every_replies =
+                max
+                  1
+                  (compression_json
+                  |> member "continue_every_replies"
+                  |> to_int_option
+                  |> Option.value ~default:5);
+              summary_max_chars =
+                max
+                  120
+                  (compression_json
+                  |> member "summary_max_chars"
+                  |> to_int_option
+                  |> Option.value ~default:2400);
+              summary_max_tokens =
+                compression_json
+                |> member "summary_max_tokens"
+                |> to_int_option;
+              summary_prompt =
+                compression_json
+                |> member "summary_prompt"
+                |> to_string_option
+                |> Option.value
+                     ~default:
+                       "Compress this durable swarm memory into a short, factual note.";
+            };
+          bulkhead_bridge;
+        }
 
 let load path =
   try

@@ -1,6 +1,7 @@
 {
   "enabled": true,
   "session_namespace": "swarm-demo",
+  "session_id_metadata_key": "session_id",
   "storage": {
     "mode": "bulkhead_gateway_sqlite"
   },

@@ -59,7 +59,17 @@ let graph_input_of_messages messages =
 let current_task_id () =
   Fmt.str "messenger-%d" (int_of_float (Unix.gettimeofday () *. 1000.0))
 
-let run_swarm (runtime : Client_runtime.t) input =
+let swarm_metadata
+    (runtime : Client_runtime.t)
+    ~(session_id : string option)
+  =
+  let base_metadata = [ "origin", "messenger_spokesperson" ] in
+  match runtime.runtime_config.memory.session_id_metadata_key, session_id with
+  | Some metadata_key, Some session_id when String.trim session_id <> "" ->
+      (metadata_key, String.trim session_id) :: base_metadata
+  | _ -> base_metadata
+
+let run_swarm (runtime : Client_runtime.t) ?session_id input =
   let services =
     Runtime_services.of_llm_client
       ~config:runtime.Client_runtime.runtime_config
@@ -70,7 +80,7 @@ let run_swarm (runtime : Client_runtime.t) input =
   let context =
     Core_context.empty
       ~task_id
-      ~metadata:[ "origin", "messenger_spokesperson" ]
+      ~metadata:(swarm_metadata runtime ~session_id)
   in
   Orchestration_orchestrator.loop
     ~services
@@ -202,6 +212,7 @@ let capabilities_json (runtime : Client_runtime.t) =
 
 let respond
     (runtime : Client_runtime.t)
+    ?session_id
     (request : Bulkhead_lm.Openai_types.chat_request)
   =
   match config runtime with
@@ -225,7 +236,7 @@ let respond
         match graph_input_of_messages request.messages with
         | Error _ as error -> Lwt.return error
         | Ok input ->
-            run_swarm runtime input >>= fun result ->
+            run_swarm runtime ?session_id input >>= fun result ->
             let prompt = spokesperson_prompt request result in
             let messages : Bulkhead_lm.Openai_types.message list =
               [

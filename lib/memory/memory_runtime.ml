@@ -1,8 +1,10 @@
+open Lwt.Infix
 open Lwt.Syntax
 
 type t = {
   policy : Runtime_config.Memory.t;
   store : Memory_store.t;
+  bulkhead_bridge : Memory_bulkhead_bridge.t option;
 }
 
 let session_key_of_context
@@ -37,8 +39,18 @@ let create (config : Runtime_config.t) (llm_client : Llm_bulkhead_client.t) =
     in
     match sqlite_path with
     | Some path when String.trim path <> "" ->
-        Memory_store.open_store path
-        |> Result.map (fun store -> Some { policy = config.memory; store })
+        (match
+           Memory_store.open_store path,
+           (match config.memory.bulkhead_bridge with
+            | None -> Ok None
+            | Some bridge ->
+                Memory_bulkhead_bridge.create bridge
+                |> Result.map Option.some)
+         with
+         | Ok store, Ok bulkhead_bridge ->
+             Ok (Some { policy = config.memory; store; bulkhead_bridge })
+         | (Error _ as error), _ -> error
+         | _, (Error _ as error) -> error)
     | _ ->
         Error
           "Memory policy is enabled, but no SQLite path is available. Configure an explicit memory sqlite_path or enable BulkheadLM persistence."
@@ -160,5 +172,24 @@ let persist_exchange
       compressed_session.compression_count
       (List.length compressed_session.recent_turns)
   in
-  Lwt.return
-    (Core_context.record_event context ~label:"memory.persisted" ~detail)
+  let context =
+    Core_context.record_event context ~label:"memory.persisted" ~detail
+  in
+  match runtime.bulkhead_bridge with
+  | None -> Lwt.return context
+  | Some bulkhead_bridge ->
+      Memory_bulkhead_bridge.put_session
+        bulkhead_bridge
+        session_ref
+        compressed_session
+      >|= (function
+       | Ok bridge_detail ->
+           Core_context.record_event
+             context
+             ~label:"memory.bulkhead_synced"
+             ~detail:bridge_detail
+       | Error message ->
+           Core_context.record_event
+             context
+             ~label:"memory.bulkhead_sync_failed"
+             ~detail:message)

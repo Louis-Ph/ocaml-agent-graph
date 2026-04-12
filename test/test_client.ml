@@ -82,6 +82,34 @@ let make_runtime_config route_model =
     memory = Config.Runtime.Memory.disabled;
   }
 
+let make_memory_runtime_config route_model sqlite_path =
+  {
+    (make_runtime_config route_model) with
+    memory =
+      {
+        Config.Runtime.Memory.enabled = true;
+        session_namespace = "client-memory";
+        session_id_metadata_key = Some "session_id";
+        storage =
+          {
+            Config.Runtime.Memory.Storage.mode =
+              Config.Runtime.Memory.Storage.Explicit_sqlite;
+            sqlite_path = Some sqlite_path;
+          };
+        reload = { Config.Runtime.Memory.Reload.recent_turn_buffer = 2 };
+        compression =
+          {
+            Config.Runtime.Memory.Compression.reply_checkpoints = [ 2 ];
+            continue_every_replies = 2;
+            summary_max_chars = 800;
+            summary_max_tokens = Some 96;
+            summary_prompt =
+              "Compress the durable swarm memory into a short factual note.";
+          };
+        bulkhead_bridge = None;
+      };
+  }
+
 let make_runtime_config_with_routes
     ~planner_route_model
     ~summarizer_route_model
@@ -198,6 +226,73 @@ let make_llm_client_with_mock responses routes =
 
 let make_client_runtime route_model =
   let runtime_config = make_runtime_config route_model in
+  let llm_client = make_llm_client route_model in
+  let client_config =
+    {
+      Client.Config.graph_runtime_path = "/tmp/runtime.json";
+      assistant =
+        {
+          Client.Config.Assistant.route_model = route_model;
+          system_prompt = "assistant";
+          max_tokens = Some 700;
+        };
+      messenger_spokesperson =
+        Some
+          {
+            Client.Config.Messenger_spokesperson.public_model = "swarm-spokesperson";
+            route_model;
+            system_prompt = "spokesperson";
+            max_tokens = Some 500;
+            authorization_token_plaintext = None;
+            authorization_token_env = Some "AGENT_GRAPH_MESSENGER_TOKEN";
+          };
+      local_ops =
+        {
+          Client.Config.Local_ops.workspace_root = ".";
+          max_read_bytes = 32_000;
+          max_exec_output_bytes = 12_000;
+          command_timeout_ms = 10_000;
+        };
+      human_terminal =
+        {
+          Client.Config.Human_terminal.show_routes_on_start = true;
+          conversation_keep_turns = 8;
+        };
+      machine_terminal = { Client.Config.Machine_terminal.worker_jobs = 4 };
+      transport =
+        {
+          Client.Config.Transport.ssh =
+            {
+              Client.Config.Transport.Ssh.human_remote_command = "ssh human";
+              machine_remote_command = "ssh machine";
+              install_emit_command = "ssh install";
+            };
+          http =
+            {
+              Client.Config.Transport.Http.workflow =
+                {
+                  Client.Config.Transport.Http_workflow.base_url = "http://127.0.0.1:8087";
+                  server_command = "serve-http";
+                };
+              distribution =
+                {
+                  Client.Config.Transport.Http_distribution.base_url = "http://127.0.0.1:8788";
+                  server_command = "serve-dist";
+                  install_url = "http://127.0.0.1:8788/install.sh";
+                  archive_url = "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz";
+                };
+            };
+        };
+    }
+  in
+  Client.Runtime.of_parts
+    ~client_config_path:"/tmp/client.json"
+    ~client_config
+    ~runtime_config_path:"/tmp/runtime.json"
+    ~runtime_config
+    ~llm_client
+
+let make_client_runtime_with_runtime_config route_model runtime_config =
   let llm_client = make_llm_client route_model in
   let client_config =
     {
@@ -729,6 +824,136 @@ let test_messenger_spokesperson_runs_swarm_and_replies () =
            ~substring:"porte-parole messenger"
            content)
 
+let test_run_graph_session_id_persists_memory () =
+  let sqlite_path = Filename.temp_file "agent-graph-client-memory" ".sqlite" in
+  let runtime_config = make_memory_runtime_config "assistant-route" sqlite_path in
+  let routes =
+    [
+      Bulkhead_lm.Config_test_support.route
+        ~public_model:"assistant-route"
+        ~backends:[ make_test_backend "assistant-route" ]
+        ();
+    ]
+  in
+  let llm_client =
+    make_llm_client_with_mock
+      [
+        ( "assistant-route",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"assistant-route"
+               ~content:"Stored memory response."
+               ()) );
+      ]
+      routes
+  in
+  let client_config =
+    {
+      Client.Config.graph_runtime_path = "/tmp/runtime.json";
+      assistant =
+        {
+          Client.Config.Assistant.route_model = "assistant-route";
+          system_prompt = "assistant";
+          max_tokens = Some 700;
+        };
+      messenger_spokesperson =
+        Some
+          {
+            Client.Config.Messenger_spokesperson.public_model = "swarm-spokesperson";
+            route_model = "assistant-route";
+            system_prompt = "spokesperson";
+            max_tokens = Some 500;
+            authorization_token_plaintext = None;
+            authorization_token_env = Some "AGENT_GRAPH_MESSENGER_TOKEN";
+          };
+      local_ops =
+        {
+          Client.Config.Local_ops.workspace_root = ".";
+          max_read_bytes = 32_000;
+          max_exec_output_bytes = 12_000;
+          command_timeout_ms = 10_000;
+        };
+      human_terminal =
+        {
+          Client.Config.Human_terminal.show_routes_on_start = true;
+          conversation_keep_turns = 8;
+        };
+      machine_terminal = { Client.Config.Machine_terminal.worker_jobs = 4 };
+      transport =
+        {
+          Client.Config.Transport.ssh =
+            {
+              Client.Config.Transport.Ssh.human_remote_command = "ssh human";
+              machine_remote_command = "ssh machine";
+              install_emit_command = "ssh install";
+            };
+          http =
+            {
+              Client.Config.Transport.Http.workflow =
+                {
+                  Client.Config.Transport.Http_workflow.base_url = "http://127.0.0.1:8087";
+                  server_command = "serve-http";
+                };
+              distribution =
+                {
+                  Client.Config.Transport.Http_distribution.base_url = "http://127.0.0.1:8788";
+                  server_command = "serve-dist";
+                  install_url = "http://127.0.0.1:8788/install.sh";
+                  archive_url = "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz";
+                };
+            };
+        };
+    }
+  in
+  let runtime =
+    Client.Runtime.of_parts
+      ~client_config_path:"/tmp/client.json"
+      ~client_config
+      ~runtime_config_path:"/tmp/runtime.json"
+      ~runtime_config
+      ~llm_client
+  in
+  let request_json input =
+    `Assoc
+      [
+        "task_id", `String "ephemeral-task";
+        "session_id", `String "external-user-42";
+        "input", `String input;
+      ]
+  in
+  let run_request input =
+    match
+      Lwt_main.run
+        (Client.Machine.invoke_json
+           runtime
+           ~kind:Client.Machine.Run_graph
+           (request_json input))
+    with
+    | Ok _ -> ()
+    | Error message -> Alcotest.fail message
+  in
+  run_request "Remember the first external request.";
+  run_request "Remember the second external request.";
+  let store =
+    match Agent_graph.Memory.Store.open_store sqlite_path with
+    | Ok store -> store
+    | Error message -> Alcotest.fail message
+  in
+  let session =
+    Agent_graph.Memory.Store.load_session
+      store
+      {
+        Agent_graph.Memory.Store.namespace = "client-memory";
+        session_key = "external-user-42";
+      }
+      ~recent_turn_buffer:4
+  in
+  Alcotest.(check int) "reply count follows external session" 2 session.reply_count;
+  Alcotest.(check bool)
+    "recent turns retained"
+    true
+    (List.length session.recent_turns >= 2)
+
 let test_machine_run_lines_preserves_distinct_requests () =
   let runtime = make_client_runtime "assistant-route" in
   let lines =
@@ -808,6 +1033,10 @@ let () =
             "messenger spokesperson runs swarm and replies"
             `Quick
             test_messenger_spokesperson_runs_swarm_and_replies;
+          Alcotest.test_case
+            "run_graph session_id persists memory"
+            `Quick
+            test_run_graph_session_id_persists_memory;
           Alcotest.test_case
             "machine run_lines preserves distinct requests"
             `Quick

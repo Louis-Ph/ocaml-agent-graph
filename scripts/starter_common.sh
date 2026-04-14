@@ -381,7 +381,13 @@ ensure_project_buildable() {
   install_prompt=$1
   prepare_local_dependencies || return 1
   if [ "$BULKHEAD_LM_PIN_REFRESH_REQUIRED" = "1" ]; then
-    say "bulkhead_lm changed in the active switch; reinstalling project dependencies before building."
+    say "bulkhead_lm changed; recompiling from updated source ..."
+    ensure_build_log
+    if ! "$OPAM_BIN" reinstall bulkhead_lm --yes >"$BUILD_LOG" 2>&1; then
+      say_err "bulkhead_lm reinstall failed."
+      say_err "See $BUILD_LOG for details."
+      return 1
+    fi
     if ! install_project_deps; then
       say_err "Automatic dependency installation failed after refreshing bulkhead_lm."
       say_err "See $BUILD_LOG for details."

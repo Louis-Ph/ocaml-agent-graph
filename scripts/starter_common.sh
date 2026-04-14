@@ -245,18 +245,60 @@ normalize_existing_dir() {
   (cd "$target_dir" && pwd -P)
 }
 
+ensure_bulkhead_lm_latest() {
+  # Ensure the sibling checkout is on the latest remote commit.
+  # Handles dirty trees, detached HEAD, and diverged branches.
+  if ! command -v git >/dev/null 2>&1; then
+    return 0
+  fi
+  if [ ! -d "$DEFAULT_BULKHEAD_LM_DIR/.git" ]; then
+    return 0
+  fi
+
+  git -C "$DEFAULT_BULKHEAD_LM_DIR" fetch --quiet origin main 2>/dev/null || return 0
+
+  local_rev=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-parse HEAD 2>/dev/null || true)
+  remote_rev=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-parse origin/main 2>/dev/null || true)
+
+  if [ -z "$remote_rev" ] || [ -z "$local_rev" ]; then
+    return 0
+  fi
+  if [ "$local_rev" = "$remote_rev" ]; then
+    return 0
+  fi
+
+  say "BulkheadLM is behind origin/main; updating ..."
+
+  # Stash local changes if the tree is dirty
+  dirty=0
+  if ! git -C "$DEFAULT_BULKHEAD_LM_DIR" diff --quiet HEAD 2>/dev/null; then
+    dirty=1
+    git -C "$DEFAULT_BULKHEAD_LM_DIR" stash --quiet 2>/dev/null || true
+  fi
+
+  # Try fast-forward first; fall back to reset if the branch diverged
+  if ! git -C "$DEFAULT_BULKHEAD_LM_DIR" merge --ff-only origin/main --quiet 2>/dev/null; then
+    say "Fast-forward failed; resetting to origin/main."
+    git -C "$DEFAULT_BULKHEAD_LM_DIR" checkout --quiet main 2>/dev/null || true
+    git -C "$DEFAULT_BULKHEAD_LM_DIR" reset --quiet --hard origin/main 2>/dev/null || true
+  fi
+
+  if [ "$dirty" = "1" ]; then
+    git -C "$DEFAULT_BULKHEAD_LM_DIR" stash pop --quiet 2>/dev/null || true
+  fi
+
+  after_rev=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-parse HEAD 2>/dev/null || true)
+  if [ "$after_rev" = "$remote_rev" ]; then
+    short_rev=$(printf '%.8s' "$after_rev")
+    say "BulkheadLM updated to $short_rev."
+  else
+    say_err "Warning: BulkheadLM could not be updated to origin/main; continuing with current checkout."
+  fi
+}
+
 ensure_bulkhead_lm_checkout() {
   if [ -f "$DEFAULT_BULKHEAD_LM_DIR/dune-project" ]; then
-    # Auto-pull latest version if git is available
-    if command -v git >/dev/null 2>&1 && [ -d "$DEFAULT_BULKHEAD_LM_DIR/.git" ]; then
-      local_rev=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-parse HEAD 2>/dev/null || true)
-      git -C "$DEFAULT_BULKHEAD_LM_DIR" fetch --quiet origin main 2>/dev/null || true
-      remote_rev=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-parse origin/main 2>/dev/null || true)
-      if [ -n "$remote_rev" ] && [ -n "$local_rev" ] && [ "$local_rev" != "$remote_rev" ]; then
-        say "Updating BulkheadLM to latest version ..."
-        git -C "$DEFAULT_BULKHEAD_LM_DIR" pull --quiet --ff-only origin main 2>/dev/null || true
-      fi
-    fi
+    ensure_bulkhead_lm_latest
     return 0
   fi
 
@@ -265,7 +307,6 @@ ensure_bulkhead_lm_checkout() {
     return 1
   fi
 
-  say "BulkheadLM checkout was not found at $DEFAULT_BULKHEAD_LM_DIR."
   if ! command -v git >/dev/null 2>&1; then
     say_err "git is required to clone the sibling dependency automatically."
     return 1

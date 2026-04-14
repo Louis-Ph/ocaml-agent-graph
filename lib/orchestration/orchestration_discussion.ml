@@ -457,10 +457,14 @@ let rec run_round
   loop context discussion 0 participants
 
 and run_sub ~services ~config context payload =
-  (* Recursive sub-discussion with the same participants but a nested context *)
-  match discussion_of_payload config.Runtime_config.discussion context payload with
+  (* Recursive sub-discussion: same participants, capped at 3 rounds *)
+  let sub_rounds = min 3 config.Runtime_config.discussion.rounds in
+  let sub_config =
+    { config with discussion = { config.discussion with rounds = sub_rounds } }
+  in
+  match discussion_of_payload sub_config.discussion context payload with
   | Error message -> Lwt.return (Core_payload.Error message, context)
-  | Ok discussion when not config.discussion.enabled ->
+  | Ok discussion when not sub_config.discussion.enabled ->
     Lwt.return (Core_payload.Discussion discussion, context)
   | Ok discussion ->
     let rec sub_loop context (discussion : Core_payload.discussion) round_index =
@@ -470,8 +474,8 @@ and run_sub ~services ~config context payload =
         let* round_status, discussion, context, turn_count =
           run_round
             ~services
-            ~config
-            ~participants:config.discussion.participants
+            ~config:sub_config
+            ~participants:sub_config.discussion.participants
             ~round_index
             context
             discussion

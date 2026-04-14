@@ -352,6 +352,53 @@ let invoke_participant
              turn);
         Lwt.return (Turn_produced turn, context)
 
+let convergence_signals =
+  [ "discussion close"
+  ; "discussion terminée"
+  ; "le débat est clos"
+  ; "debate is closed"
+  ; "commandez maintenant"
+  ; "order now"
+  ; "final recommendation"
+  ; "recommandation finale"
+  ; "action immédiate"
+  ; "no further action"
+  ; "aucune autre recherche"
+  ; "validation finale"
+  ]
+
+let content_signals_convergence content =
+  let lowered = String.lowercase_ascii content in
+  List.exists (fun signal ->
+    let signal_len = String.length signal in
+    let content_len = String.length lowered in
+    if signal_len > content_len then false
+    else
+      let rec scan pos =
+        if pos + signal_len > content_len then false
+        else if String.sub lowered pos signal_len = signal then true
+        else scan (pos + 1)
+      in
+      scan 0
+  ) convergence_signals
+
+let round_has_converged (discussion : Core_payload.discussion) ~round_index ~participant_count =
+  if participant_count < 2 then false
+  else
+    let round_turns =
+      discussion.turns
+      |> List.filter (fun (t : Core_payload.discussion_turn) -> t.round_index = round_index)
+    in
+    if List.length round_turns < participant_count then false
+    else
+      let converging =
+        round_turns
+        |> List.filter (fun (t : Core_payload.discussion_turn) -> content_signals_convergence t.content)
+        |> List.length
+      in
+      (* Converge when majority signals agreement *)
+      converging >= (participant_count + 1) / 2 + 1
+
 let sub_discussion_marker = "[SUB_DISCUSSION:"
 
 let extract_sub_topic content =
@@ -618,6 +665,18 @@ let run
                    in
                    Lwt.return (Core_payload.Error message, context)
                  else Lwt.return (Core_payload.Discussion discussion, context)
+               else if round_has_converged
+                         discussion
+                         ~round_index
+                         ~participant_count:(List.length config.discussion.participants)
+               then (
+                 Runtime_logger.log
+                   Runtime_logger.Info
+                   (Fmt.str
+                      "Discussion converged at round %d/%d — all participants agree."
+                      round_index
+                      discussion.max_rounds);
+                 Lwt.return (Core_payload.Discussion discussion, context))
                else loop context discussion (round_index + 1))
       in
       loop context discussion (discussion.completed_rounds + 1)

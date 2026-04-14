@@ -102,5 +102,27 @@ let print_label_value_rows ?style rows =
   |> List.iter (fun (label, value) ->
          let formatted = Fmt.str "%-*s  %s" label_width label value in
          match style with
-         | Some style -> print_wrapped (style formatted)
-         | None -> print_wrapped formatted)
+         | Some style -> print_endline (style formatted)
+         | None -> print_endline formatted)
+
+(* Print a titled section without word-wrapping — preserves column alignment
+   in pre-formatted lines (help tables, transport maps, etc.). *)
+let print_section_verbatim ?style title lines =
+  print_endline (Style.accent title);
+  let emit line =
+    match style with
+    | Some f -> print_endline (f line)
+    | None   -> print_endline line
+  in
+  List.iter emit lines
+
+(* ANSI codes wrapped with \001/\002 so linenoise counts them as zero-width.
+   Use only for prompt strings passed to LNoise.linenoise. *)
+module Prompt = struct
+  let paint code text =
+    if supports_color () then
+      Fmt.str "\001\027[%sm\002%s\001\027[0m\002" code text
+    else text
+
+  let bold_green text = paint "1;32" text
+end

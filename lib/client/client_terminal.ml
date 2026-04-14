@@ -718,8 +718,7 @@ let run_assistant_request runtime state ~request_kind prompt_text =
 
 let rec loop (runtime : Client_runtime.t) state =
   update_terminal_context runtime;
-  let prompt_label = Fmt.str "%s> " state.active_route_model in
-  let prompt = Client_ui.Style.bold (Client_ui.Style.good prompt_label) in
+  let prompt = Client_ui.Prompt.bold_green (Fmt.str "%s> " state.active_route_model) in
   match
     Bulkhead_lm.Starter_terminal.read_line ~record_history:true ~prompt ()
   with
@@ -729,14 +728,14 @@ let rec loop (runtime : Client_runtime.t) state =
       | Empty -> loop runtime state
       | Help ->
           print_blank ();
-          Client_ui.print_section ~style:Client_ui.Style.muted "Command Deck"
-            (help_lines state.active_route_model);
+          Client_ui.print_section_verbatim ~style:Client_ui.Style.muted
+            "Commands" (help_lines state.active_route_model);
           print_blank ();
           loop runtime state
       | Tools ->
           print_blank ();
-          Client_ui.print_section ~style:Client_ui.Style.muted
-            "Operational Lanes" Client_human_constants.Text.tool_lines;
+          Client_ui.print_section_verbatim ~style:Client_ui.Style.muted
+            "Workflows" Client_human_constants.Text.tool_lines;
           print_blank ();
           loop runtime state
       | Mesh ->
@@ -905,7 +904,7 @@ let rec loop (runtime : Client_runtime.t) state =
           loop runtime state
       | Run_wizard None ->
           print_blank ();
-          Client_ui.print_section ~style:Client_ui.Style.muted "Wizard Topics"
+          Client_ui.print_section_verbatim ~style:Client_ui.Style.muted "Wizard Topics"
             Client_human_constants.Text.wizard_lines;
           print_blank ();
           loop runtime state
@@ -1001,7 +1000,7 @@ let run (runtime : Client_runtime.t) =
     Client_ui.print_section ~style:Client_ui.Style.muted "Route Readiness"
       (route_lines runtime));
   print_blank ();
-  Client_ui.print_section ~style:Client_ui.Style.muted "Doc Shortcuts"
+  Client_ui.print_section_verbatim ~style:Client_ui.Style.muted "Doc Shortcuts"
     Client_human_constants.Text.docs_lines;
   print_blank ();
   loop runtime (initial_state runtime)

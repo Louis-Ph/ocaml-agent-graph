@@ -69,54 +69,79 @@ module Text = struct
       "The human terminal now covers local work, SSH remoting, HTTP workflow serving, and pair-style machine calls.";
     ]
 
-  let command_help_lines current_route_model =
-    [
-      "Commands:";
-      "  /help       show the full command list";
-      "  /tools      show the main operational workflows";
-      "  /mesh       show the SSH, HTTP, install, and peer transport map";
-      "  /inspect    show the current graph and route summary";
-      "  /config     show the active client and runtime config paths";
-      "  /models     list available BulkheadLM route models";
-      "  /swap NAME  switch the assistant to another route model";
-      "  /file PATH  attach one local text file to the next prompt";
-      "  /files      list attached files";
-      "  /clearfiles clear attached files";
-      "  /explore    list a directory under the configured workspace root";
-      "  /open PATH  preview a local text file under the workspace root";
-      "  /run CMD    execute a local command under the workspace root";
-      "  /graph TXT  execute the typed graph directly from this terminal";
-      "  /discussion TXT  execute the graph and force the multi-agent discussion path";
-      "  /decide TXT  verifiable decision: discussion → L1 consensus → L2 validation → L3 pattern";
-      "  /docs TOPIC show the most relevant local docs for build, test, install, cron, swarm, messenger, ssh, http, or peer";
-      "  /wizard TXT run the proactive starter wizard for a concrete goal";
-      "  /ssh-human  print the SSH wrapper for the human terminal";
-      "  /ssh-machine print the SSH wrapper for the machine worker";
-      "  /http-server print the workflow HTTP server command";
-      "  /curl       print ready-to-paste curl examples for the HTTP workflow API";
-      "  /install-ssh print the SSH bootstrap installer command";
-      "  /install-http print the HTTP bootstrap installer URL and curl command";
-      "  /quit       exit the terminal";
-      Fmt.str "Current assistant route_model: %s" current_route_model;
+  type command_entry = { usage : string; description : string }
+
+  let command_entries =
+    [ { usage = Command.help;                  description = "show this help" }
+    ; { usage = Command.tools;                 description = "show operational workflow lanes" }
+    ; { usage = Command.mesh;                  description = "show SSH, HTTP, and peer transport map" }
+    ; { usage = Command.inspect;               description = "show graph and route summary" }
+    ; { usage = Command.config;                description = "show active config paths" }
+    ; { usage = Command.models;                description = "list BulkheadLM route models" }
+    ; { usage = Command.swap ^ " NAME";        description = "switch to another route model" }
+    ; { usage = Command.file ^ " PATH";        description = "attach a local file to the next prompt" }
+    ; { usage = Command.files;                 description = "list attached files" }
+    ; { usage = Command.clearfiles;            description = "clear attached files" }
+    ; { usage = Command.explore ^ " PATH";     description = "list a directory" }
+    ; { usage = Command.open_file ^ " PATH";   description = "preview a local file" }
+    ; { usage = Command.run ^ " CMD";          description = "run one local command" }
+    ; { usage = Command.graph ^ " TXT";        description = "run the typed agent graph" }
+    ; { usage = Command.discussion ^ " TXT";   description = "run the multi-agent discussion" }
+    ; { usage = Command.decide ^ " TXT";       description = "verifiable L0-L3 decision session" }
+    ; { usage = Command.docs ^ " TOPIC";       description = "show relevant docs for a topic" }
+    ; { usage = Command.wizard ^ " TXT";       description = "run the proactive starter wizard" }
+    ; { usage = Command.ssh_human;             description = "print SSH human terminal command" }
+    ; { usage = Command.ssh_machine;           description = "print SSH machine worker command" }
+    ; { usage = Command.http_server;           description = "print HTTP workflow server command" }
+    ; { usage = Command.curl;                  description = "print curl examples for the HTTP API" }
+    ; { usage = Command.install_ssh;           description = "print SSH bootstrap installer" }
+    ; { usage = Command.install_http;          description = "print HTTP installer URL" }
+    ; { usage = Command.quit;                  description = "exit" }
     ]
 
-  let tool_lines =
-    [
-      "Operational workflows:";
-      "  build   -> ask the assistant to update code, then run /run opam exec -- dune build @all";
-      "  test    -> validate with /run opam exec -- dune runtest";
-      "  graph   -> use /graph ... to execute the real typed graph from the human terminal";
-      "  discussion -> use /discussion ... to run the configured multi-agent discussion workflow";
-      "  decide  -> use /decide TOPIC [--rounds N] [--pattern ID] for a verifiable L0-L3 decision session";
-      "  install -> start from ./run.sh or ask /wizard install local human terminal";
-      "  cron    -> ask /wizard cron ... so the assistant can propose a safe schedule and commands";
-      "  swarm   -> ask /wizard swarm ... and inspect the adaptive webcrawler, HTTP API, or worker mode";
-      "  messenger -> wire BulkheadLM messenger connectors to the swarm spokesperson endpoint";
-      "  ssh     -> inspect /ssh-human, /ssh-machine, and /install-ssh before remote execution";
-      "  http    -> start /http-server, then use /curl or /install-http";
-      "  peer    -> use /mesh to compare normal client/server and direct peer-style transports";
-      "  docs    -> use /docs build, /docs swarm, /docs messenger, /docs ssh, /docs http, or /docs peer";
+  let max_command_usage_width =
+    List.fold_left
+      (fun w e -> max w (String.length e.usage))
+      0
+      command_entries
+
+  let command_help_lines current_route_model =
+    let fmt e =
+      Fmt.str "  %-*s  %s" max_command_usage_width e.usage e.description
+    in
+    "Commands:"
+    :: List.map fmt command_entries
+    @ [ Fmt.str "  route: %s" current_route_model ]
+
+  type tool_entry = { topic : string; tip : string }
+
+  let tool_entries =
+    [ { topic = "build";      tip = "ask assistant, then /run opam exec -- dune build @all" }
+    ; { topic = "test";       tip = "/run opam exec -- dune runtest" }
+    ; { topic = "graph";      tip = "/graph TXT  run the typed agent graph" }
+    ; { topic = "discussion"; tip = "/discussion TXT  multi-agent discussion workflow" }
+    ; { topic = "decide";     tip = "/decide TXT [--rounds N] [--pattern ID]  verifiable L0-L3 decision" }
+    ; { topic = "install";    tip = "./run.sh  or  /wizard install local human terminal" }
+    ; { topic = "cron";       tip = "/wizard cron ...  propose a safe cron schedule" }
+    ; { topic = "swarm";      tip = "/wizard swarm ...  webcrawler, HTTP API, or worker mode" }
+    ; { topic = "messenger";  tip = "wire BulkheadLM connectors to the swarm spokesperson" }
+    ; { topic = "ssh";        tip = "/ssh-human  /ssh-machine  /install-ssh" }
+    ; { topic = "http";       tip = "/http-server  then  /curl  or  /install-http" }
+    ; { topic = "peer";       tip = "/mesh  compare client/server and direct peer transports" }
+    ; { topic = "docs";       tip = "/docs TOPIC  show relevant docs" }
     ]
+
+  let max_tool_topic_width =
+    List.fold_left
+      (fun w e -> max w (String.length e.topic))
+      0
+      tool_entries
+
+  let tool_lines =
+    "Workflows:"
+    :: List.map
+         (fun e -> Fmt.str "  %-*s  %s" max_tool_topic_width e.topic e.tip)
+         tool_entries
 
   let wizard_lines =
     [
@@ -135,17 +160,15 @@ module Text = struct
     ]
 
   let docs_lines =
-    [
-      "Documentation shortcuts:";
-      "  /docs build";
-      "  /docs test";
-      "  /docs install";
-      "  /docs cron";
-      "  /docs swarm";
-      "  /docs messenger";
-      "  /docs ssh";
-      "  /docs http";
-      "  /docs peer";
+    [ "/docs build"
+    ; "/docs test"
+    ; "/docs install"
+    ; "/docs cron"
+    ; "/docs swarm"
+    ; "/docs messenger"
+    ; "/docs ssh"
+    ; "/docs http"
+    ; "/docs peer"
     ]
 
   let route_switched route_model =

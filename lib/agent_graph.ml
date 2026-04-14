@@ -2,10 +2,17 @@ open Lwt.Infix
 
 module Core = struct
   module Agent_name = Core_agent_name
-  module Message = Core_message
-  module Payload = Core_payload
-  module Context = Core_context
-  module Decision = Core_decision
+  module Message    = Core_message
+  module Payload    = Core_payload
+  module Context    = Core_context
+  module Decision   = Core_decision
+  (* L0-PROTOCOL *)
+  module Envelope   = Core_envelope
+  module Capability = Core_capability
+  (* L0.5-AUDIT *)
+  module Audit      = Core_audit
+  (* L3-EMERGENCE *)
+  module Pattern    = Core_pattern
 end
 
 module Config = struct
@@ -70,11 +77,15 @@ module Memory = struct
 end
 
 module Orchestration = struct
-  module Graph = Orchestration_graph
-  module Decider = Orchestration_decider
-  module Aggregator = Orchestration_aggregator
-  module Discussion = Orchestration_discussion
+  module Graph        = Orchestration_graph
+  module Decider      = Orchestration_decider
+  module Aggregator   = Orchestration_aggregator
+  module Discussion   = Orchestration_discussion
   module Orchestrator = Orchestration_orchestrator
+  (* L1-COORDINATION *)
+  module Consensus    = Orchestration_consensus
+  (* L2-COMPOSITION *)
+  module Pipeline     = Orchestration_pipeline
 end
 
 let run ?(metadata = []) ~config ~task_id ~input () =

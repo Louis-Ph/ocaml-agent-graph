@@ -40,6 +40,10 @@ let zero_metrics = {
   latency_ms = 0;
 }
 
+let is_error = function Error _ -> true | _ -> false
+
+let is_discussion = function Discussion _ -> true | _ -> false
+
 let rec summary = function
   | Text text -> Fmt.str "Text(%d chars)" (String.length text)
   | Plan steps -> Fmt.str "Plan(%d steps)" (List.length steps)

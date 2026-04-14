@@ -9,3 +9,11 @@
 (test
  (name test_demos)
  (libraries agent_graph alcotest yojson unix))
+
+(test
+ (name test_protocol)
+ (libraries agent_graph alcotest unix))
+
+(test
+ (name test_coordination)
+ (libraries agent_graph alcotest lwt.unix bulkhead_lm))

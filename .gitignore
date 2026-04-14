@@ -2,3 +2,4 @@ _build/
 *.install
 *.merlin
 .DS_Store
+/var/discussions/

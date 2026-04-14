@@ -87,14 +87,26 @@ let discussion_participant_summaries (runtime_config : Runtime_config.t) =
   runtime_config.discussion.participants
   |> List.map (fun (participant : Runtime_config.Discussion.Participant.t) ->
          let profile = participant.profile in
+         let persona_version =
+           match participant.persona with
+           | None -> "none"
+           | Some persona -> persona.version
+         in
+         let rules_version =
+           match participant.rules with
+           | None -> "none"
+           | Some rules -> rules.version
+         in
          Fmt.str
-           "%s(route_model=%s max_tokens=%s confidence=%.2f)"
+           "%s(route_model=%s max_tokens=%s confidence=%.2f persona=%s rules=%s)"
            participant.name
            profile.route_model
            (match profile.max_tokens with
             | Some value -> string_of_int value
             | None -> "none")
-           profile.confidence)
+           profile.confidence
+           persona_version
+           rules_version)
 
 let messenger_spokesperson_summary (client_config : Client_config.t) =
   match client_config.messenger_spokesperson with
@@ -371,6 +383,14 @@ let graph_summary_to_yojson t =
                               | Some value -> `Int value
                               | None -> `Null );
                             "confidence", `Float profile.confidence;
+                            ( "persona_version",
+                              match participant.persona with
+                              | Some persona -> `String persona.version
+                              | None -> `Null );
+                            ( "rules_version",
+                              match participant.rules with
+                              | Some rules -> `String rules.version
+                              | None -> `Null );
                           ])) );
           ] );
       "assistant_route_model", `String t.client_config.assistant.route_model;

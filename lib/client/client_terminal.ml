@@ -259,6 +259,306 @@ let event_line (event : Core_context.event) =
     event.label
     event.detail
 
+module Discussion_archive = struct
+  type turn_entry = {
+    heading : string;
+    content : string;
+  }
+
+  let archive_subdir = Filename.concat "var" "discussions"
+
+  let timestamp_of_tm tm =
+    Fmt.str
+      "%04d%02d%02d%02d%02d%02d"
+      (tm.Unix.tm_year + 1900)
+      (tm.Unix.tm_mon + 1)
+      tm.Unix.tm_mday
+      tm.Unix.tm_hour
+      tm.Unix.tm_min
+      tm.Unix.tm_sec
+
+  let timestamp_now () =
+    Unix.gettimeofday () |> Unix.localtime |> timestamp_of_tm
+
+  let archive_dir (runtime : Client_runtime.t) =
+    Filename.concat runtime.client_config.local_ops.workspace_root archive_subdir
+
+  let sanitize_filename_component value =
+    let buffer = Buffer.create (String.length value) in
+    String.iter
+      (fun character ->
+        match character with
+        | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '-' | '_' ->
+            Buffer.add_char buffer (Char.lowercase_ascii character)
+        | _ -> Buffer.add_char buffer '-')
+      value;
+    match Buffer.contents buffer with
+    | "" -> "discussion"
+    | rendered -> rendered
+
+  let filename ~timestamp ~task_id =
+    Fmt.str
+      "discussion-%s-%s.md"
+      timestamp
+      (sanitize_filename_component task_id)
+
+  let rec ensure_directory path =
+    if path = "" || path = "." || Sys.file_exists path
+    then Ok ()
+    else
+      let parent = Filename.dirname path in
+      match ensure_directory parent with
+      | Error _ as error -> error
+      | Ok () ->
+          (try
+             Unix.mkdir path 0o755;
+             Ok ()
+           with
+           | Unix.Unix_error (Unix.EEXIST, _, _) -> Ok ()
+           | Unix.Unix_error (error, _, _) ->
+               Error
+                 (Fmt.str
+                    "Cannot create archive directory %s: %s"
+                    path
+                    (Unix.error_message error)))
+
+  let count_current_turns (context : Core_context.t) =
+    context.events
+    |> List.fold_left
+         (fun count (event : Core_context.event) ->
+           if String.equal event.label "discussion.turn.completed"
+           then count + 1
+           else count)
+         0
+
+  let take count items =
+    let rec loop remaining acc = function
+      | _ when remaining <= 0 -> List.rev acc
+      | [] -> List.rev acc
+      | item :: rest -> loop (remaining - 1) (item :: acc) rest
+    in
+    loop count [] items
+
+  let detail_heading detail =
+    let marker = " -> " in
+    let marker_length = String.length marker in
+    let rec find index =
+      if index + marker_length > String.length detail
+      then detail
+      else if String.sub detail index marker_length = marker
+      then String.sub detail 0 index
+      else find (index + 1)
+    in
+    find 0
+
+  let current_turn_entries (context : Core_context.t) =
+    let turn_count = count_current_turns context in
+    let events =
+      context.events
+      |> List.rev
+      |> List.filter (fun (event : Core_context.event) ->
+             String.equal event.label "discussion.turn.completed")
+    in
+    let contents =
+      context.history
+      |> List.filter_map (fun (message : Core_message.t) ->
+             match message.role with
+             | Core_message.Speaker _ -> Some message.content
+             | System | User | Assistant | Agent _ -> None)
+      |> take turn_count
+      |> List.rev
+    in
+    let rec combine acc events contents =
+      match events, contents with
+      | (event : Core_context.event) :: remaining_events, content :: remaining_contents ->
+          combine
+            ({ heading = detail_heading event.detail; content } :: acc)
+            remaining_events
+            remaining_contents
+      | _ -> List.rev acc
+    in
+    combine [] events contents
+
+  let render_attachment_section
+      (attachment : Client_assistant.attachment)
+    =
+    [
+      Fmt.str
+        "### `%s`"
+        attachment.path;
+      "";
+      Fmt.str
+        "- bytes_read: %d"
+        attachment.bytes_read;
+      Fmt.str
+        "- truncated: %b"
+        attachment.truncated;
+      "";
+      "```text";
+      attachment.content;
+      "```";
+      "";
+    ]
+
+  let render_participant_lines
+      (runtime : Client_runtime.t)
+    =
+    runtime.runtime_config.discussion.participants
+    |> List.map (fun (participant : Runtime_config.Discussion.Participant.t) ->
+           let persona_version =
+             match participant.persona with
+             | None -> "none"
+             | Some persona -> persona.version
+           in
+           let rules_version =
+             match participant.rules with
+             | None -> "none"
+             | Some rules -> rules.version
+           in
+           Fmt.str
+             "- %s -> route_model=%s max_tokens=%s confidence=%.2f persona=%s rules=%s"
+             participant.name
+             participant.profile.route_model
+             (match participant.profile.max_tokens with
+              | Some value -> string_of_int value
+              | None -> "none")
+             participant.profile.confidence
+             persona_version
+             rules_version)
+
+  let render_markdown
+      ~(runtime : Client_runtime.t)
+      ~timestamp
+      ~task_id
+      ~graph_session_id
+      ~prompt_text
+      ~attachments
+      ~payload
+      ~(context : Core_context.t)
+    =
+    let completed_agents =
+      match Core_context.completed_agent_names context with
+      | [] -> "none"
+      | names -> String.concat ", " names
+    in
+    let attachment_lines =
+      match attachments with
+      | [] -> [ "_none_" ]
+      | attachments ->
+          attachments
+          |> List.map render_attachment_section
+          |> List.flatten
+    in
+    let transcript_lines =
+      match current_turn_entries context with
+      | [] -> [ "_no discussion turn recorded_" ]
+      | turns ->
+          turns
+          |> List.map (fun turn ->
+                 [
+                   Fmt.str "### %s" turn.heading;
+                   "";
+                   "```text";
+                   turn.content;
+                   "```";
+                   "";
+                 ])
+          |> List.flatten
+    in
+    String.concat "\n"
+      ([
+         "# Discussion Archive";
+         "";
+         Fmt.str "- archived_at: %s" timestamp;
+         Fmt.str "- task_id: %s" task_id;
+         Fmt.str "- graph_session_id: %s" graph_session_id;
+         Fmt.str "- step_count: %d" context.step_count;
+         Fmt.str "- completed_agents: %s" completed_agents;
+         Fmt.str
+           "- final_payload: %s"
+           (Core_payload.summary payload);
+         Fmt.str
+           "- rounds: %d"
+           runtime.runtime_config.discussion.rounds;
+         Fmt.str
+           "- final_agent: %s"
+           (Core_agent_name.to_string runtime.runtime_config.discussion.final_agent);
+         "";
+         "## Participants";
+         "";
+       ]
+      @ render_participant_lines runtime
+      @ [
+          "";
+          "## Prompt";
+          "";
+          "```text";
+          prompt_text;
+          "```";
+          "";
+          "## Attachments";
+          "";
+        ]
+      @ attachment_lines
+      @ [
+          "## Transcript";
+          "";
+        ]
+      @ transcript_lines
+      @ [
+          "## Final Payload";
+          "";
+          "```text";
+          Core_payload.to_pretty_string payload;
+          "```";
+          "";
+          "## Execution Trace";
+          "";
+        ]
+      @ (match List.rev context.events with
+         | [] -> [ "_no orchestration event recorded_" ]
+         | events -> List.map event_line events))
+
+  let write
+      ~(runtime : Client_runtime.t)
+      ~timestamp
+      ~task_id
+      ~graph_session_id
+      ~prompt_text
+      ~attachments
+      ~payload
+      ~(context : Core_context.t)
+    =
+    let archive_dir = archive_dir runtime in
+    match ensure_directory archive_dir with
+    | Error _ as error -> error
+    | Ok () ->
+        let archive_path =
+          Filename.concat archive_dir (filename ~timestamp ~task_id)
+        in
+        let content =
+          render_markdown
+            ~runtime
+            ~timestamp
+            ~task_id
+            ~graph_session_id
+            ~prompt_text
+            ~attachments
+            ~payload
+            ~context
+        in
+        (try
+           Stdlib.Out_channel.with_open_bin archive_path (fun channel ->
+               output_string channel content);
+           Ok archive_path
+         with Sys_error message ->
+           Error
+             (Fmt.str
+                "Cannot write discussion archive %s: %s"
+                archive_path
+                message))
+end
+
 let run_graph_request runtime state ~request_kind prompt_text =
   if
     request_kind = Discussion
@@ -275,6 +575,26 @@ let run_graph_request runtime state ~request_kind prompt_text =
         (Client_machine.run_graph runtime ~task_id ~metadata input)
     with
     | payload, context ->
+        let archive_path =
+          match request_kind with
+          | Graph -> None
+          | Discussion ->
+              (match
+                 Discussion_archive.write
+                   ~runtime
+                   ~timestamp:(Discussion_archive.timestamp_now ())
+                   ~task_id
+                   ~graph_session_id:state.graph_session_id
+                   ~prompt_text
+                   ~attachments:(List.rev state.attachments)
+                   ~payload
+                   ~context
+               with
+               | Ok path -> Some path
+               | Error message ->
+                   print_endline message;
+                   None)
+        in
         print_blank ();
         Client_ui.print_section "Graph Result"
           ( [
@@ -292,6 +612,13 @@ let run_graph_request runtime state ~request_kind prompt_text =
           (match List.rev context.Core_context.events with
            | [] -> [ "No orchestration event was recorded." ]
            | events -> List.map event_line events);
+        (match archive_path with
+        | None -> ()
+        | Some path ->
+            print_blank ();
+            Client_ui.print_section ~style:Client_ui.Style.muted
+              "Discussion Archive"
+              [ path ]);
         print_blank ();
         { state with
           attachments = [];

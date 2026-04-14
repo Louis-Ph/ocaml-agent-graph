@@ -58,6 +58,9 @@ ocaml-agent-graph/
   bin/
     ocaml_agent_graph_demo.ml
   config/
+    discussion/
+      personas/
+      rules/
     memory_policy.json
     runtime.json
   lib/
@@ -158,11 +161,13 @@ The framework now uses `BulkheadLM` for real chat calls:
 
 - `config/runtime.json` chooses the `route_model` per agent
 - the optional `discussion` block in `config/runtime.json` declares named discussion participants, the number of rounds, and the final synthesis agent
+- each discussion participant can also carry a versioned `persona` block and a versioned `rules` block, typically loaded from committed files under `config/discussion/`
 - `config/memory_policy.json` chooses how durable memory is stored, reloaded, and checkpoint-compressed
 - `bulkhead-lm/config/example.gateway.json` chooses the provider routes
 - provider API keys still come from the environment seen by `bulkhead_lm`
 - startup validation now checks that every configured agent route exists in the loaded BulkheadLM gateway config
 - startup validation also checks that every configured discussion participant route exists before the workflow runs
+- agents and discussion participants can intentionally mix different `route_model` values, so one swarm can span Anthropic, OpenAI, Google, Alibaba, OpenRouter, or other BulkheadLM-backed providers
 - `BulkheadLM` remains the router/provider layer that yields the rudimentary route-bound agents composed here into typed swarms
 
 The default memory policy uses the BulkheadLM SQLite path, keeps the last few
@@ -176,8 +181,18 @@ resulting durable summary plus recent turns into BulkheadLM's authenticated
 control-plane memory session endpoint, so the swarm can replace BulkheadLM
 conversation memory instead of only clearing it.
 
-The shipped demo config currently uses the `claude-sonnet` route through
-`BulkheadLM`.
+The shipped demo config now mixes providers on purpose:
+
+- planner: `claude-sonnet`
+- summarizer: `kimi-latest`
+- validator: `openrouter-gpt-5.2`
+- discussion participants: `claude-sonnet`, `kimi-k2.5`, `openrouter-auto`
+
+The shipped discussion participants also load their personas and rules from
+versioned files:
+
+- `config/discussion/personas/*.v1.md`
+- `config/discussion/rules/*.v1.md`
 
 ## Messenger Spokesperson
 

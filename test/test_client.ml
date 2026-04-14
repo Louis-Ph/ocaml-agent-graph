@@ -833,6 +833,164 @@ let test_terminal_prepare_discussion_request_keeps_session_and_attachments () =
     true
     (contains_substring ~substring:"Module hierarchy and audit requirements." input)
 
+let test_terminal_discussion_archive_writes_markdown_file () =
+  with_temp_dir "agent-graph-discussion-archive" (fun dir ->
+      let runtime_config =
+        {
+          (make_memory_runtime_config "assistant-route" "/tmp/archive-memory.sqlite")
+          with
+          discussion =
+            {
+              Config.Runtime.Discussion.enabled = true;
+              rounds = 2;
+              final_agent = Core.Agent_name.Summarizer;
+              participants =
+                [
+                  {
+                    Config.Runtime.Discussion.Participant.name = "architect";
+                    profile =
+                      {
+                        Config.Runtime.Llm.Agent_profile.route_model = "claude-sonnet";
+                        system_prompt = "architect";
+                        max_tokens = Some 180;
+                        confidence = 0.9;
+                      };
+                    persona = None;
+                    rules = None;
+                  };
+                  {
+                    Config.Runtime.Discussion.Participant.name = "critic";
+                    profile =
+                      {
+                        Config.Runtime.Llm.Agent_profile.route_model = "kimi-latest";
+                        system_prompt = "critic";
+                        max_tokens = Some 180;
+                        confidence = 0.92;
+                      };
+                    persona = None;
+                    rules = None;
+                  };
+                ];
+            };
+        }
+      in
+      let runtime =
+        let base_runtime =
+          make_client_runtime_with_runtime_config "assistant-route" runtime_config
+        in
+        let client_config =
+          {
+            base_runtime.Client.Runtime.client_config with
+            local_ops =
+              {
+                base_runtime.client_config.local_ops with
+                workspace_root = dir;
+              };
+          }
+        in
+        {
+          base_runtime with
+          Client.Runtime.client_config;
+        }
+      in
+      let attachment : Client.Assistant.attachment =
+        {
+          path = "/tmp/spec.md";
+          content = "Discussion seed with hierarchy and audit constraints.";
+          bytes_read = 53;
+          truncated = false;
+        }
+      in
+      let context =
+        let context =
+          Core.Context.empty ~task_id:"human-graph-001" ~metadata:[]
+        in
+        let context =
+          Core.Context.add_message
+            context
+            {
+              Core.Message.role = Core.Message.Speaker "architect";
+              content = "Split the workflow into planner and discussion modules.";
+            }
+        in
+        let context =
+          Core.Context.add_message
+            context
+            {
+              Core.Message.role = Core.Message.Speaker "critic";
+              content = "Require stronger tests around route validation.";
+            }
+        in
+        let context =
+          Core.Context.record_event
+            context
+            ~label:"discussion.turn.completed"
+            ~detail:"round=1 speaker=architect -> Text(55 chars)"
+        in
+        Core.Context.record_event
+          context
+          ~label:"discussion.turn.completed"
+          ~detail:"round=1 speaker=critic -> Text(47 chars)"
+      in
+      match
+        Client.Terminal.Discussion_archive.write
+          ~runtime
+          ~timestamp:"20260413010203"
+          ~task_id:"human-graph-001"
+          ~graph_session_id:"human-graph-session"
+          ~prompt_text:"Refactor the graph around a multi-agent discussion."
+          ~attachments:[ attachment ]
+          ~payload:(Core.Payload.Text "Summary: keep the graph typed and auditable.")
+          ~context
+      with
+      | Error message -> Alcotest.fail message
+      | Ok archive_path ->
+          Alcotest.(check bool)
+            "archive file created"
+            true
+            (Sys.file_exists archive_path);
+          Alcotest.(check bool)
+            "timestamp embedded in filename"
+            true
+            (has_prefix
+               (Filename.concat
+                  (Filename.concat dir "var/discussions")
+                  "discussion-20260413010203-")
+               archive_path);
+          let archived =
+            Stdlib.In_channel.with_open_bin archive_path Stdlib.In_channel.input_all
+          in
+          Alcotest.(check bool)
+            "prompt archived"
+            true
+            (contains_substring
+               ~substring:"Refactor the graph around a multi-agent discussion."
+               archived);
+          Alcotest.(check bool)
+            "attachment archived"
+            true
+            (contains_substring
+               ~substring:"Discussion seed with hierarchy and audit constraints."
+               archived);
+          Alcotest.(check bool)
+            "turn heading archived"
+            true
+            (contains_substring
+               ~substring:"### round=1 speaker=architect"
+               archived);
+          Alcotest.(check bool)
+            "turn content archived"
+            true
+            (contains_substring
+               ~substring:"Split the workflow into planner and discussion modules."
+               archived);
+          Alcotest.(check bool)
+            "final payload archived"
+            true
+            (contains_substring
+               ~substring:"Summary: keep the graph typed and auditable."
+               archived))
+
 let test_client_runtime_graph_summary_mentions_routes () =
   let route_model = "assistant-route" in
   let runtime = make_client_runtime route_model in
@@ -1096,6 +1254,10 @@ let () =
             "terminal prepares discussion requests with session and attachments"
             `Quick
             test_terminal_prepare_discussion_request_keeps_session_and_attachments;
+          Alcotest.test_case
+            "terminal archives discussion transcripts to markdown"
+            `Quick
+            test_terminal_discussion_archive_writes_markdown_file;
         ] );
       ( "runtime",
         [

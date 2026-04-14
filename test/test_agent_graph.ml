@@ -113,6 +113,8 @@ let make_discussion_config () =
               max_tokens = Some 96;
               confidence = 0.9;
             };
+          persona = None;
+          rules = None;
         };
         {
           Config.Runtime.Discussion.Participant.name = "critic";
@@ -123,6 +125,8 @@ let make_discussion_config () =
               max_tokens = Some 96;
               confidence = 0.92;
             };
+          persona = None;
+          rules = None;
         };
       ];
   }
@@ -497,6 +501,49 @@ let test_discussion_live_output_turn_message () =
        ~substring:"\n    Keep the transcript typed."
        rendered)
 
+let test_discussion_prompt_includes_versioned_persona_and_rules () =
+  let participant : Config.Runtime.Discussion.Participant.t =
+    {
+      name = "architect";
+      profile =
+        {
+          Config.Runtime.Llm.Agent_profile.route_model = "architect-model";
+          system_prompt = "Base discussion prompt.";
+          max_tokens = Some 96;
+          confidence = 0.9;
+        };
+      persona =
+        Some
+          {
+            Config.Runtime.Discussion.Versioned_text.version = "persona-v4";
+            text = "Act as the system architect focused on module boundaries.";
+            source_path = Some "/tmp/persona.md";
+          };
+      rules =
+        Some
+          {
+            Config.Runtime.Discussion.Versioned_text.version = "rules-v2";
+            text = "1. Prefer typed seams.\n2. Avoid magic strings.";
+            source_path = Some "/tmp/rules.md";
+          };
+    }
+  in
+  let rendered =
+    Orchestration.Discussion.Prompt_templates.render_system_prompt participant
+  in
+  Alcotest.(check bool)
+    "base prompt preserved"
+    true
+    (contains_substring ~substring:"Base discussion prompt." rendered);
+  Alcotest.(check bool)
+    "persona version included"
+    true
+    (contains_substring ~substring:"Persona (version persona-v4)" rendered);
+  Alcotest.(check bool)
+    "rules version included"
+    true
+    (contains_substring ~substring:"Rules (version rules-v2)" rendered)
+
 let make_memory_config sqlite_path =
   {
     Config.Runtime.Memory.enabled = true;
@@ -819,7 +866,20 @@ let test_runtime_config_loads_memory_policy_file () =
             bridge.session_key_prefix
 
 let test_runtime_config_loads_discussion_workflow () =
-  let temp_path = Filename.temp_file "agent-graph-discussion" ".json" in
+  let temp_dir = Filename.temp_file "agent-graph-discussion" ".tmp" in
+  Sys.remove temp_dir;
+  Unix.mkdir temp_dir 0o755;
+  let temp_path = Filename.concat temp_dir "runtime.json" in
+  let architect_persona_path =
+    Filename.concat temp_dir "architect.persona.v1.md"
+  in
+  let architect_rules_path =
+    Filename.concat temp_dir "architect.rules.v2.md"
+  in
+  write_file architect_persona_path
+    "Push for module hierarchy and explicit contracts.";
+  write_file architect_rules_path
+    "1. Prefer typed boundaries.\n2. Keep the proposal auditable.";
   let runtime_json =
     {|{
   "engine": { "timeout_seconds": 1.0, "retry_attempts": 0, "retry_backoff_seconds": 0.0, "max_steps": 8 },
@@ -844,16 +904,31 @@ let test_runtime_config_loads_discussion_workflow () =
       {
         "name": "architect",
         "route_model": "architect-model",
-        "system_prompt": "architect",
         "max_tokens": 90,
-        "confidence": 0.9
+        "confidence": 0.9,
+        "persona": {
+          "version": "architect-persona-v1",
+          "file_path": "architect.persona.v1.md"
+        },
+        "rules": {
+          "version": "architect-rules-v2",
+          "file_path": "architect.rules.v2.md"
+        }
       },
       {
         "name": "critic",
         "route_model": "critic-model",
         "system_prompt": "critic",
         "max_tokens": 90,
-        "confidence": 0.92
+        "confidence": 0.92,
+        "persona": {
+          "version": "critic-persona-v3",
+          "text": "Operate as a skeptical reviewer."
+        },
+        "rules": {
+          "version": "critic-rules-v1",
+          "text": "Always surface missing tests first."
+        }
       }
     ]
   },
@@ -880,7 +955,34 @@ let test_runtime_config_loads_discussion_workflow () =
       Alcotest.(check int)
         "discussion participant count"
         2
-        (List.length loaded.discussion.participants)
+        (List.length loaded.discussion.participants);
+      let architect = List.hd loaded.discussion.participants in
+      let critic = List.nth loaded.discussion.participants 1 in
+      Alcotest.(check string)
+        "default participant base system prompt used"
+        Config.Runtime.Discussion.Participant.default_system_prompt
+        architect.profile.system_prompt;
+      Alcotest.(check (option string))
+        "architect persona version loaded"
+        (Some "architect-persona-v1")
+        (Option.map
+           (fun (persona : Config.Runtime.Discussion.Versioned_text.t) ->
+             persona.version)
+           architect.persona);
+      Alcotest.(check (option string))
+        "architect rules file text loaded"
+        (Some "1. Prefer typed boundaries.\n2. Keep the proposal auditable.")
+        (Option.map
+           (fun (rules : Config.Runtime.Discussion.Versioned_text.t) ->
+             rules.text)
+           architect.rules);
+      Alcotest.(check (option string))
+        "critic persona inline text loaded"
+        (Some "Operate as a skeptical reviewer.")
+        (Option.map
+           (fun (persona : Config.Runtime.Discussion.Versioned_text.t) ->
+             persona.text)
+           critic.persona)
 
 let test_memory_bulkhead_bridge_syncs_session () =
   with_bridge_server (fun port requests ->
@@ -1118,6 +1220,10 @@ let () =
             "formats live turn output"
             `Quick
             test_discussion_live_output_turn_message;
+          Alcotest.test_case
+            "includes versioned persona and rules in discussion prompt"
+            `Quick
+            test_discussion_prompt_includes_versioned_persona_and_rules;
           Alcotest.test_case
             "loads discussion workflow config"
             `Quick

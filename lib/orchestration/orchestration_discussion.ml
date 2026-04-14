@@ -60,16 +60,56 @@ module Live_output = struct
       speaker
       error
 
-  let turn_skipped_message ~round_index ~max_rounds ~speaker =
+  let turn_skipped_message ~round_index ~max_rounds ~speaker ~route_model ~ready_backends =
     Fmt.str
-      "Discussion turn %d/%d speaker=%s skipped: empty completion"
+      "Discussion turn %d/%d speaker=%s skipped: empty completion (route_model=%s ready_backends=%d)"
       round_index
       max_rounds
       speaker
+      route_model
+      ready_backends
+
+  let budget_exhausted_message ~collected_turns ~message =
+    Fmt.str
+      "Discussion halted: budget exhausted after %d turn(s) collected. %s"
+      collected_turns
+      message
+
+  let unready_route_message ~participant_name ~route_model =
+    Fmt.str
+      "Discussion participant %s: route_model=%s has no ready backends — all API keys missing, turns will return empty"
+      participant_name
+      route_model
 end
 
 module Prompt_templates = struct
   let max_contribution_words = 120
+
+  let versioned_block label = function
+    | None -> None
+    | Some (entry : Runtime_config.Discussion.Versioned_text.t) ->
+        Some
+          (Fmt.str
+             "%s (version %s)\n%s"
+             label
+             entry.version
+             entry.text)
+
+  let render_system_prompt
+      (participant : Runtime_config.Discussion.Participant.t)
+    =
+    [
+      Some participant.profile.Runtime_config.Llm.Agent_profile.system_prompt;
+      versioned_block "Persona" participant.persona;
+      versioned_block "Rules" participant.rules;
+    ]
+    |> List.filter_map (fun value ->
+           value
+           |> Option.map String.trim
+           |> function
+           | Some "" | None -> None
+           | Some rendered -> Some rendered)
+    |> String.concat "\n\n"
 
   let render_metadata metadata =
     match metadata with
@@ -106,11 +146,10 @@ module Prompt_templates = struct
       ~(discussion : Core_payload.discussion)
       ~round_index
     =
-    let profile = participant.profile in
     let system_message : Bulkhead_lm.Openai_types.message =
       {
         role = "system";
-        content = profile.Runtime_config.Llm.Agent_profile.system_prompt;
+        content = render_system_prompt participant;
       }
     in
     let user_message : Bulkhead_lm.Openai_types.message =
@@ -191,6 +230,19 @@ let participant_metrics
     ^ Llm_bulkhead_client.route_access_summary completion.route_access;
   ]
 
+(* Turn results are tri-state: a successful contribution, a skipped empty response,
+   or a fatal budget-exhaustion that must halt the entire discussion immediately. *)
+type turn_result =
+  | Turn_produced of Core_payload.discussion_turn
+  | Turn_skipped
+  | Turn_budget_exhausted of string
+
+let is_budget_exhausted message =
+  let prefix = "budget_exceeded" in
+  let plen = String.length prefix in
+  String.length message >= plen
+  && String.sub message 0 plen = prefix
+
 let invoke_participant
     ~(services : Runtime_services.t)
     ~(context : Core_context.t)
@@ -212,6 +264,26 @@ let invoke_participant
       ~max_tokens:profile.max_tokens
   in
   match result with
+  | Error message when is_budget_exhausted message ->
+      Runtime_logger.log
+        Runtime_logger.Error
+        (Live_output.turn_failed_message
+           ~round_index
+           ~max_rounds:discussion.max_rounds
+           ~speaker:participant.name
+           ~error:message);
+      let context =
+        Core_context.record_event
+          context
+          ~label:Event_label.turn_failed
+          ~detail:
+            (Fmt.str
+               "round=%d speaker=%s error=%s"
+               round_index
+               participant.name
+               message)
+      in
+      Lwt.return (Turn_budget_exhausted message, context)
   | Error message ->
       Runtime_logger.log
         Runtime_logger.Warning
@@ -231,18 +303,21 @@ let invoke_participant
                participant.name
                message)
       in
-      Lwt.return (None, context)
+      Lwt.return (Turn_skipped, context)
   | Ok completion ->
       let content = String.trim completion.content in
       if content = ""
       then
+        let route_access = completion.route_access in
         let () =
           Runtime_logger.log
             Runtime_logger.Warning
             (Live_output.turn_skipped_message
                ~round_index
                ~max_rounds:discussion.max_rounds
-               ~speaker:participant.name)
+               ~speaker:participant.name
+               ~route_model:route_access.route_model
+               ~ready_backends:route_access.ready_backend_count)
         in
         let context =
           Core_context.record_event
@@ -254,7 +329,7 @@ let invoke_participant
                  round_index
                  participant.name)
         in
-        Lwt.return (None, context)
+        Lwt.return (Turn_skipped, context)
       else
         let metrics, notes = participant_metrics profile completion in
         let turn =
@@ -274,7 +349,7 @@ let invoke_participant
           (Live_output.turn_completed_message
              ~max_rounds:discussion.max_rounds
              turn);
-        Lwt.return (Some turn, context)
+        Lwt.return (Turn_produced turn, context)
 
 let run_round
     ~(services : Runtime_services.t)
@@ -285,9 +360,9 @@ let run_round
   =
   let rec loop context (discussion : Core_payload.discussion) produced_turn_count =
     function
-    | [] -> Lwt.return (discussion, context, produced_turn_count)
+    | [] -> Lwt.return (`Ok, discussion, context, produced_turn_count)
     | participant :: rest ->
-        let* maybe_turn, context =
+        let* turn_result, context =
           invoke_participant
             ~services
             ~context
@@ -295,16 +370,34 @@ let run_round
             ~participant
             ~round_index
         in
-        let discussion, produced_turn_count =
-          match maybe_turn with
-          | None -> discussion, produced_turn_count
-          | Some turn ->
-              ( { discussion with turns = discussion.turns @ [ turn ] },
-                produced_turn_count + 1 )
-        in
-        loop context discussion produced_turn_count rest
+        (match turn_result with
+         | Turn_budget_exhausted message ->
+             Lwt.return (`Budget_exhausted message, discussion, context, produced_turn_count)
+         | Turn_skipped ->
+             loop context discussion produced_turn_count rest
+         | Turn_produced turn ->
+             let discussion =
+               { discussion with turns = discussion.turns @ [ turn ] }
+             in
+             loop context discussion (produced_turn_count + 1) rest)
   in
   loop context discussion 0 participants
+
+let warn_unready_participant_routes
+    (llm_client : Llm_bulkhead_client.t)
+    (participants : Runtime_config.Discussion.Participant.t list)
+  =
+  participants
+  |> List.iter (fun (participant : Runtime_config.Discussion.Participant.t) ->
+         let route_model = participant.profile.route_model in
+         match Llm_bulkhead_client.route_access llm_client ~route_model with
+         | Some access when access.ready_backend_count = 0 ->
+             Runtime_logger.log
+               Runtime_logger.Warning
+               (Live_output.unready_route_message
+                  ~participant_name:participant.name
+                  ~route_model)
+         | _ -> ())
 
 let run
     ~(services : Runtime_services.t)
@@ -344,6 +437,9 @@ let run
       Runtime_logger.log
         Runtime_logger.Info
         (Live_output.started_message config.discussion);
+      warn_unready_participant_routes
+        services.llm_client
+        config.discussion.participants;
       let rec loop context (discussion : Core_payload.discussion) round_index =
         if round_index > discussion.max_rounds
         then Lwt.return (Core_payload.Discussion discussion, context)
@@ -362,7 +458,7 @@ let run
               ~label:Event_label.round_started
               ~detail:(Fmt.str "round=%d" round_index)
           in
-          let* discussion, context, turn_count =
+          let* round_status, discussion, context, turn_count =
             run_round
               ~services
               ~participants:config.discussion.participants
@@ -385,22 +481,31 @@ let run
                ~round_index
                ~max_rounds:discussion.max_rounds
                ~turn_count);
-          if turn_count = 0
-          then
-            if discussion.turns = []
-            then
-              let message =
-                "Discussion workflow produced no participant contribution."
-              in
-              Runtime_logger.log Runtime_logger.Warning message;
-              let context =
-                Core_context.record_event
-                  context
-                  ~label:Event_label.failed
-                  ~detail:message
-              in
-              Lwt.return (Core_payload.Error message, context)
-            else Lwt.return (Core_payload.Discussion discussion, context)
-          else loop context discussion (round_index + 1)
+          (match round_status with
+           | `Budget_exhausted message ->
+               Runtime_logger.log
+                 Runtime_logger.Warning
+                 (Live_output.budget_exhausted_message
+                    ~collected_turns:(List.length discussion.turns)
+                    ~message);
+               Lwt.return (Core_payload.Discussion discussion, context)
+           | `Ok ->
+               if turn_count = 0
+               then
+                 if discussion.turns = []
+                 then
+                   let message =
+                     "Discussion workflow produced no participant contribution."
+                   in
+                   Runtime_logger.log Runtime_logger.Warning message;
+                   let context =
+                     Core_context.record_event
+                       context
+                       ~label:Event_label.failed
+                       ~detail:message
+                   in
+                   Lwt.return (Core_payload.Error message, context)
+                 else Lwt.return (Core_payload.Discussion discussion, context)
+               else loop context discussion (round_index + 1))
       in
       loop context discussion (discussion.completed_rounds + 1)

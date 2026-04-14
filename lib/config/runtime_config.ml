@@ -58,10 +58,23 @@ module Llm = struct
 end
 
 module Discussion = struct
+  module Versioned_text = struct
+    type t = {
+      version : string;
+      text : string;
+      source_path : string option;
+    }
+  end
+
   module Participant = struct
+    let default_system_prompt =
+      "You are a participant inside a structured multi-agent discussion. Follow the configured persona and rules, stay in role, contribute one compact step, and avoid repeating the transcript."
+
     type t = {
       name : string;
       profile : Llm.Agent_profile.t;
+      persona : Versioned_text.t option;
+      rules : Versioned_text.t option;
     }
   end
 
@@ -214,6 +227,28 @@ let parse_agent_profile json =
     confidence = json |> member "confidence" |> to_float;
   }
 
+let parse_discussion_profile json =
+  let route_model =
+    match Config_support.member_string_option "route_model" json with
+    | Some value -> value
+    | None -> json |> member "model" |> to_string
+  in
+  let system_prompt =
+    match json |> member "system_prompt" with
+    | `String value ->
+        let trimmed = String.trim value in
+        if trimmed = ""
+        then Discussion.Participant.default_system_prompt
+        else trimmed
+    | _ -> Discussion.Participant.default_system_prompt
+  in
+  {
+    Llm.Agent_profile.route_model;
+    system_prompt;
+    max_tokens = Config_support.member_int_option "max_tokens" json;
+    confidence = json |> member "confidence" |> to_float;
+  }
+
 let parse_llm ~base_dir json =
   {
     Llm.gateway_config_path =
@@ -266,23 +301,120 @@ let non_empty_string_member name json =
   | Some value when value <> "" -> Some value
   | _ -> None
 
-let parse_discussion_participant json =
+let versioned_text_member names json =
+  let rec loop = function
+    | [] -> `Null
+    | name :: rest ->
+        (match json |> member name with
+         | `Null -> loop rest
+         | value -> value)
+  in
+  loop names
+
+let parse_versioned_text ~base_dir ~field_names json =
+  match versioned_text_member field_names json with
+  | `Null -> Ok None
+  | (`Assoc _ as value_json) ->
+      let field_label = String.concat "/" field_names in
+      (match non_empty_string_member "version" value_json with
+       | None ->
+           Error
+             (Fmt.str
+                "Invalid discussion %s configuration: version is required."
+                field_label)
+       | Some version ->
+           let text = non_empty_string_member "text" value_json in
+           let file_path =
+             non_empty_string_member "file_path" value_json
+           in
+           (match text, file_path with
+            | Some _, Some _ ->
+                Error
+                  (Fmt.str
+                     "Invalid discussion %s configuration: use either text or file_path, not both."
+                     field_label)
+            | None, None ->
+                Error
+                  (Fmt.str
+                     "Invalid discussion %s configuration: text or file_path is required."
+                     field_label)
+            | Some text, None ->
+                Ok
+                  (Some
+                     {
+                       Discussion.Versioned_text.version;
+                       text;
+                       source_path = None;
+                     })
+            | None, Some file_path ->
+                let resolved_path =
+                  Config_support.resolve_relative_path ~base_dir file_path
+                in
+                (match Config_support.load_text_file resolved_path with
+                 | Ok text ->
+                     let text = String.trim text in
+                     if text = ""
+                     then
+                       Error
+                         (Fmt.str
+                            "Invalid discussion %s configuration: %s is empty."
+                            field_label
+                            resolved_path)
+                     else
+                       Ok
+                         (Some
+                            {
+                              Discussion.Versioned_text.version;
+                              text;
+                              source_path = Some resolved_path;
+                            })
+                 | Error message ->
+                     Error
+                       (Fmt.str
+                          "Invalid discussion %s configuration: %s"
+                          field_label
+                          message))))
+  | _ ->
+      Error
+        (Fmt.str
+           "Invalid discussion %s configuration: expected an object."
+           (String.concat "/" field_names))
+
+let parse_discussion_participant ~base_dir json =
   match non_empty_string_member "name" json with
   | None ->
       Error
         "Invalid discussion participant configuration: name is required."
   | Some name ->
-      Ok
-        {
-          Discussion.Participant.name;
-          profile = parse_agent_profile json;
-        }
+      let persona =
+        parse_versioned_text
+          ~base_dir
+          ~field_names:[ "persona"; "personna" ]
+          json
+      in
+      let rules =
+        parse_versioned_text
+          ~base_dir
+          ~field_names:[ "rules" ]
+          json
+      in
+      (match persona, rules with
+       | (Error _ as error), _ -> error
+       | _, (Error _ as error) -> error
+       | Ok persona, Ok rules ->
+           Ok
+             {
+               Discussion.Participant.name;
+               profile = parse_discussion_profile json;
+               persona;
+               rules;
+             })
 
 let discussion_supports_agent = function
   | Core_agent_name.Summarizer | Validator -> true
   | Planner -> false
 
-let parse_discussion json =
+let parse_discussion ~base_dir json =
   let enabled = bool_member_with_default "enabled" json ~default:false in
   let rounds =
     json
@@ -305,7 +437,7 @@ let parse_discussion json =
         let rec loop acc = function
           | [] -> Ok (List.rev acc)
           | (`Assoc _ as participant_json) :: rest ->
-              (match parse_discussion_participant participant_json with
+              (match parse_discussion_participant ~base_dir participant_json with
                | Ok participant -> loop (participant :: acc) rest
                | Error _ as error -> error)
           | _ :: _ ->
@@ -459,7 +591,7 @@ let load path =
     let discussion =
       match json |> member "discussion" with
       | `Null -> Ok Discussion.disabled
-      | (`Assoc _ as discussion_json) -> parse_discussion discussion_json
+      | (`Assoc _ as discussion_json) -> parse_discussion ~base_dir discussion_json
       | _ ->
           Error "Invalid discussion configuration: expected an object."
     in

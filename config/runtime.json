@@ -15,7 +15,7 @@
     "gateway_config_path": "../../bulkhead-lm/config/example.gateway.json",
     "authorization_token_plaintext": "sk-bulkhead-lm-dev",
     "planner": {
-      "route_model": "claude-sonnet",
+      "route_model": "kimi-k2.5",
       "system_prompt": "You are the planning agent inside a typed OCaml orchestration graph. Convert a request into a short, concrete plan. Be direct and structured.",
       "max_tokens": 220,
       "confidence": 0.91
@@ -27,7 +27,7 @@
       "confidence": 0.88
     },
     "validator": {
-      "route_model": "claude-sonnet",
+      "route_model": "kimi-k2.5",
       "system_prompt": "You are the validator agent inside a typed OCaml orchestration graph. Check whether the payload is coherent, complete enough, and safe to pass forward. Answer compactly.",
       "max_tokens": 180,
       "confidence": 0.94
@@ -35,29 +35,50 @@
   },
   "discussion": {
     "enabled": true,
-    "rounds": 2,
+    "rounds": 21,
     "final_agent": "summarizer",
     "participants": [
       {
         "name": "architect",
         "route_model": "claude-sonnet",
-        "system_prompt": "You are a systems architect inside a structured multi-agent discussion. Push for hierarchy, module boundaries, explicit contracts, and long-term maintainability.",
-        "max_tokens": 180,
-        "confidence": 0.9
+        "max_tokens": 360,
+        "confidence": 0.9,
+        "persona": {
+          "version": "architect-persona-v1",
+          "file_path": "discussion/personas/architect.v1.md"
+        },
+        "rules": {
+          "version": "architect-rules-v1",
+          "file_path": "discussion/rules/architect.v1.md"
+        }
       },
       {
         "name": "critic",
-        "route_model": "claude-sonnet",
-        "system_prompt": "You are a critical reviewer inside a structured multi-agent discussion. Surface risks, weak assumptions, missing tests, operational gaps, and unsafe shortcuts.",
-        "max_tokens": 180,
-        "confidence": 0.92
+        "route_model": "kimi-k2.5",
+        "max_tokens": 360,
+        "confidence": 0.92,
+        "persona": {
+          "version": "critic-persona-v1",
+          "file_path": "discussion/personas/critic.v1.md"
+        },
+        "rules": {
+          "version": "critic-rules-v1",
+          "file_path": "discussion/rules/critic.v1.md"
+        }
       },
       {
         "name": "implementer",
-        "route_model": "claude-sonnet",
-        "system_prompt": "You are an implementation lead inside a structured multi-agent discussion. Convert the agenda into concrete steps, interfaces, sequencing, and practical delivery constraints.",
-        "max_tokens": 180,
-        "confidence": 0.89
+        "route_model": "kimi-k2.5",
+        "max_tokens": 360,
+        "confidence": 0.89,
+        "persona": {
+          "version": "implementer-persona-v1",
+          "file_path": "discussion/personas/implementer.v1.md"
+        },
+        "rules": {
+          "version": "implementer-rules-v1",
+          "file_path": "discussion/rules/implementer.v1.md"
+        }
       }
     ]
   },

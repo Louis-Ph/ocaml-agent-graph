@@ -13,11 +13,6 @@ Until the first tagged release exists, all shipped history is tracked under
 
 ## Unreleased
 
-### Maintenance
-
-- add standard GitHub Actions Ubuntu CI with sibling `bulkhead-lm` checkout, build, tests, and demo smoke coverage
-- add automated demo-pack coverage tests for catalog consistency and config loading
-
 ### Added
 
 - typed multi-agent graph runtime with explicit routing and orchestration (`98a4d07`)
@@ -28,14 +23,36 @@ Until the first tagged release exists, all shipped history is tracked under
 - human and machine terminal clients for graph configuration and execution (`f4cfb44`)
 - clone-and-run starter that brings a user directly into the human terminal (`361e540`)
 - proactive human terminal assistant with documentation-aware `/docs` and `/wizard` workflows for build, install, cron, SSH, and swarm guidance
+- multi-agent discussion workflow: structured participant rounds with configurable personas, versioned rules, and a final synthesis agent; budget circuit-breaker stops gracefully on provider 429 (`e7d001c`)
+- live discussion streaming in the human terminal: each speaker turn is printed as it arrives (`e7d001c`)
+- **L0-L3 typed agentic swarm layers** (`b12906e`):
+  - `Core.Envelope` (L0) — typed message envelope with `id`, `correlation_id`, `causation_id`, `schema_version`
+  - `Core.Capability` (L0) — permission lattice `Observe ⊑ Speak ⊑ Coordinate ⊑ Audit_write` with time-bounded token expiry
+  - `Core.Audit` (L0.5) — append-only MD5-hash-chained audit log; `verify_chain` replays from genesis; tamper of any field breaks every subsequent hash
+  - `Orchestration.Consensus` (L1) — quorum-based parallel coordination: `⌈n/2⌉+1` votes required, winner by maximum confidence score
+  - `Orchestration.Pipeline` (L2) — composable `step` sequence with optional guard predicates; halts immediately on error payload
+  - `Core.Pattern` (L3) — stability classes `Frozen/Stable/Fluid/Volatile`; fitness = `success_rate × avg_confidence / (avg_latency_s + 1.0)`
+- **`/decide` verifiable decision command** (`e3526a6`): wires L0-L3 end-to-end — opens audit chain, wraps topic in envelope, runs discussion, gates through L1 quorum consensus, validates winner via L2 pipeline, records L3 pattern fitness, seals and verifies chain, archives to `var/decisions/`; supports `--rounds N` and `--pattern ID` inline options
+- `Core.Payload.is_error` and `Core.Payload.is_discussion` predicate helpers
 
 ### Fixed
 
 - support for new BulkheadLM provider kinds (`739f204`)
 - starter idempotence by skipping redundant `bulkhead_lm` pinning when already pinned to the correct sibling checkout (`1eae33a`)
+- discussion budget circuit-breaker: tri-state `turn_result` (`Turn_produced / Turn_skipped / Turn_budget_exhausted`) stops the run loop cleanly on provider 429 and returns the partial discussion collected so far instead of cascading failures
+- startup warning when a configured discussion participant route has zero ready backends
+- `max_tokens` for discussion participants raised to 360 in the example config to prevent truncated contributions
 
 ### Documentation
 
 - beginner-friendly usage guides (`25a9e69`)
 - linear intent files for OCaml modules (`bc8580d`)
 - human terminal assistant playbook tied to the BulkheadLM and ocaml-agent-graph hierarchy
+- **`docs/swarm-layers.md`** — L0-L3 API reference with usage examples, layer map, and test-run commands
+
+### Maintenance
+
+- add standard GitHub Actions Ubuntu CI with sibling `bulkhead-lm` checkout, build, tests, and demo smoke coverage
+- add automated demo-pack coverage tests for catalog consistency and config loading
+- **`test/test_protocol.ml`** — 27 Alcotest cases covering L0 envelope provenance chain, capability lattice order, L0.5 audit chain integrity, tamper detection, and L3 pattern fitness and stability mutation rules
+- **`test/test_coordination.ml`** — 8 Alcotest cases covering L1 quorum formula, all-succeed, majority-fails, and exact-threshold; L2 two-step flow, guard skip on error, error halt without guard, and empty pipeline identity

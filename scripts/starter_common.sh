@@ -124,6 +124,13 @@ load_secret_files() {
   IFS=$old_ifs
 }
 
+ensure_connector_auth() {
+  if [ -z "${BULKHEAD_LM_API_KEY:-}" ]; then
+    BULKHEAD_LM_API_KEY="sk-bulkhead-lm-dev"
+    export BULKHEAD_LM_API_KEY
+  fi
+}
+
 find_opam() {
   if [ -n "${AGENT_GRAPH_OPAM_BIN:-}" ] && [ -x "${AGENT_GRAPH_OPAM_BIN}" ]; then
     OPAM_BIN=${AGENT_GRAPH_OPAM_BIN}
@@ -240,6 +247,16 @@ normalize_existing_dir() {
 
 ensure_bulkhead_lm_checkout() {
   if [ -f "$DEFAULT_BULKHEAD_LM_DIR/dune-project" ]; then
+    # Auto-pull latest version if git is available
+    if command -v git >/dev/null 2>&1 && [ -d "$DEFAULT_BULKHEAD_LM_DIR/.git" ]; then
+      local_rev=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-parse HEAD 2>/dev/null || true)
+      git -C "$DEFAULT_BULKHEAD_LM_DIR" fetch --quiet origin main 2>/dev/null || true
+      remote_rev=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-parse origin/main 2>/dev/null || true)
+      if [ -n "$remote_rev" ] && [ -n "$local_rev" ] && [ "$local_rev" != "$remote_rev" ]; then
+        say "Updating BulkheadLM to latest version ..."
+        git -C "$DEFAULT_BULKHEAD_LM_DIR" pull --quiet --ff-only origin main 2>/dev/null || true
+      fi
+    fi
     return 0
   fi
 
@@ -254,13 +271,10 @@ ensure_bulkhead_lm_checkout() {
     return 1
   fi
 
-  if ! prompt_yes_no "Clone bulkhead-lm next to this repository now?" "Y"; then
-    return 1
-  fi
-
+  say "Cloning bulkhead-lm next to this repository ..."
   parent_dir=$(dirname "$DEFAULT_BULKHEAD_LM_DIR")
   mkdir -p "$parent_dir"
-  if ! git clone "$DEFAULT_BULKHEAD_LM_REPO_URL" "$DEFAULT_BULKHEAD_LM_DIR"; then
+  if ! git clone --quiet "$DEFAULT_BULKHEAD_LM_REPO_URL" "$DEFAULT_BULKHEAD_LM_DIR"; then
     say_err "Automatic clone of bulkhead-lm failed."
     return 1
   fi
@@ -429,7 +443,7 @@ ensure_local_switch_requested() {
     return 0
   fi
 
-  if ! prompt_yes_no "Create a project-local fallback switch in $ROOT_DIR/_opam?" "N"; then
+  if ! prompt_yes_no "Create a project-local fallback switch in $ROOT_DIR/_opam?" "Y"; then
     return 1
   fi
 
@@ -462,6 +476,7 @@ starter_exec_client() {
 starter_main() {
   ensure_exec_bits
   load_secret_files
+  ensure_connector_auth
   trap cleanup_temp_files EXIT INT TERM
 
   if has_hook platform_validate_host; then

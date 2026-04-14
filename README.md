@@ -6,8 +6,6 @@ Typed, modular multi-agent orchestration in OCaml. Think LangGraph or CrewAI,
 but with explicit typed routing, tamper-evident audit, and a real terminal you
 can use right now.
 
-![Human terminal assistant startup](doc/OCamlGraph.jpeg)
-
 ## Quick start
 
 One command on any machine (Linux, macOS, FreeBSD):

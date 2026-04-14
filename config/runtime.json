@@ -15,21 +15,21 @@
     "gateway_config_path": "../../bulkhead-lm/config/example.gateway.json",
     "authorization_token_plaintext": "sk-bulkhead-lm-dev",
     "planner": {
-      "route_model": "kimi-k2.5",
+      "route_model": "claude-sonnet",
       "system_prompt": "You are the planning agent inside a typed OCaml orchestration graph. Convert a request into a short, concrete plan. Be direct and structured.",
-      "max_tokens": 220,
+      "max_tokens": 300,
       "confidence": 0.91
     },
     "summarizer": {
       "route_model": "claude-sonnet",
       "system_prompt": "You are the summarizer agent inside a typed OCaml orchestration graph. Compress the payload into a short, accurate summary with no filler.",
-      "max_tokens": 180,
+      "max_tokens": 400,
       "confidence": 0.88
     },
     "validator": {
-      "route_model": "kimi-k2.5",
+      "route_model": "claude-sonnet",
       "system_prompt": "You are the validator agent inside a typed OCaml orchestration graph. Check whether the payload is coherent, complete enough, and safe to pass forward. Answer compactly.",
-      "max_tokens": 180,
+      "max_tokens": 300,
       "confidence": 0.94
     }
   },
@@ -42,7 +42,7 @@
       {
         "name": "architect",
         "route_model": "claude-sonnet",
-        "max_tokens": 200,
+        "max_tokens": 400,
         "confidence": 0.90,
         "persona": {
           "version": "architect-persona-v1",
@@ -55,8 +55,8 @@
       },
       {
         "name": "critic",
-        "route_model": "kimi-k2.5",
-        "max_tokens": 200,
+        "route_model": "claude-sonnet",
+        "max_tokens": 400,
         "confidence": 0.95,
         "persona": {
           "version": "critic-persona-v1",
@@ -69,8 +69,8 @@
       },
       {
         "name": "implementer",
-        "route_model": "kimi-k2.5",
-        "max_tokens": 200,
+        "route_model": "claude-sonnet",
+        "max_tokens": 400,
         "confidence": 0.87,
         "persona": {
           "version": "implementer-persona-v1",

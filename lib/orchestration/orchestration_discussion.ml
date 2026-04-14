@@ -355,16 +355,32 @@ let invoke_participant
 let convergence_signals =
   [ "discussion close"
   ; "discussion terminée"
+  ; "discussion terminated"
   ; "le débat est clos"
   ; "debate is closed"
   ; "commandez maintenant"
   ; "order now"
+  ; "passez commande"
   ; "final recommendation"
   ; "recommandation finale"
+  ; "recommandation principale"
   ; "action immédiate"
+  ; "immediate action"
   ; "no further action"
   ; "aucune autre recherche"
+  ; "no further research"
   ; "validation finale"
+  ; "final validation"
+  ; "validated without"
+  ; "validé sans réserve"
+  ; "le débat ne peut plus"
+  ; "consensus reached"
+  ; "consensus total"
+  ; "all participants agree"
+  ; "tous convergent"
+  ; "clôture définitive"
+  ; "décision finale"
+  ; "final decision"
   ]
 
 let content_signals_convergence content =
@@ -396,8 +412,8 @@ let round_has_converged (discussion : Core_payload.discussion) ~round_index ~par
         |> List.filter (fun (t : Core_payload.discussion_turn) -> content_signals_convergence t.content)
         |> List.length
       in
-      (* Converge when majority signals agreement *)
-      converging >= (participant_count + 1) / 2 + 1
+      (* Converge when majority signals agreement: 2 out of 3 *)
+      converging >= (participant_count + 1) / 2
 
 let sub_discussion_marker = "[SUB_DISCUSSION:"
 

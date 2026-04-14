@@ -296,6 +296,50 @@ ensure_bulkhead_lm_latest() {
   fi
 }
 
+ensure_git_available() {
+  command -v git >/dev/null 2>&1 && return 0
+
+  say "git is not installed. Attempting to install it."
+  OS_NAME=$(uname -s 2>/dev/null || printf 'unknown')
+  case "$OS_NAME" in
+    Darwin)
+      if command -v brew >/dev/null 2>&1; then
+        brew install git || { say_err "Could not install git via Homebrew."; return 1; }
+      else
+        say_err "Install Xcode Command Line Tools: xcode-select --install"
+        return 1
+      fi
+      ;;
+    Linux)
+      if command -v apt-get >/dev/null 2>&1; then
+        run_privileged apt-get update -qq && run_privileged apt-get install -y git
+      elif command -v dnf >/dev/null 2>&1; then
+        run_privileged dnf install -y git
+      elif command -v yum >/dev/null 2>&1; then
+        run_privileged yum install -y git
+      elif command -v pacman >/dev/null 2>&1; then
+        run_privileged pacman -Sy --noconfirm git
+      elif command -v apk >/dev/null 2>&1; then
+        run_privileged apk add git
+      elif command -v zypper >/dev/null 2>&1; then
+        run_privileged zypper install -y git
+      else
+        say_err "No supported package manager found. Install git manually."
+        return 1
+      fi
+      ;;
+    FreeBSD)
+      run_privileged pkg install -y git || { say_err "Could not install git."; return 1; }
+      ;;
+    *)
+      say_err "Install git manually, then re-run."
+      return 1
+      ;;
+  esac
+
+  command -v git >/dev/null 2>&1
+}
+
 ensure_bulkhead_lm_checkout() {
   if [ -f "$DEFAULT_BULKHEAD_LM_DIR/dune-project" ]; then
     ensure_bulkhead_lm_latest
@@ -307,10 +351,12 @@ ensure_bulkhead_lm_checkout() {
     return 1
   fi
 
-  if ! command -v git >/dev/null 2>&1; then
-    say_err "git is required to clone the sibling dependency automatically."
-    return 1
+  # Remove empty leftover directory from a previous failed clone
+  if [ -d "$DEFAULT_BULKHEAD_LM_DIR" ] && [ ! -f "$DEFAULT_BULKHEAD_LM_DIR/dune-project" ]; then
+    rm -rf "$DEFAULT_BULKHEAD_LM_DIR" 2>/dev/null || true
   fi
+
+  ensure_git_available || return 1
 
   say "Cloning bulkhead-lm next to this repository ..."
   parent_dir=$(dirname "$DEFAULT_BULKHEAD_LM_DIR")

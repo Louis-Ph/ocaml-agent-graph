@@ -37,6 +37,7 @@ module Client = struct
   module Http_server = Client_http_server
   module Terminal = Client_terminal
   module Starter = Client_starter
+  module Decide = Client_decide
 end
 
 module Web_crawler = struct

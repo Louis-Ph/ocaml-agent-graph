@@ -27,6 +27,7 @@ type command =
   | Run_command of string
   | Run_graph of string
   | Run_discussion of string
+  | Run_decide of string
   | Show_docs of string option
   | Run_wizard of string option
   | Show_ssh_human
@@ -120,6 +121,12 @@ let parse_command input =
     if prompt = "" then
       Invalid Client_human_constants.Text.discussion_prompt_required
     else Run_discussion prompt
+  else if trimmed = Client_human_constants.Command.decide then
+    Invalid Client_human_constants.Text.decide_prompt_required
+  else if starts Client_human_constants.Command.decide then
+    let args = tail Client_human_constants.Command.decide in
+    if args = "" then Invalid Client_human_constants.Text.decide_prompt_required
+    else Run_decide args
   else Prompt trimmed
 
 let make_graph_session_id () =
@@ -834,6 +841,64 @@ let rec loop (runtime : Client_runtime.t) state =
               prompt_text
           in
           loop runtime state
+      | Run_decide raw_args ->
+          (match Client_decide.parse_options raw_args with
+           | Error message ->
+               print_endline message;
+               loop runtime state
+           | Ok opts ->
+               let rounds =
+                 Option.value opts.rounds_override
+                   ~default:
+                     runtime.Client_runtime.runtime_config.discussion.rounds
+               in
+               print_blank ();
+               Client_ui.print_section "Verifiable Decision"
+                 [ Fmt.str "topic:   %s" opts.topic;
+                   Fmt.str "rounds:  %d" rounds;
+                   Fmt.str "pattern: %s" opts.pattern_id;
+                   "";
+                   "Running: discussion → L1 consensus → L2 validation → L3 fitness..." ];
+               print_blank ();
+               (match
+                  Lwt_main.run (Client_decide.run runtime opts)
+                with
+                | Error message ->
+                    print_endline message;
+                    loop runtime state
+                | Ok result ->
+                    let consensus_summary =
+                      Orchestration_consensus.outcome_summary
+                        result.Client_decide.consensus_outcome
+                    in
+                    let validation_line =
+                      match result.Client_decide.validation_payload with
+                      | None -> "skipped (no quorum)"
+                      | Some p ->
+                          if Core_payload.is_error p
+                          then Fmt.str "error — %s" (Core_payload.summary p)
+                          else Core_payload.summary p
+                    in
+                    Client_ui.print_section "Decision Result"
+                      [ Fmt.str "decision_id:     %s" result.decision_id;
+                        Fmt.str "consensus:       %s" consensus_summary;
+                        Fmt.str "validation:      %s" validation_line;
+                        Fmt.str "fitness:         %.4f"
+                          (Core_pattern.fitness
+                             result.pattern.Core_pattern.metrics);
+                        Fmt.str "audit_verified:  %b"
+                          result.audit_verified;
+                        Fmt.str "head_hash:       %s"
+                          (Core_audit.head_hash result.audit_chain) ];
+                    print_blank ();
+                    (match Client_decide.write_archive runtime result with
+                     | Error message -> print_endline message
+                     | Ok path ->
+                         Client_ui.print_section
+                           ~style:Client_ui.Style.muted
+                           "Decision Archive" [ path ]);
+                    print_blank ();
+                    loop runtime state))
       | Show_docs topic_opt ->
           print_doc_lines runtime
             (Option.value topic_opt ~default:"general operations");

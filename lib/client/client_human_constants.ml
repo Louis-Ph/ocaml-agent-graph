@@ -14,6 +14,7 @@ module Command = struct
   let run = "/run"
   let graph = "/graph"
   let discussion = "/discussion"
+  let decide = "/decide"
   let docs = "/docs"
   let wizard = "/wizard"
   let ssh_human = "/ssh-human"
@@ -46,6 +47,7 @@ let commands =
     Command.run;
     Command.graph;
     Command.discussion;
+    Command.decide;
     Command.docs;
     Command.wizard;
     Command.ssh_human;
@@ -85,6 +87,7 @@ module Text = struct
       "  /run CMD    execute a local command under the workspace root";
       "  /graph TXT  execute the typed graph directly from this terminal";
       "  /discussion TXT  execute the graph and force the multi-agent discussion path";
+      "  /decide TXT  verifiable decision: discussion → L1 consensus → L2 validation → L3 pattern";
       "  /docs TOPIC show the most relevant local docs for build, test, install, cron, swarm, messenger, ssh, http, or peer";
       "  /wizard TXT run the proactive starter wizard for a concrete goal";
       "  /ssh-human  print the SSH wrapper for the human terminal";
@@ -104,6 +107,7 @@ module Text = struct
       "  test    -> validate with /run opam exec -- dune runtest";
       "  graph   -> use /graph ... to execute the real typed graph from the human terminal";
       "  discussion -> use /discussion ... to run the configured multi-agent discussion workflow";
+      "  decide  -> use /decide TOPIC [--rounds N] [--pattern ID] for a verifiable L0-L3 decision session";
       "  install -> start from ./run.sh or ask /wizard install local human terminal";
       "  cron    -> ask /wizard cron ... so the assistant can propose a safe schedule and commands";
       "  swarm   -> ask /wizard swarm ... and inspect the adaptive webcrawler, HTTP API, or worker mode";
@@ -157,6 +161,8 @@ module Text = struct
   let files_empty = "No file is attached right now."
   let graph_prompt_required = "/graph expects a request to execute."
   let discussion_prompt_required = "/discussion expects a request to execute."
+  let decide_prompt_required =
+    "/decide expects a topic. Example: /decide Should we adopt Rust? --rounds 6"
   let discussion_disabled =
     "The discussion workflow is disabled in the runtime config. Set discussion.enabled=true in config/runtime.json, then retry."
   let goodbye = "Bye."

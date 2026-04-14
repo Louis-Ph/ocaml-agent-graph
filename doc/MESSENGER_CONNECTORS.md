@@ -2,6 +2,23 @@
 
 This document defines the clean hierarchy for messenger-facing clients.
 
+## Quick start
+
+Set a connector token, run one script:
+
+```bash
+printf 'export TELEGRAM_BOT_TOKEN="paste-token-here"\n' >> ~/.bashrc.secrets
+./scripts/start-with-messengers.sh
+```
+
+The script auto-detects every connector token in the environment, generates a
+BulkheadLM gateway config with a `swarm-spokesperson` route, starts both the
+spokesperson server and the BulkheadLM gateway in background, and opens the
+interactive terminal. Point the platform webhook to
+`https://your-public-host/connectors/<name>/webhook`.
+
+On exit, both servers are stopped automatically.
+
 ## Hierarchy
 
 `BulkheadLM` remains the messenger transport and webhook edge.
@@ -67,6 +84,20 @@ In the sibling `bulkhead-lm` gateway config:
 - set `upstream_model` to the `public_model`
 - set `api_key_env` to the same bearer token expected by `ocaml-agent-graph`
 - point the Telegram / WhatsApp / Messenger connector `route_model` to that route
+
+## Automated Wiring
+
+`scripts/start-with-messengers.sh` does all of the above automatically:
+
+1. Scans the environment for connector tokens (Telegram, WhatsApp, Messenger,
+   Instagram, LINE, Viber, WeChat, Discord)
+2. Generates a BulkheadLM gateway config with:
+   - a `swarm-spokesperson` route → `http://127.0.0.1:8087/v1/messenger`
+   - auto-enabled connectors with `route_model: "swarm-spokesperson"`
+3. Starts the spokesperson HTTP server on port 8087
+4. Starts BulkheadLM gateway on port 4100
+5. Opens the interactive terminal
+6. Stops both servers on exit
 
 ## Operational Effect
 

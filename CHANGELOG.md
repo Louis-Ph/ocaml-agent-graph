@@ -15,6 +15,13 @@ Until the first tagged release exists, all shipped history is tracked under
 
 ### Added
 
+- **one-line installer**: `curl -fsSL .../install.sh | sh` clones the repo, installs git and the OCaml toolchain, and launches the human terminal
+- **universal Linux support**: `run.sh` now works on any Linux distro (Debian, Fedora, Arch, Alpine, openSUSE) via auto-detected package manager, not just Ubuntu
+- **auto-pull BulkheadLM**: `./run.sh` fetches and fast-forwards the sibling BulkheadLM checkout to `origin/main` on every run, handling dirty trees and diverged branches
+- **forced recompilation on BulkheadLM changes**: `opam reinstall bulkhead_lm` is triggered automatically when a new revision is detected, preventing stale library code
+- **auto-install git**: if git is missing, the starter installs it via the detected package manager before cloning
+- **one-command messenger stack**: `scripts/start-with-messengers.sh` auto-detects connector tokens (Telegram, WhatsApp, Messenger, Instagram, LINE, Viber, WeChat, Discord), generates a BulkheadLM gateway config, starts both servers, and opens the terminal
+- **default local switch creation**: opam switch prompt now defaults to Y instead of N
 - typed multi-agent graph runtime with explicit routing and orchestration (`98a4d07`)
 - BulkheadLM-backed LLM runtime integration (`3664d45`)
 - procurement-oriented scenario demo packs (`c43bc4e`)

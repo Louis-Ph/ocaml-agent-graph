@@ -21,11 +21,20 @@ wrappers.
 
 ## Development setup
 
-The simplest local path is:
+The simplest path on any machine (Linux, macOS, FreeBSD):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/ocaml-agent-graph/main/install.sh | sh
+```
+
+If you already cloned the repo:
 
 ```sh
-./run.sh --help
+./run.sh
 ```
+
+The starter installs git and opam if needed, clones and auto-updates
+BulkheadLM, and creates a project-local opam switch by default.
 
 For a fully manual path:
 

@@ -36,6 +36,7 @@
   "discussion": {
     "enabled": true,
     "rounds": 21,
+    "max_nesting_depth": 2,
     "final_agent": "summarizer",
     "participants": [
       {

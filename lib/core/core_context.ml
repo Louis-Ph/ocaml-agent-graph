@@ -13,6 +13,8 @@ type event = {
 
 type t = {
   task_id : string;
+  parent_task_id : string option;
+  nesting_depth : int;
   history : Core_message.t list;
   metadata : (string * string) list;
   completed_agents : Agent_set.t;
@@ -23,11 +25,19 @@ type t = {
 let empty ~task_id ~metadata =
   {
     task_id;
+    parent_task_id = None;
+    nesting_depth = 0;
     history = [];
     metadata;
     completed_agents = Agent_set.empty;
     events = [];
     step_count = 0;
+  }
+
+let child_context context ~child_task_id =
+  { (empty ~task_id:child_task_id ~metadata:context.metadata) with
+    parent_task_id = Some context.task_id;
+    nesting_depth = context.nesting_depth + 1;
   }
 
 let add_message context message =

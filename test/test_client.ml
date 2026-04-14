@@ -781,6 +781,7 @@ let test_terminal_prepare_discussion_request_keeps_session_and_attachments () =
         {
           Config.Runtime.Discussion.enabled = true;
           rounds = 2;
+          max_nesting_depth = 0;
           final_agent = Core.Agent_name.Summarizer;
           participants = [];
         };
@@ -843,6 +844,7 @@ let test_terminal_discussion_archive_writes_markdown_file () =
             {
               Config.Runtime.Discussion.enabled = true;
               rounds = 2;
+              max_nesting_depth = 0;
               final_agent = Core.Agent_name.Summarizer;
               participants =
                 [

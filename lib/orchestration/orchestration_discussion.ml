@@ -199,6 +199,7 @@ let discussion_of_payload
           Core_payload.topic;
           agenda;
           turns = [];
+          sub_discussions = [];
           completed_rounds = 0;
           max_rounds = config.rounds;
         }
@@ -351,8 +352,31 @@ let invoke_participant
              turn);
         Lwt.return (Turn_produced turn, context)
 
-let run_round
+let sub_discussion_marker = "[SUB_DISCUSSION:"
+
+let extract_sub_topic content =
+  let open_marker = sub_discussion_marker in
+  let rec scan pos =
+      if pos >= String.length content then None
+      else
+        let remaining = String.sub content pos (String.length content - pos) in
+        let marker_len = String.length open_marker in
+        if String.length remaining >= marker_len
+           && String.sub remaining 0 marker_len = open_marker
+        then
+          let after_marker = String.sub remaining marker_len (String.length remaining - marker_len) in
+          (match String.index_opt after_marker ']' with
+           | Some close_pos ->
+             let topic = String.trim (String.sub after_marker 0 close_pos) in
+             if topic = "" then None else Some topic
+           | None -> None)
+        else scan (pos + 1)
+    in
+    scan 0
+
+let rec run_round
     ~(services : Runtime_services.t)
+    ~(config : Runtime_config.t)
     ~(participants : Runtime_config.Discussion.Participant.t list)
     ~(round_index : int)
     context
@@ -379,9 +403,92 @@ let run_round
              let discussion =
                { discussion with turns = discussion.turns @ [ turn ] }
              in
+             (* Detect sub-discussion requests *)
+             let* discussion =
+               if config.discussion.max_nesting_depth <= context.Core_context.nesting_depth
+               then Lwt.return discussion
+               else
+                 match extract_sub_topic turn.content with
+                 | None -> Lwt.return discussion
+                 | Some sub_topic ->
+                   Runtime_logger.log
+                     Runtime_logger.Info
+                     (Fmt.str "Spawning sub-discussion: %s (requested by %s)" sub_topic turn.speaker);
+                   let child_task_id =
+                     Fmt.str "%s/sub-%d-%s" context.task_id round_index turn.speaker
+                   in
+                   let child_context =
+                     Core_context.child_context context ~child_task_id
+                   in
+                   let sub_plan = Core_payload.Plan [ sub_topic ] in
+                   let* sub_payload, _sub_context =
+                     run_sub
+                       ~services
+                       ~config
+                       child_context
+                       sub_plan
+                   in
+                   let sub_disc =
+                     match sub_payload with
+                     | Core_payload.Discussion d -> d
+                     | _ ->
+                       { Core_payload.topic = sub_topic
+                       ; agenda = [ sub_topic ]
+                       ; turns = []
+                       ; sub_discussions = []
+                       ; completed_rounds = 0
+                       ; max_rounds = 0
+                       }
+                   in
+                   let sub_entry =
+                     { Core_payload.sub_topic
+                     ; spawned_by = turn.speaker
+                     ; spawned_at_round = round_index
+                     ; discussion = sub_disc
+                     }
+                   in
+                   Lwt.return
+                     { discussion with
+                       sub_discussions = discussion.sub_discussions @ [ sub_entry ]
+                     }
+             in
              loop context discussion (produced_turn_count + 1) rest)
   in
   loop context discussion 0 participants
+
+and run_sub ~services ~config context payload =
+  (* Recursive sub-discussion with the same participants but a nested context *)
+  match discussion_of_payload config.Runtime_config.discussion context payload with
+  | Error message -> Lwt.return (Core_payload.Error message, context)
+  | Ok discussion when not config.discussion.enabled ->
+    Lwt.return (Core_payload.Discussion discussion, context)
+  | Ok discussion ->
+    let rec sub_loop context (discussion : Core_payload.discussion) round_index =
+      if round_index > discussion.max_rounds
+      then Lwt.return (Core_payload.Discussion discussion, context)
+      else
+        let* round_status, discussion, context, turn_count =
+          run_round
+            ~services
+            ~config
+            ~participants:config.discussion.participants
+            ~round_index
+            context
+            discussion
+        in
+        let discussion = { discussion with completed_rounds = round_index } in
+        let context =
+          Core_context.record_discussion_round context ~round_index ~turn_count
+        in
+        match round_status with
+        | `Budget_exhausted _ ->
+          Lwt.return (Core_payload.Discussion discussion, context)
+        | `Ok ->
+          if turn_count = 0
+          then Lwt.return (Core_payload.Discussion discussion, context)
+          else sub_loop context discussion (round_index + 1)
+    in
+    sub_loop context discussion 1
 
 let warn_unready_participant_routes
     (llm_client : Llm_bulkhead_client.t)
@@ -461,6 +568,7 @@ let run
           let* round_status, discussion, context, turn_count =
             run_round
               ~services
+              ~config
               ~participants:config.discussion.participants
               ~round_index
               context

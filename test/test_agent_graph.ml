@@ -101,6 +101,7 @@ let make_discussion_config () =
   {
     Config.Runtime.Discussion.enabled = true;
     rounds = 2;
+    max_nesting_depth = 0;
     final_agent = Core.Agent_name.Summarizer;
     participants =
       [

@@ -81,6 +81,7 @@ module Discussion = struct
   type t = {
     enabled : bool;
     rounds : int;
+    max_nesting_depth : int;
     final_agent : Core_agent_name.t;
     participants : Participant.t list;
   }
@@ -89,6 +90,7 @@ module Discussion = struct
     {
       enabled = false;
       rounds = 2;
+      max_nesting_depth = 0;
       final_agent = Core_agent_name.Summarizer;
       participants = [];
     }
@@ -422,6 +424,12 @@ let parse_discussion ~base_dir json =
     |> to_int_option
     |> Option.value ~default:Discussion.disabled.rounds
   in
+  let max_nesting_depth =
+    json
+    |> member "max_nesting_depth"
+    |> to_int_option
+    |> Option.value ~default:Discussion.disabled.max_nesting_depth
+  in
   let final_agent =
     json
     |> member "final_agent"
@@ -466,6 +474,7 @@ let parse_discussion ~base_dir json =
           {
             Discussion.enabled;
             rounds;
+            max_nesting_depth;
             final_agent;
             participants;
           }

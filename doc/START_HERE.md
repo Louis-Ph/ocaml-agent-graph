@@ -72,9 +72,23 @@ topic
 
 ## How To Run It
 
-Open a terminal in this project folder.
+Copy-paste this into a terminal and press ENTER:
 
-Then run:
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/ocaml-agent-graph/main/install.sh | sh
+```
+
+If your machine only has wget:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/Louis-Ph/ocaml-agent-graph/main/install.sh | sh
+```
+
+That single command does everything: installs git if needed, clones the project
+and BulkheadLM, installs the OCaml build tools, and opens the human terminal.
+Press ENTER at every question to accept the defaults.
+
+If you already have the repo cloned, just run:
 
 ```sh
 ./run.sh
@@ -82,9 +96,9 @@ Then run:
 
 The starter script:
 
-- prepares an `opam` environment if needed
-- clones `../bulkhead-lm` automatically if it is missing
-- pins the local `bulkhead_lm` dependency
+- works on any Linux (Debian, Fedora, Arch, Alpine ...), macOS, and FreeBSD
+- installs git and opam automatically if missing
+- clones BulkheadLM automatically if missing, and updates it to the latest version on every run
 - builds the human terminal client
 - opens the human terminal directly
 

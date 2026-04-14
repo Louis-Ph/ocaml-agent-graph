@@ -181,20 +181,38 @@ All layers are accessible after `open Agent_graph`:
 
 See [`docs/swarm-layers.md`](docs/swarm-layers.md) for the full API reference and usage examples.
 
-## Build
+## Quick start
 
-```sh
+The fastest path on any machine (Linux, macOS, FreeBSD):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/ocaml-agent-graph/main/install.sh | sh
+```
+
+or with wget:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/Louis-Ph/ocaml-agent-graph/main/install.sh | sh
+```
+
+That single command installs git if needed, clones the repo and BulkheadLM,
+installs the OCaml toolchain, and launches the human terminal. Press ENTER
+through every prompt to accept the defaults.
+
+If you already cloned the repo:
+
+```bash
 ./run.sh
 ```
 
 The starter:
 
-- checks the active `opam` switch first
-- offers a project-local fallback switch in `./_opam` when needed
-- auto-clones `../bulkhead-lm` if the sibling checkout is missing
-- pins `bulkhead_lm`, installs dependencies, builds the human terminal client, and launches it
-- keeps SSH and HTTP bootstrap entrypoints ready for multi-machine rollout
-- reuses provider keys from your usual shell secret files and `~/.config/bulkhead-lm/env`
+- works on any Linux distro (Debian, Fedora, Arch, Alpine, openSUSE ...), macOS, and FreeBSD
+- installs git and opam automatically via the detected package manager
+- clones BulkheadLM as a sibling if missing, and auto-pulls the latest version on every run
+- recompiles the BulkheadLM dependency when a new version is detected
+- creates a project-local opam switch by default when the active toolchain is not coherent
+- reuses provider API keys from `~/.bashrc.secrets`, `~/.zshrc.secrets`, and `~/.config/bulkhead-lm/env`
 
 If you want the manual path instead:
 
@@ -266,11 +284,11 @@ The `/decide` command runs a full verifiable decision session:
 
 ## Demo
 
-```sh
-./run.sh
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/ocaml-agent-graph/main/install.sh | sh
 ```
 
-This starts the human terminal client directly.
+This installs everything and starts the human terminal client directly.
 
 For the typed demo binary:
 

@@ -124,18 +124,36 @@ program with `open Agent_graph`:
 
 Full API reference: [`docs/swarm-layers.md`](docs/swarm-layers.md).
 
-## Messenger spokesperson
+## Chat from Telegram, WhatsApp, or any messenger
 
-Each client config can expose a swarm spokesperson through an
-OpenAI-compatible endpoint:
+One command starts the entire messenger stack: the swarm spokesperson server,
+the BulkheadLM gateway with auto-detected connectors, and the interactive
+terminal.
 
-- `POST /v1/messenger/chat/completions`
-- `GET /v1/messenger/models`
+1. Set your platform token:
 
-BulkheadLM owns the chat connectors (Telegram, WhatsApp, Messenger, Discord,
-etc.). ocaml-agent-graph executes the swarm and returns one spokesperson reply.
+```bash
+printf 'export TELEGRAM_BOT_TOKEN="paste-token-here"\n' >> ~/.bashrc.secrets
+```
 
-Details: [`doc/MESSENGER_CONNECTORS.md`](doc/MESSENGER_CONNECTORS.md).
+2. Run:
+
+```bash
+./scripts/start-with-messengers.sh
+```
+
+3. Point Telegram's webhook to `https://your-public-host/connectors/telegram/webhook`.
+4. Send a message to your bot. The full AI swarm answers.
+
+The script auto-detects every connector token in your environment (Telegram,
+WhatsApp, Messenger, Instagram, LINE, Viber, WeChat, Discord), generates a
+BulkheadLM gateway config with a `swarm-spokesperson` route, starts both
+servers, and opens the terminal. On exit, both servers are stopped.
+
+Works with any combination of connectors. Set more tokens, they appear
+automatically.
+
+Architecture: [`doc/MESSENGER_CONNECTORS.md`](doc/MESSENGER_CONNECTORS.md).
 
 ## Multi-machine
 

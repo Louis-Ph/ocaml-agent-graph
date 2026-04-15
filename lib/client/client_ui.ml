@@ -116,13 +116,19 @@ let print_section_verbatim ?style title lines =
   in
   List.iter emit lines
 
-(* ANSI codes wrapped with \001/\002 so linenoise counts them as zero-width.
-   Use only for prompt strings passed to LNoise.linenoise. *)
+(* Prompt module for linenoise.
+   OCaml linenoise 1.5.x does not honor \001/\002 zero-width markers,
+   so ANSI codes in the prompt string shift the cursor to the right.
+   The workaround: print the colored prompt manually to stdout, then
+   pass an empty string to linenoise as the prompt. *)
 module Prompt = struct
-  let paint code text =
+  let colored_prompt text =
     if supports_color () then
-      Fmt.str "\001\027[%sm\002%s\001\027[0m\002" code text
+      Fmt.str "\027[1;32m%s\027[0m" text
     else text
 
-  let bold_green text = paint "1;32" text
+  let emit_and_plain text =
+    print_string (colored_prompt text);
+    flush stdout;
+    ""
 end

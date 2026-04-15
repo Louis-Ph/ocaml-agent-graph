@@ -718,7 +718,7 @@ let run_assistant_request runtime state ~request_kind prompt_text =
 
 let rec loop (runtime : Client_runtime.t) state =
   update_terminal_context runtime;
-  let prompt = Client_ui.Prompt.bold_green (Fmt.str "%s> " state.active_route_model) in
+  let prompt = Client_ui.Prompt.emit_and_plain (Fmt.str "%s> " state.active_route_model) in
   match
     Bulkhead_lm.Starter_terminal.read_line ~record_history:true ~prompt ()
   with

@@ -1,0 +1,47 @@
+{
+  "graph_runtime_path": "runtime.ollama.json",
+  "assistant": {
+    "route_model": "qwen3-4b-local",
+    "system_prompt_file": "prompts/graph_terminal_assistant.md",
+    "max_tokens": 500
+  },
+  "messenger_spokesperson": {
+    "public_model": "swarm-spokesperson",
+    "route_model": "qwen3-4b-local",
+    "system_prompt_file": "prompts/swarm_messenger_spokesperson.md",
+    "max_tokens": 400,
+    "authorization_token_env": "AGENT_GRAPH_MESSENGER_TOKEN"
+  },
+  "local_ops": {
+    "workspace_root": "..",
+    "max_read_bytes": 32000,
+    "max_exec_output_bytes": 12000,
+    "command_timeout_ms": 10000
+  },
+  "human_terminal": {
+    "show_routes_on_start": false,
+    "conversation_keep_turns": 8
+  },
+  "machine_terminal": {
+    "worker_jobs": 4
+  },
+  "transport": {
+    "ssh": {
+      "human_remote_command": "scripts/remote_human_terminal.sh --client-config config/client.ollama.json",
+      "machine_remote_command": "scripts/remote_machine_terminal.sh --client-config config/client.ollama.json --jobs 4",
+      "install_emit_command": "scripts/remote_install.sh --emit-installer --origin user@host"
+    },
+    "http": {
+      "workflow": {
+        "base_url": "http://127.0.0.1:8087",
+        "server_command": "scripts/http_machine_server.sh --client-config config/client.ollama.json --port 8087"
+      },
+      "distribution": {
+        "base_url": "http://127.0.0.1:8788",
+        "server_command": "scripts/http_dist_server.sh --public-base-url http://127.0.0.1:8788",
+        "install_url": "http://127.0.0.1:8788/install.sh",
+        "archive_url": "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz"
+      }
+    }
+  }
+}

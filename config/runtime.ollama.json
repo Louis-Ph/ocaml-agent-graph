@@ -1,0 +1,91 @@
+{
+  "engine": {
+    "timeout_seconds": 60.0,
+    "retry_attempts": 2,
+    "retry_backoff_seconds": 0.5,
+    "max_steps": 8
+  },
+  "routing": {
+    "long_text_threshold": 96,
+    "short_text_agent": "summarizer",
+    "planner_agent": "planner",
+    "parallel_agents": ["summarizer", "validator"]
+  },
+  "llm": {
+    "gateway_config_path": "../../bulkhead-lm/config/example.ollama_swarm.gateway.json",
+    "authorization_token_plaintext": "sk-bulkhead-lm-dev",
+    "planner": {
+      "route_model": "qwen3-4b-local",
+      "system_prompt": "You are the planning agent inside a typed OCaml orchestration graph. Convert a request into a short, concrete plan. Be direct and structured.",
+      "max_tokens": 300,
+      "confidence": 0.80
+    },
+    "summarizer": {
+      "route_model": "qwen3-4b-local",
+      "system_prompt": "You are the summarizer agent inside a typed OCaml orchestration graph. Compress the payload into a short, accurate summary with no filler.",
+      "max_tokens": 400,
+      "confidence": 0.75
+    },
+    "validator": {
+      "route_model": "qwen3-4b-local",
+      "system_prompt": "You are the validator agent inside a typed OCaml orchestration graph. Check whether the payload is coherent, complete enough, and safe to pass forward. Answer compactly.",
+      "max_tokens": 300,
+      "confidence": 0.80
+    }
+  },
+  "discussion": {
+    "enabled": true,
+    "rounds": 5,
+    "max_nesting_depth": 1,
+    "final_agent": "summarizer",
+    "participants": [
+      {
+        "name": "architect",
+        "route_model": "swarm-lead",
+        "max_tokens": 300,
+        "confidence": 0.80,
+        "persona": {
+          "version": "architect-persona-v1",
+          "file_path": "discussion/personas/architect.v1.md"
+        },
+        "rules": {
+          "version": "architect-rules-v1",
+          "file_path": "discussion/rules/architect.v1.md"
+        }
+      },
+      {
+        "name": "critic",
+        "route_model": "swarm-critic",
+        "max_tokens": 300,
+        "confidence": 0.85,
+        "persona": {
+          "version": "critic-persona-v1",
+          "file_path": "discussion/personas/critic.v1.md"
+        },
+        "rules": {
+          "version": "critic-rules-v1",
+          "file_path": "discussion/rules/critic.v1.md"
+        }
+      },
+      {
+        "name": "implementer",
+        "route_model": "swarm-worker",
+        "max_tokens": 300,
+        "confidence": 0.75,
+        "persona": {
+          "version": "implementer-persona-v1",
+          "file_path": "discussion/personas/implementer.v1.md"
+        },
+        "rules": {
+          "version": "implementer-rules-v1",
+          "file_path": "discussion/rules/implementer.v1.md"
+        }
+      }
+    ]
+  },
+  "memory_policy_path": "memory_policy.json",
+  "demo": {
+    "task_id": "ollama-test-001",
+    "input": "Design a modular OCaml multi-agent runtime with typed state transitions."
+  }
+}

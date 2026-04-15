@@ -1,8 +1,8 @@
 {
   "engine": {
-    "timeout_seconds": 60.0,
-    "retry_attempts": 2,
-    "retry_backoff_seconds": 0.5,
+    "timeout_seconds": 180.0,
+    "retry_attempts": 4,
+    "retry_backoff_seconds": 2.0,
     "max_steps": 8
   },
   "routing": {

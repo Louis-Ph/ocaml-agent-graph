@@ -41,7 +41,7 @@
     "participants": [
       {
         "name": "architect",
-        "route_model": "qwen3-4b-local",
+        "route_model": "llama3.2-1b-local",
         "max_tokens": 300,
         "confidence": 0.80,
         "persona": {

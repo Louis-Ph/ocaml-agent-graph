@@ -2,9 +2,11 @@ open Lwt.Infix
 
 module Defaults = struct
   let summary_word_budget = 18
+  let discussion_summary_word_budget = 140
 end
 
 let id = Core_agent_name.Summarizer
+let discussion_converged_marker = "[DISCUSSION_CONVERGED]"
 
 let normalize_words text =
   text
@@ -34,28 +36,93 @@ let summarize_plan steps =
   |> List.mapi (fun index step -> Fmt.str "%d) %s" (index + 1) step)
   |> String.concat " | "
 
+let strip_convergence_marker text =
+  let trimmed = String.trim text in
+  let marker_length = String.length discussion_converged_marker in
+  if String.length trimmed >= marker_length
+     && String.sub trimmed 0 marker_length = discussion_converged_marker
+  then
+    String.sub trimmed marker_length (String.length trimmed - marker_length)
+    |> String.trim
+  else trimmed
+
+let meta_summary_markers =
+  [ "we are given"
+  ; "the payload"
+  ; "the transcript"
+  ; "the task is"
+  ; "round 1"
+  ; "round 2"
+  ; "word count"
+  ; "the user asked"
+  ; "history of the conversation"
+  ]
+
+let contains_substring ~substring value =
+  let substring_length = String.length substring in
+  let value_length = String.length value in
+  let rec loop index =
+    if index + substring_length > value_length then false
+    else if String.sub value index substring_length = substring then true
+    else loop (index + 1)
+  in
+  if substring_length = 0 then true else loop 0
+
+let looks_like_meta_summary text =
+  let lowered = String.lowercase_ascii text in
+  List.exists (fun marker -> contains_substring ~substring:marker lowered) meta_summary_markers
+
+let sanitized_discussion (discussion : Core_payload.discussion) =
+  let sanitize_turn (turn : Core_payload.discussion_turn) =
+    { turn with content = strip_convergence_marker turn.content }
+  in
+  { discussion with turns = List.map sanitize_turn discussion.turns }
+
+let discussion_llm_instruction (discussion : Core_payload.discussion) =
+  let discussion =
+    sanitized_discussion discussion
+  in
+  Fmt.str
+    "You are the final synthesizer for a structured discussion.\nAnswer the discussion topic directly using the agenda and transcript below.\nDo not mention the payload, transcript, rounds, participants, or internal workflow unless strictly necessary.\nIf the discussion is inconclusive, say what remains uncertain and what must be verified next.\nKeep the answer under %d words. No headings.\n\n%s"
+    Defaults.discussion_summary_word_budget
+    (Core_payload.to_pretty_string (Core_payload.Discussion discussion))
+
 let summarize_discussion (discussion : Core_payload.discussion) =
+  let discussion =
+    sanitized_discussion discussion
+  in
   let agenda_summary =
     match discussion.agenda with
     | [] -> "no explicit agenda"
     | steps -> summarize_plan steps
   in
-  let recent_turns =
-    discussion.turns
-    |> List.rev
-    |> take 2
-    |> List.rev
-    |> List.map (fun (turn : Core_payload.discussion_turn) ->
-           Fmt.str "%s: %s" turn.speaker turn.content)
-    |> String.concat " | "
+  let preferred_conclusion =
+    let last_turn_by_speaker speaker =
+      discussion.turns
+      |> List.rev
+      |> List.find_map (fun (turn : Core_payload.discussion_turn) ->
+             if String.equal turn.speaker speaker
+             then Some (String.trim turn.content)
+             else None)
+    in
+    match
+      last_turn_by_speaker "implementer",
+      last_turn_by_speaker "architect",
+      last_turn_by_speaker "critic"
+    with
+    | Some text, _, _ when text <> "" -> Some text
+    | _, Some text, _ when text <> "" -> Some text
+    | _, _, Some text when text <> "" -> Some text
+    | _ ->
+        discussion.turns
+        |> List.rev
+        |> List.find_map (fun (turn : Core_payload.discussion_turn) ->
+               let text = String.trim turn.content in
+               if text = "" then None else Some text)
   in
-  if recent_turns = ""
-  then Fmt.str "Discussion agenda: %s." agenda_summary
-  else
-    Fmt.str
-      "Discussion agenda: %s. Latest contributions: %s"
-      agenda_summary
-      recent_turns
+  match preferred_conclusion with
+  | Some text -> summarize_text text
+  | None -> Fmt.str "Discussion topic: %s. Agenda: %s." discussion.topic agenda_summary
 
 let llm_instruction payload =
   Fmt.str
@@ -162,13 +229,14 @@ let run services context = function
         ~profile
         ~context
         ~payload
-        ~instruction:(llm_instruction payload)
+        ~instruction:(discussion_llm_instruction discussion)
       >|= (function
        | Ok completion ->
            let summary =
              match String.trim completion.content with
              | "" -> summarize_discussion discussion
-             | content -> content
+             | content when looks_like_meta_summary content -> summarize_discussion discussion
+             | content -> strip_convergence_marker content
            in
            let metrics, notes = llm_metrics profile completion in
            Core_payload.Text ("Summary: " ^ summary), metrics, notes

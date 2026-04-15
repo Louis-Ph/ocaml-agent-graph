@@ -545,6 +545,237 @@ let test_discussion_prompt_includes_versioned_persona_and_rules () =
     true
     (contains_substring ~substring:"Rules (version rules-v2)" rendered)
 
+let test_discussion_prompt_uses_local_word_budget_for_local_routes () =
+  let discussion =
+    {
+      Core.Payload.topic = "topic";
+      agenda = [ "step" ];
+      turns = [];
+      sub_discussions = [];
+      completed_rounds = 0;
+      max_rounds = 2;
+    }
+  in
+  let context = Core.Context.empty ~task_id:"test-task" ~metadata:[] in
+  let local_participant : Config.Runtime.Discussion.Participant.t =
+    {
+      name = "architect";
+      profile =
+        {
+          Config.Runtime.Llm.Agent_profile.route_model = "qwen3-4b-local";
+          system_prompt = "prompt";
+          max_tokens = Some 96;
+          confidence = 0.9;
+        };
+      persona = None;
+      rules = None;
+    }
+  in
+  let remote_participant : Config.Runtime.Discussion.Participant.t =
+    { local_participant with
+      profile =
+        { local_participant.profile with
+          Config.Runtime.Llm.Agent_profile.route_model = "claude-sonnet"
+        }
+    }
+  in
+  let local_messages =
+    Orchestration.Discussion.Prompt_templates.build_messages
+      ~participant:local_participant
+      ~context
+      ~discussion
+      ~round_index:1
+  in
+  let remote_messages =
+    Orchestration.Discussion.Prompt_templates.build_messages
+      ~participant:remote_participant
+      ~context
+      ~discussion
+      ~round_index:1
+  in
+  let local_user_message = List.nth local_messages 1 in
+  let remote_user_message = List.nth remote_messages 1 in
+  Alcotest.(check bool)
+    "local routes get a larger budget"
+    true
+    (contains_substring
+       ~substring:"stay under 500 words"
+       (String.lowercase_ascii local_user_message.content));
+  Alcotest.(check bool)
+    "remote routes keep the default budget"
+    true
+    (contains_substring
+       ~substring:"stay under 120 words"
+       (String.lowercase_ascii remote_user_message.content))
+
+let test_discussion_convergence_requires_explicit_marker_after_round_one () =
+  let turn speaker round_index content =
+    {
+      Core.Payload.speaker;
+      round_index;
+      content;
+      metrics = Core.Payload.zero_metrics;
+      notes = [];
+    }
+  in
+  let discussion =
+    {
+      Core.Payload.topic = "topic";
+      agenda = [ "step" ];
+      turns =
+        [
+          turn "architect" 1 "Do not emit [DISCUSSION_CONVERGED] yet.";
+          turn "critic" 1 "The transcript merely mentions [DISCUSSION_CONVERGED] as a marker.";
+          turn "implementer" 1 "Still debating the design.";
+          turn "architect" 2 "[DISCUSSION_CONVERGED] The design is stable enough to close.";
+          turn "critic" 2 "[DISCUSSION_CONVERGED] Main objections have been addressed.";
+          turn "implementer" 2 "One follow-up remains, but the direction is usable.";
+        ];
+      sub_discussions = [];
+      completed_rounds = 0;
+      max_rounds = 5;
+    }
+  in
+  Alcotest.(check bool)
+    "body mention does not converge round 1"
+    false
+    (Orchestration.Discussion.round_has_converged
+       discussion
+       ~round_index:1
+       ~participant_count:3);
+  Alcotest.(check bool)
+    "majority explicit marker converges at round 2"
+    true
+    (Orchestration.Discussion.round_has_converged
+       discussion
+       ~round_index:2
+       ~participant_count:3)
+
+let test_discussion_summary_falls_back_when_llm_returns_meta_commentary () =
+  let discussion =
+    {
+      Core.Payload.topic =
+        "Can the graph add web and document validation with adaptive detail?";
+      agenda =
+        [
+          "Assess feasibility";
+          "Define the validation pipeline";
+          "Name the first safe implementation slice";
+        ];
+      turns =
+        [
+          {
+            Core.Payload.speaker = "architect";
+            round_index = 1;
+            content =
+              "Add a validation layer with evidence sources, a confidence score, and typed checkpoints.";
+            metrics = Core.Payload.zero_metrics;
+            notes = [];
+          };
+          {
+            Core.Payload.speaker = "critic";
+            round_index = 1;
+            content =
+              "Track provenance, freshness, and fallback behavior or the confidence score will be misleading.";
+            metrics = Core.Payload.zero_metrics;
+            notes = [];
+          };
+          {
+            Core.Payload.speaker = "implementer";
+            round_index = 1;
+            content =
+              "Start with a typed evidence record, a confidence updater, and one bounded web/document fetch path.";
+            metrics = Core.Payload.zero_metrics;
+            notes = [];
+          };
+        ];
+      sub_discussions = [];
+      completed_rounds = 1;
+      max_rounds = 5;
+    }
+  in
+  let services =
+    make_services
+      [
+        ( "summarizer-model",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"summarizer-model"
+               ~content:
+                 "We are given a transcript and the task is to summarize the payload and rounds."
+               ()) );
+      ]
+  in
+  let context = Core.Context.empty ~task_id:"test-task" ~metadata:[] in
+  let payload, _metrics, _notes =
+    Lwt_main.run
+      (Agents.Summarizer.run
+         services
+         context
+         (Core.Payload.Discussion discussion))
+  in
+  match payload with
+  | Core.Payload.Text summary ->
+      Alcotest.(check string)
+        "meta commentary replaced by discussion fallback"
+        "Summary: Start with a typed evidence record, a confidence updater, and one bounded web/document fetch path."
+        summary
+  | _ -> Alcotest.fail "Expected a summarized discussion payload"
+
+let test_discussion_turn_sanitizer_drops_meta_preamble () =
+  let participant : Config.Runtime.Discussion.Participant.t =
+    {
+      name = "implementer";
+      profile =
+        {
+          Config.Runtime.Llm.Agent_profile.route_model = "qwen3-4b-local";
+          system_prompt = "system prompt";
+          max_tokens = Some 96;
+          confidence = 0.9;
+        };
+      persona =
+        Some
+          {
+            Config.Runtime.Discussion.Versioned_text.version = "persona-v1";
+            text =
+              "Focus on technical implementation slices, interfaces, data flow, validation strategy, and test plan over vague advice.";
+            source_path = None;
+          };
+      rules = None;
+    }
+  in
+  let raw =
+    "We are in Round 2 of a 5-round discussion.\n\
+     Background:\n\
+     Focus on technical implementation slices, interfaces, data flow, validation strategy, and test plan over vague advice.\n\
+     - The architect proposed a verification pass.\n\
+     My role is to challenge assumptions.\n\
+     Add a typed evidence record.\n\
+     Track provenance and freshness.\n\
+     Define how confidence is updated."
+  in
+  let normalized =
+    Orchestration.Discussion.normalize_contribution_content ~participant raw
+  in
+  Alcotest.(check bool)
+    "meta round line removed"
+    false
+    (contains_substring ~substring:"We are in Round 2" normalized);
+  Alcotest.(check bool)
+    "meta role line removed"
+    false
+    (contains_substring ~substring:"My role is" normalized);
+  Alcotest.(check bool)
+    "guidance echo removed"
+    false
+    (contains_substring
+       ~substring:"Focus on technical implementation slices"
+       normalized);
+  Alcotest.(check bool)
+    "substantive line kept"
+    true
+    (contains_substring ~substring:"Add a typed evidence record." normalized)
+
 let make_memory_config sqlite_path =
   {
     Config.Runtime.Memory.enabled = true;
@@ -1341,6 +1572,22 @@ let () =
             "includes versioned persona and rules in discussion prompt"
             `Quick
             test_discussion_prompt_includes_versioned_persona_and_rules;
+          Alcotest.test_case
+            "uses a larger word budget for local discussion routes"
+            `Quick
+            test_discussion_prompt_uses_local_word_budget_for_local_routes;
+          Alcotest.test_case
+            "requires an explicit convergence marker after round one"
+            `Quick
+            test_discussion_convergence_requires_explicit_marker_after_round_one;
+          Alcotest.test_case
+            "falls back when discussion summary becomes meta commentary"
+            `Quick
+            test_discussion_summary_falls_back_when_llm_returns_meta_commentary;
+          Alcotest.test_case
+            "drops meta preamble from discussion turns"
+            `Quick
+            test_discussion_turn_sanitizer_drops_meta_preamble;
           Alcotest.test_case
             "loads discussion workflow config"
             `Quick

@@ -83,7 +83,19 @@ module Live_output = struct
 end
 
 module Prompt_templates = struct
-  let max_contribution_words = 120
+  let default_max_contribution_words = 120
+  let local_max_contribution_words = 500
+  let convergence_marker = "[DISCUSSION_CONVERGED]"
+
+  let is_local_route_model route_model =
+    String.ends_with ~suffix:"-local" route_model
+
+  let max_contribution_words_for_participant
+      (participant : Runtime_config.Discussion.Participant.t)
+    =
+    if is_local_route_model participant.profile.route_model
+    then local_max_contribution_words
+    else default_max_contribution_words
 
   let versioned_block label = function
     | None -> None
@@ -111,14 +123,6 @@ module Prompt_templates = struct
            | Some rendered -> Some rendered)
     |> String.concat "\n\n"
 
-  let render_metadata metadata =
-    match metadata with
-    | [] -> "none"
-    | _ ->
-        metadata
-        |> List.map (fun (key, value) -> Fmt.str "%s=%s" key value)
-        |> String.concat ", "
-
   let render_agenda agenda =
     match agenda with
     | [] -> "none"
@@ -142,10 +146,13 @@ module Prompt_templates = struct
 
   let build_messages
       ~(participant : Runtime_config.Discussion.Participant.t)
-      ~(context : Core_context.t)
+      ~context:(_context : Core_context.t)
       ~(discussion : Core_payload.discussion)
-      ~round_index
+      ~round_index:_
     =
+    let max_contribution_words =
+      max_contribution_words_for_participant participant
+    in
     let system_message : Bulkhead_lm.Openai_types.message =
       {
         role = "system";
@@ -157,16 +164,13 @@ module Prompt_templates = struct
         role = "user";
         content =
           Fmt.str
-            "Participant: %s\nTask ID: %s\nMetadata: %s\nRound: %d/%d\n\nDiscussion topic:\n%s\n\nAgenda:\n%s\n\nTranscript so far:\n%s\n\nInstruction:\nAdd one compact contribution that moves the discussion forward. Build on the existing transcript when useful, avoid repeating earlier points, stay under %d words, and do not narrate the meta-process."
+            "Role:\n%s\n\nDiscussion topic:\n%s\n\nAgenda:\n%s\n\nTranscript so far:\n%s\n\nOutput contract:\n- Add one new contribution that moves the discussion forward.\n- Return only the contribution itself.\n- Prefer 1 short paragraph or up to 3 short bullets.\n- Do not restate the role, topic header, agenda header, transcript header, or workflow.\n- Do not write phrases such as \"we are in round\", \"the user asked\", or \"the transcript shows\".\n- Build on the existing transcript when useful and add new substance.\n- Stay under %d words.\n- Only emit %s as the very first token when you independently judge the discussion materially settled; otherwise never emit that marker."
             participant.name
-            context.task_id
-            (render_metadata context.metadata)
-            round_index
-            discussion.max_rounds
             discussion.topic
             (render_agenda discussion.agenda)
             (render_transcript discussion.turns)
-            max_contribution_words;
+            max_contribution_words
+            convergence_marker;
       }
     in
     [ system_message; user_message ]
@@ -244,6 +248,200 @@ let is_budget_exhausted message =
   String.length message >= plen
   && String.sub message 0 plen = prefix
 
+let has_leading_convergence_marker content =
+  let marker = String.lowercase_ascii Prompt_templates.convergence_marker in
+  let trimmed = String.trim content in
+  let first_line =
+    match String.split_on_char '\n' trimmed with
+    | [] -> ""
+    | line :: _ -> String.trim line
+  in
+  let lowered = String.lowercase_ascii first_line in
+  let marker_length = String.length marker in
+  let next_index = marker_length in
+  String.length lowered >= marker_length
+  && String.sub lowered 0 marker_length = marker
+  &&
+  (next_index = String.length lowered
+   ||
+   match lowered.[next_index] with
+   | ' ' | ':' | '-' | '.' -> true
+   | _ -> false)
+
+let meta_line_prefixes =
+  [ "we are in"
+  ; "we're in"
+  ; "the task is"
+  ; "the user's request"
+  ; "the user request"
+  ; "translation:"
+  ; "background:"
+  ; "key background:"
+  ; "key context:"
+  ; "my role"
+  ; "our job"
+  ; "the critic's role"
+  ; "the architect's role"
+  ; "the implementer's role"
+  ; "the transcript so far"
+  ; "the transcript shows"
+  ; "current direction"
+  ; "current focus:"
+  ; "from the context"
+  ; "given the rules"
+  ; "let me analyze"
+  ; "what we have:"
+  ; "the critic must"
+  ; "the implementer must"
+  ; "the architect has"
+  ; "as the critic"
+  ; "as the implementer"
+  ; "as the architect"
+  ]
+
+let starts_with_any_prefix prefixes value =
+  List.exists (fun prefix -> String.starts_with ~prefix value) prefixes
+
+let contains_substring ~substring value =
+  let substring_length = String.length substring in
+  let value_length = String.length value in
+  let rec loop index =
+    if index + substring_length > value_length then false
+    else if String.sub value index substring_length = substring then true
+    else loop (index + 1)
+  in
+  if substring_length = 0 then true else loop 0
+
+let meta_tokens =
+  [ "user"
+  ; "task"
+  ; "discussion"
+  ; "transcript"
+  ; "round"
+  ; "planner"
+  ; "architect"
+  ; "critic"
+  ; "implementer"
+  ; "role"
+  ; "stage"
+  ]
+
+let meta_token_score value =
+  let lowered = String.lowercase_ascii value in
+  meta_tokens
+  |> List.fold_left
+       (fun score token ->
+         if contains_substring ~substring:token lowered
+         then score + 1
+         else score)
+       0
+
+let line_repeats_participant_guidance
+    (participant : Runtime_config.Discussion.Participant.t)
+    line
+  =
+  let lowered_line = String.lowercase_ascii line in
+  let guidance =
+    Prompt_templates.render_system_prompt participant
+    |> String.lowercase_ascii
+  in
+  let tokenize text =
+    let buffer = Buffer.create (String.length text) in
+    let words = ref [] in
+    let flush () =
+      let word = Buffer.contents buffer in
+      Buffer.clear buffer;
+      if String.length word >= 3 then words := word :: !words
+    in
+    String.iter
+      (fun ch ->
+         match ch with
+         | 'a' .. 'z' | '0' .. '9' -> Buffer.add_char buffer ch
+         | _ -> flush ())
+      text;
+    flush ();
+    List.rev !words
+  in
+  let line_words = tokenize lowered_line in
+  let guidance_words = tokenize guidance in
+  let overlap =
+    line_words
+    |> List.fold_left
+         (fun count word ->
+           if List.mem word guidance_words then count + 1 else count)
+         0
+  in
+  String.length lowered_line >= 24
+  && (contains_substring ~substring:lowered_line guidance
+      ||
+      (List.length line_words >= 4
+       && overlap * 10 >= 7 * List.length line_words))
+
+let normalize_contribution_content
+    ~(participant : Runtime_config.Discussion.Participant.t)
+    content
+  =
+  let trimmed = String.trim content in
+  if trimmed = "" then ""
+  else
+    let marker_prefix, body =
+      if has_leading_convergence_marker trimmed
+      then
+        let marker = Prompt_templates.convergence_marker in
+        let marker_length = String.length marker in
+        let body =
+          String.sub trimmed marker_length (String.length trimmed - marker_length)
+          |> String.trim
+        in
+        marker, body
+      else "", trimmed
+    in
+    let normalized_lines =
+      body
+      |> String.split_on_char '\n'
+      |> List.map String.trim
+      |> List.filter (fun line -> line <> "")
+      |> List.filter (fun line ->
+             let lowered = String.lowercase_ascii line in
+             not (starts_with_any_prefix meta_line_prefixes lowered))
+      |> List.filter (fun line ->
+             let lowered = String.lowercase_ascii line in
+             not
+               (String.starts_with ~prefix:"stage " lowered
+                || String.starts_with ~prefix:"**stage " lowered
+                || (String.ends_with ~suffix:":" lowered && meta_token_score lowered >= 1)
+                || meta_token_score lowered >= 2))
+      |> List.filter (fun line ->
+             not (line_repeats_participant_guidance participant line))
+      |> List.filter (fun line ->
+             not
+               ((String.starts_with ~prefix:"\"" line
+                 || String.starts_with ~prefix:"'" line)
+                && String.length line >= 24))
+      |> List.filter (fun line ->
+             let lowered = String.lowercase_ascii line in
+             not
+               (String.length lowered >= 8
+                && String.sub lowered 0 8 = "round "
+                && String.contains lowered '['))
+    in
+    let normalized_lines =
+      match normalized_lines with
+      | [] -> [ body ]
+      | lines ->
+          let rec take count acc = function
+            | _ when count <= 0 -> List.rev acc
+            | [] -> List.rev acc
+            | line :: rest -> take (count - 1) (line :: acc) rest
+          in
+          take 6 [] lines
+    in
+    let normalized =
+      String.concat "\n" normalized_lines |> String.trim
+    in
+    if marker_prefix = "" then normalized
+    else marker_prefix ^ "\n" ^ normalized
+
 let invoke_participant
     ~(services : Runtime_services.t)
     ~(context : Core_context.t)
@@ -306,7 +504,11 @@ let invoke_participant
       in
       Lwt.return (Turn_skipped, context)
   | Ok completion ->
-      let content = String.trim completion.content in
+      let content =
+        completion.content
+        |> normalize_contribution_content ~participant
+        |> String.trim
+      in
       if content = ""
       then
         let route_access = completion.route_access in
@@ -352,54 +554,8 @@ let invoke_participant
              turn);
         Lwt.return (Turn_produced turn, context)
 
-let convergence_signals =
-  [ "discussion close"
-  ; "discussion terminée"
-  ; "discussion terminated"
-  ; "le débat est clos"
-  ; "debate is closed"
-  ; "commandez maintenant"
-  ; "order now"
-  ; "passez commande"
-  ; "final recommendation"
-  ; "recommandation finale"
-  ; "recommandation principale"
-  ; "action immédiate"
-  ; "immediate action"
-  ; "no further action"
-  ; "aucune autre recherche"
-  ; "no further research"
-  ; "validation finale"
-  ; "final validation"
-  ; "validated without"
-  ; "validé sans réserve"
-  ; "le débat ne peut plus"
-  ; "consensus reached"
-  ; "consensus total"
-  ; "all participants agree"
-  ; "tous convergent"
-  ; "clôture définitive"
-  ; "décision finale"
-  ; "final decision"
-  ]
-
-let content_signals_convergence content =
-  let lowered = String.lowercase_ascii content in
-  List.exists (fun signal ->
-    let signal_len = String.length signal in
-    let content_len = String.length lowered in
-    if signal_len > content_len then false
-    else
-      let rec scan pos =
-        if pos + signal_len > content_len then false
-        else if String.sub lowered pos signal_len = signal then true
-        else scan (pos + 1)
-      in
-      scan 0
-  ) convergence_signals
-
 let round_has_converged (discussion : Core_payload.discussion) ~round_index ~participant_count =
-  if participant_count < 2 then false
+  if participant_count < 2 || round_index < 2 then false
   else
     let round_turns =
       discussion.turns
@@ -409,10 +565,11 @@ let round_has_converged (discussion : Core_payload.discussion) ~round_index ~par
     else
       let converging =
         round_turns
-        |> List.filter (fun (t : Core_payload.discussion_turn) -> content_signals_convergence t.content)
+        |> List.filter (fun (t : Core_payload.discussion_turn) ->
+               has_leading_convergence_marker t.content)
         |> List.length
       in
-      (* Converge when majority signals agreement: 2 out of 3 *)
+      (* Converge when a majority explicitly emits the dedicated leading marker. *)
       converging >= (participant_count + 1) / 2
 
 let sub_discussion_marker = "[SUB_DISCUSSION:"
@@ -689,7 +846,7 @@ let run
                  Runtime_logger.log
                    Runtime_logger.Info
                    (Fmt.str
-                      "Discussion converged at round %d/%d — all participants agree."
+                      "Discussion converged at round %d/%d — majority emitted the explicit convergence marker."
                       round_index
                       discussion.max_rounds);
                  Lwt.return (Core_payload.Discussion discussion, context))

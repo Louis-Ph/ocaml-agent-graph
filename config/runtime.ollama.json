@@ -1,8 +1,8 @@
 {
   "engine": {
-    "timeout_seconds": 180.0,
+    "timeout_seconds": 300.0,
     "retry_attempts": 4,
-    "retry_backoff_seconds": 2.0,
+    "retry_backoff_seconds": 3.0,
     "max_steps": 8
   },
   "routing": {
@@ -41,7 +41,7 @@
     "participants": [
       {
         "name": "architect",
-        "route_model": "swarm-lead",
+        "route_model": "qwen3-4b-local",
         "max_tokens": 300,
         "confidence": 0.80,
         "persona": {
@@ -55,7 +55,7 @@
       },
       {
         "name": "critic",
-        "route_model": "swarm-critic",
+        "route_model": "qwen3-4b-local",
         "max_tokens": 300,
         "confidence": 0.85,
         "persona": {
@@ -69,7 +69,7 @@
       },
       {
         "name": "implementer",
-        "route_model": "swarm-worker",
+        "route_model": "qwen3-4b-local",
         "max_tokens": 300,
         "confidence": 0.75,
         "persona": {

@@ -559,10 +559,33 @@ let make_memory_config sqlite_path =
     reload = { Config.Runtime.Memory.Reload.recent_turn_buffer = 2 };
     compression =
       {
-        Config.Runtime.Memory.Compression.reply_checkpoints = [ 2 ];
-        continue_every_replies = 2;
-        summary_max_chars = 800;
-        summary_max_tokens = Some 96;
+        Config.Runtime.Memory.Compression.policy_name = "test_explicit_memory_v1";
+        trigger =
+          {
+            Config.Runtime.Memory.Compression.Trigger.mode =
+              Config.Runtime.Memory.Compression.Trigger.Explicit_checkpoints;
+            reply_checkpoints = [ 2 ];
+            continue_every_replies = 2;
+            fibonacci_first_reply = 2;
+            fibonacci_second_reply = 3;
+          };
+        budget =
+          {
+            Config.Runtime.Memory.Compression.Budget.mode =
+              Config.Runtime.Memory.Compression.Budget.Fixed_budget;
+            base_summary_max_chars = 800;
+            min_summary_max_chars = 800;
+            base_summary_max_tokens = Some 96;
+            min_summary_max_tokens = Some 96;
+          };
+        value_hierarchy =
+          {
+            Config.Runtime.Memory.Compression.Value_hierarchy.keep_verbatim =
+              [ "stable identifiers" ];
+            keep_strongly = [ "goals" ];
+            compress_first = [ "supporting details" ];
+            drop_first = [ "pleasantries" ];
+          };
         summary_prompt =
           "Compress the durable swarm memory into a short factual note.";
       };
@@ -760,7 +783,7 @@ let test_memory_compresses_on_checkpoint () =
       ~task_id:"checkpoint-task"
       "First memory-bearing request."
   in
-  let _ =
+  let _payload, context =
     run
       ~config
       ~services
@@ -782,7 +805,76 @@ let test_memory_compresses_on_checkpoint () =
     "summary created"
     (Some "Compressed durable memory.")
     session.summary;
-  Alcotest.(check int) "compression count increments" 1 session.compression_count
+  Alcotest.(check int) "compression count increments" 1 session.compression_count;
+  Alcotest.(check bool)
+    "compression event recorded"
+    true
+    (context.Core.Context.events
+     |> List.exists (fun (event : Core.Context.event) ->
+            String.equal event.label "memory.compressed"))
+
+let test_memory_policy_fibonacci_plan () =
+  let compression =
+    {
+      Config.Runtime.Memory.disabled.compression with
+      policy_name = "fibonacci_demo_v1";
+      trigger =
+        {
+          Config.Runtime.Memory.Compression.Trigger.mode =
+            Config.Runtime.Memory.Compression.Trigger.Fibonacci;
+          reply_checkpoints = [ 3; 5 ];
+          continue_every_replies = 2;
+          fibonacci_first_reply = 3;
+          fibonacci_second_reply = 5;
+        };
+      budget =
+        {
+          Config.Runtime.Memory.Compression.Budget.mode =
+            Config.Runtime.Memory.Compression.Budget.Fibonacci_decay;
+          base_summary_max_chars = 1000;
+          min_summary_max_chars = 180;
+          base_summary_max_tokens = Some 120;
+          min_summary_max_tokens = Some 24;
+        };
+    }
+  in
+  let plan =
+    Memory.Policy.plan_for_reply
+      compression
+      ~reply_count:5
+      ~compression_count:1
+  in
+  match plan with
+  | None -> Alcotest.fail "expected fibonacci checkpoint to produce a plan"
+  | Some plan ->
+      Alcotest.(check int)
+        "checkpoint reply"
+        5
+        plan.checkpoint_reply_count;
+      Alcotest.(check int)
+        "compression index"
+        2
+        plan.budget.compression_index;
+      Alcotest.(check int)
+        "fibonacci target percent"
+        33
+        plan.budget.target_percent;
+      Alcotest.(check int)
+        "fibonacci target chars"
+        333
+        plan.budget.target_summary_max_chars;
+      Alcotest.(check (option int))
+        "fibonacci target tokens"
+        (Some 40)
+        plan.budget.target_summary_max_tokens;
+      Alcotest.(check bool)
+        "non checkpoint returns none"
+        true
+        (Option.is_none
+           (Memory.Policy.plan_for_reply
+              compression
+              ~reply_count:6
+              ~compression_count:1))
 
 let test_runtime_config_loads_memory_policy_file () =
   let temp_dir = Filename.temp_file "agent-graph-config" ".tmp" in
@@ -798,9 +890,25 @@ let test_runtime_config_loads_memory_policy_file () =
   "storage": { "mode": "explicit_sqlite", "sqlite_path": "./memory.sqlite" },
   "reload": { "recent_turn_buffer": 3 },
   "compression": {
-    "reply_checkpoints": [5, 8],
-    "continue_every_replies": 4,
-    "summary_max_chars": 1234,
+    "policy_name": "fibonacci_bridge_demo_v1",
+    "trigger": {
+      "mode": "fibonacci",
+      "fibonacci_first_reply": 5,
+      "fibonacci_second_reply": 8
+    },
+    "budget": {
+      "mode": "fibonacci_decay",
+      "base_summary_max_chars": 1234,
+      "min_summary_max_chars": 345,
+      "base_summary_max_tokens": 150,
+      "min_summary_max_tokens": 75
+    },
+    "value_hierarchy": {
+      "keep_verbatim": ["identifiers"],
+      "keep_strongly": ["goals"],
+      "compress_first": ["supporting detail"],
+      "drop_first": ["pleasantries"]
+    },
     "summary_prompt": "Keep only the durable facts."
   },
   "bulkhead_bridge": {
@@ -846,10 +954,18 @@ let test_runtime_config_loads_memory_policy_file () =
         "reload buffer loaded"
         3
         loaded.memory.reload.recent_turn_buffer;
-      Alcotest.(check (list int))
-        "checkpoints loaded"
-        [ 5; 8 ]
-        loaded.memory.compression.reply_checkpoints;
+      Alcotest.(check string)
+        "policy name loaded"
+        "fibonacci_bridge_demo_v1"
+        loaded.memory.compression.policy_name;
+      Alcotest.(check int)
+        "fibonacci first checkpoint loaded"
+        5
+        loaded.memory.compression.trigger.fibonacci_first_reply;
+      Alcotest.(check int)
+        "base summary max chars loaded"
+        1234
+        loaded.memory.compression.budget.base_summary_max_chars;
       Alcotest.(check (option string))
         "session id key loaded"
         (Some "session_id")
@@ -1251,6 +1367,10 @@ let () =
             "compresses on checkpoint"
             `Quick
             test_memory_compresses_on_checkpoint;
+          Alcotest.test_case
+            "computes fibonacci compression plan"
+            `Quick
+            test_memory_policy_fibonacci_plan;
           Alcotest.test_case
             "loads external memory policy file"
             `Quick

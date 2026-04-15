@@ -202,14 +202,14 @@ let graph_summary_lines t =
     else
       [
         Fmt.str
-          "memory: namespace=%s storage=%s session_id_key=%s recent_turn_buffer=%d checkpoints=%s bridge=%s"
+          "memory: namespace=%s storage=%s session_id_key=%s recent_turn_buffer=%d policy=%s trigger=%s budget=%s bridge=%s"
           config.memory.session_namespace
           (memory_storage_summary config.memory)
           (Option.value config.memory.session_id_metadata_key ~default:"(task_id)")
           config.memory.reload.recent_turn_buffer
-          (config.memory.compression.reply_checkpoints
-           |> List.map string_of_int
-           |> String.concat ", ")
+          config.memory.compression.policy_name
+          (Memory_policy.trigger_summary config.memory.compression)
+          (Memory_policy.budget_summary config.memory.compression)
           (memory_bulkhead_bridge_summary config.memory);
       ]
   in
@@ -426,12 +426,13 @@ let graph_summary_to_yojson t =
                 match config.memory.session_id_metadata_key with
                 | Some value -> `String value
                 | None -> `Null );
+              "policy_name", `String config.memory.compression.policy_name;
               "storage", `String (memory_storage_summary config.memory);
               "recent_turn_buffer", `Int config.memory.reload.recent_turn_buffer;
-              ( "reply_checkpoints",
-                `List
-                  (config.memory.compression.reply_checkpoints
-                   |> List.map (fun value -> `Int value)) );
+              "trigger", `String (Memory_policy.trigger_summary config.memory.compression);
+              "budget", `String (Memory_policy.budget_summary config.memory.compression);
+              "value_hierarchy",
+              `String (Memory_policy.value_hierarchy_summary config.memory.compression);
               "bulkhead_bridge",
               `String (memory_bulkhead_bridge_summary config.memory);
             ] );

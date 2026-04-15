@@ -105,10 +105,33 @@ let make_memory_runtime_config route_model sqlite_path =
         reload = { Config.Runtime.Memory.Reload.recent_turn_buffer = 2 };
         compression =
           {
-            Config.Runtime.Memory.Compression.reply_checkpoints = [ 2 ];
-            continue_every_replies = 2;
-            summary_max_chars = 800;
-            summary_max_tokens = Some 96;
+            Config.Runtime.Memory.Compression.policy_name = "client_test_memory_v1";
+            trigger =
+              {
+                Config.Runtime.Memory.Compression.Trigger.mode =
+                  Config.Runtime.Memory.Compression.Trigger.Explicit_checkpoints;
+                reply_checkpoints = [ 2 ];
+                continue_every_replies = 2;
+                fibonacci_first_reply = 2;
+                fibonacci_second_reply = 3;
+              };
+            budget =
+              {
+                Config.Runtime.Memory.Compression.Budget.mode =
+                  Config.Runtime.Memory.Compression.Budget.Fixed_budget;
+                base_summary_max_chars = 800;
+                min_summary_max_chars = 800;
+                base_summary_max_tokens = Some 96;
+                min_summary_max_tokens = Some 96;
+              };
+            value_hierarchy =
+              {
+                Config.Runtime.Memory.Compression.Value_hierarchy.keep_verbatim =
+                  [ "stable identifiers" ];
+                keep_strongly = [ "goals" ];
+                compress_first = [ "supporting details" ];
+                drop_first = [ "pleasantries" ];
+              };
             summary_prompt =
               "Compress the durable swarm memory into a short factual note.";
           };

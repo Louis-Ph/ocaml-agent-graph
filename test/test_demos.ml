@@ -66,7 +66,9 @@ let test_catalog_covers_procurement_demo_packs () =
     |> Array.to_list
     |> List.filter (fun name ->
            let path = repo_path (Filename.concat "demos" name) in
-           existing_directory path && name <> "adaptive_webcrawler")
+           existing_directory path
+           && name <> "adaptive_webcrawler"
+           && existing_file (Filename.concat path "scenario.json"))
   in
   Alcotest.(check (list string))
     "catalog matches procurement folders"
@@ -183,6 +185,21 @@ let test_adaptive_webcrawler_demo_pack_loads () =
          | Some text -> String.trim text <> ""
          | None -> false)
 
+let test_memory_bridge_demo_assets_exist () =
+  let demo_dir = repo_path "demos/memory_bridge_bulkhead" in
+  Alcotest.(check bool)
+    "memory bridge demo directory exists"
+    true
+    (existing_directory demo_dir);
+  Alcotest.(check bool)
+    "memory bridge run.sh exists"
+    true
+    (existing_file (Filename.concat demo_dir "run.sh"));
+  Alcotest.(check bool)
+    "memory bridge README exists"
+    true
+    (existing_file (Filename.concat demo_dir "README.md"))
+
 let () =
   Alcotest.run
     "agent-graph-demos"
@@ -208,5 +225,9 @@ let () =
             "adaptive webcrawler demo pack loads"
             `Quick
             test_adaptive_webcrawler_demo_pack_loads;
+          Alcotest.test_case
+            "memory bridge demo assets exist"
+            `Quick
+            test_memory_bridge_demo_assets_exist;
         ] );
     ]

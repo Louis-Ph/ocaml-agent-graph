@@ -71,6 +71,7 @@ module Runtime = struct
 end
 
 module Memory = struct
+  module Policy = Memory_policy
   module Bulkhead_bridge = Memory_bulkhead_bridge
   module Store = Memory_store
   module Compressor = Memory_compressor

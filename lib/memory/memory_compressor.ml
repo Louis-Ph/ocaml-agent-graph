@@ -1,31 +1,8 @@
 open Lwt.Infix
 
-type compression_level =
-  | Fib of int
-
 let role_label = function
   | Memory_store.User -> "user"
   | Assistant -> "assistant"
-
-let percentage_of_level = function
-  | Fib index ->
-      let divisor = Int.shift_left 1 (max 0 index) in
-      max 1 (100 / divisor)
-
-let next_level compression_count = Fib (compression_count + 1)
-
-let should_compress
-    (compression : Runtime_config.Memory.Compression.t)
-    ~reply_count
-  =
-  List.mem reply_count compression.reply_checkpoints
-  ||
-  match List.rev compression.reply_checkpoints with
-  | [] -> false
-  | last_checkpoint :: _ when reply_count > last_checkpoint ->
-      let interval = max 1 compression.continue_every_replies in
-      (reply_count - last_checkpoint) mod interval = 0
-  | _ -> false
 
 let trim_summary max_chars text =
   let trimmed = String.trim text in
@@ -55,18 +32,27 @@ let fallback_summary
   trim_summary summary_max_chars (String.concat "\n\n" blocks)
 
 let compression_prompt
-    ~(prompt : string)
+    ~(compression : Runtime_config.Memory.Compression.t)
+    ~(plan : Memory_policy.plan)
     ~(existing_summary : string option)
     ~(turns : Memory_store.turn list)
-    ~(level : compression_level)
   =
   Fmt.str
-    "%s\n\nCompression target: about %d%% of the original length.\n\nExisting durable \
-     summary:\n%s\n\nNew conversation turns to absorb:\n%s\n\nReturn one compact memory \
-     note with stable facts, goals, constraints, names, preferences, decisions, and \
-     unresolved items."
-    prompt
-    (percentage_of_level level)
+    "%s\n\nCompression policy: %s.\nCheckpoint matched: reply %d.\nTarget budget: about \
+     %d%% of the base memory budget, capped at %d chars and %s tokens.\n\nMemory value \
+     hierarchy:\n%s\n\nExisting durable summary:\n%s\n\nNew conversation turns to \
+     absorb:\n%s\n\nReturn one compact memory note that preserves the high-value tiers \
+     first, compresses lower-value detail aggressively, and keeps stable facts, goals, \
+     constraints, names, preferences, decisions, blockers, and unresolved items."
+    compression.summary_prompt
+    compression.policy_name
+    plan.checkpoint_reply_count
+    plan.budget.target_percent
+    plan.budget.target_summary_max_chars
+    (match plan.budget.target_summary_max_tokens with
+     | Some value -> string_of_int value
+     | None -> "the agent default")
+    (Memory_policy.render_value_hierarchy compression.value_hierarchy)
     (Option.value existing_summary ~default:"(none)")
     (turns |> List.map turn_line |> String.concat "\n")
 
@@ -74,9 +60,9 @@ let compress_history
     ~(llm_client : Llm_bulkhead_client.t)
     ~(profile : Runtime_config.Llm.Agent_profile.t)
     ~(compression : Runtime_config.Memory.Compression.t)
+    ~(plan : Memory_policy.plan)
     ~(existing_summary : string option)
     ~(turns : Memory_store.turn list)
-    ~(level : compression_level)
   =
   match turns with
   | [] ->
@@ -89,10 +75,10 @@ let compress_history
             role = "user";
             content =
               compression_prompt
-                ~prompt:compression.summary_prompt
+                ~compression
+                ~plan
                 ~existing_summary
-                ~turns
-                ~level;
+                ~turns;
           };
         ]
       in
@@ -101,7 +87,7 @@ let compress_history
         ~route_model:profile.route_model
         ~messages
         ~max_tokens:
-          (match compression.summary_max_tokens with
+          (match plan.budget.target_summary_max_tokens with
           | Some _ as value -> value
           | None -> profile.max_tokens)
       >|= function
@@ -110,14 +96,14 @@ let compress_history
             match String.trim completion.content with
             | "" ->
                 fallback_summary
-                  ~summary_max_chars:compression.summary_max_chars
+                  ~summary_max_chars:plan.budget.target_summary_max_chars
                   ~existing_summary
                   ~turns
-            | value -> trim_summary compression.summary_max_chars value
+            | value -> trim_summary plan.budget.target_summary_max_chars value
           in
           summary
       | Error _ ->
           fallback_summary
-            ~summary_max_chars:compression.summary_max_chars
+            ~summary_max_chars:plan.budget.target_summary_max_chars
             ~existing_summary
             ~turns

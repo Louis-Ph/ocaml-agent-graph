@@ -94,7 +94,7 @@ Everything is in JSON. No code changes needed.
 | File | What it controls |
 |------|-----------------|
 | `config/runtime.json` | Agent models, timeouts, retries, discussion rounds |
-| `config/memory_policy.json` | Swarm memory storage, reload, compression |
+| `config/memory_policy.json` | Swarm memory storage, reload, compression trigger, budget, and value hierarchy |
 | `config/discussion/personas/` | Versioned persona files for each participant |
 | `config/discussion/rules/` | Versioned rules for each participant |
 
@@ -107,6 +107,12 @@ The shipped config mixes providers on purpose to show multi-provider routing:
 
 Change `route_model` in `config/runtime.json` to use whichever models you have
 keys for. BulkheadLM validates that every configured route exists at startup.
+
+The shipped memory policy is now explicit and hierarchical:
+
+- trigger rule: Fibonacci checkpoints
+- compression rate: Fibonacci-decayed summary budget
+- value doctrine: keep high-value facts first, compress lower-value detail first
 
 ## Swarm layers (L0-L3)
 
@@ -183,6 +189,16 @@ dune exec ./bin/adaptive_webcrawler_demo.exe
 ```
 
 Scenario packs: [`demos/`](demos/README.md).
+
+Visible memory bridge demo:
+
+```bash
+./demos/memory_bridge_bulkhead/run.sh
+```
+
+That demo drives several turns through `ocaml-agent-graph`, triggers memory
+compression, then fetches the mirrored session back from the BulkheadLM control
+plane.
 
 ## Manual build
 

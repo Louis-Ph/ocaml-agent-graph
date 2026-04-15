@@ -103,3 +103,18 @@ validator) with scenario-specific prompts.
 
 From a messenger, the swarm spokesperson handles any text input. Just describe what
 you want in natural language — the agents will plan, discuss, and synthesize an answer.
+
+## Integration demos
+
+### memory_bridge_bulkhead
+
+This integration demo is not part of the procurement scenario catalog. It exists
+to make the durable-memory chain visible:
+
+```bash
+./demos/memory_bridge_bulkhead/run.sh
+```
+
+It drives several `run_graph` turns through `ocaml-agent-graph`, triggers the
+Fibonacci memory policy, then fetches the mirrored session from the BulkheadLM
+control plane.

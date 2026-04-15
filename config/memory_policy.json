@@ -9,10 +9,41 @@
     "recent_turn_buffer": 4
   },
   "compression": {
-    "reply_checkpoints": [5, 7, 10, 15, 20],
-    "continue_every_replies": 5,
-    "summary_max_chars": 2400,
-    "summary_max_tokens": 220,
+    "policy_name": "fibonacci_durable_memory_v1",
+    "trigger": {
+      "mode": "fibonacci",
+      "fibonacci_first_reply": 5,
+      "fibonacci_second_reply": 8
+    },
+    "budget": {
+      "mode": "fibonacci_decay",
+      "base_summary_max_chars": 2400,
+      "min_summary_max_chars": 480,
+      "base_summary_max_tokens": 220,
+      "min_summary_max_tokens": 96
+    },
+    "value_hierarchy": {
+      "keep_verbatim": [
+        "stable identifiers, names, and session anchors",
+        "explicit user preferences that must not drift",
+        "irreversible decisions that were already made"
+      ],
+      "keep_strongly": [
+        "goals and success criteria",
+        "hard constraints, blockers, budgets, and deadlines",
+        "open questions, risks, and unresolved dependencies"
+      ],
+      "compress_first": [
+        "supporting reasoning details once the conclusion is stable",
+        "intermediate plans that were superseded by a better one",
+        "context that is useful but not mission-critical"
+      ],
+      "drop_first": [
+        "stylistic wording and pleasantries",
+        "repetition and low-signal filler",
+        "obsolete alternatives that are no longer actionable"
+      ]
+    },
     "summary_prompt": "Compress this durable swarm memory into one short factual note. Preserve stable goals, constraints, names, preferences, decisions, blockers, and unresolved items."
   }
 }

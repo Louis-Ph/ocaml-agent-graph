@@ -126,13 +126,18 @@ let persist_exchange
       session.summarized_turn_count
       (session.turn_count - runtime.policy.reload.recent_turn_buffer)
   in
-  let* compressed_session =
-    if
-      Memory_compressor.should_compress
+  let compression_plan =
+    if archive_before_turn > session.summarized_turn_count
+    then
+      Memory_policy.plan_for_reply
         runtime.policy.compression
         ~reply_count:session.reply_count
-      && archive_before_turn > session.summarized_turn_count
-    then
+        ~compression_count:session.compression_count
+    else None
+  in
+  let* compressed_session, applied_plan =
+    match compression_plan with
+    | Some plan ->
       let archived_turns =
         Memory_store.load_turns_range
           runtime.store
@@ -140,17 +145,14 @@ let persist_exchange
           ~first_turn_index:session.summarized_turn_count
           ~past_last_turn_index:archive_before_turn
       in
-      let level =
-        Memory_compressor.next_level session.compression_count
-      in
       let* summary =
         Memory_compressor.compress_history
           ~llm_client
           ~profile:llm_config.summarizer
           ~compression:runtime.policy.compression
+          ~plan
           ~existing_summary:session.summary
           ~turns:archived_turns
-          ~level
       in
       let updated =
         Memory_store.update_summary
@@ -161,16 +163,25 @@ let persist_exchange
           ~compression_count:(session.compression_count + 1)
           ~summarized_turn_count:archive_before_turn
       in
-      Lwt.return updated
-    else Lwt.return session
+      Lwt.return (updated, Some plan)
+    | None -> Lwt.return (session, None)
   in
   let detail =
     Fmt.str
-      "session=%s replies=%d compressed=%d recent_turns=%d"
+      "session=%s replies=%d compression_count=%d recent_turns=%d"
       session_ref.session_key
       compressed_session.reply_count
       compressed_session.compression_count
       (List.length compressed_session.recent_turns)
+  in
+  let context =
+    match applied_plan with
+    | None -> context
+    | Some plan ->
+        Core_context.record_event
+          context
+          ~label:"memory.compressed"
+          ~detail:(Memory_policy.plan_summary runtime.policy.compression plan)
   in
   let context =
     Core_context.record_event context ~label:"memory.persisted" ~detail

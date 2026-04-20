@@ -1,0 +1,34 @@
+{
+  "security_policy_file": "../../bulkhead-lm/config/defaults/security_policy.ollama_local.json",
+  "error_catalog_file": "../../bulkhead-lm/config/defaults/error_catalog.json",
+  "providers_schema_file": "../../bulkhead-lm/config/defaults/providers.schema.json",
+  "persistence": {
+    "sqlite_path": "../var/bulkhead-lm.sqlite",
+    "busy_timeout_ms": 5000
+  },
+  "virtual_keys": [
+    {
+      "name": "local-dev",
+      "token_plaintext": "sk-bulkhead-lm-dev",
+      "daily_token_budget": 500000,
+      "requests_per_minute": 120,
+      "allowed_routes": [
+        "qwen3.6-35b-local"
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "public_model": "qwen3.6-35b-local",
+      "backends": [
+        {
+          "provider_id": "ollama-qwen3.6-35b",
+          "provider_kind": "ollama_openai",
+          "upstream_model": "qwen3.6:35b",
+          "api_base": "http://127.0.0.1:11434/v1",
+          "api_key_env": "OLLAMA_API_KEY"
+        }
+      ]
+    }
+  ]
+}

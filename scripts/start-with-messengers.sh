@@ -48,6 +48,7 @@ done
 
 export BULKHEAD_LM_API_KEY="${BULKHEAD_LM_API_KEY:-$VIRTUAL_KEY_TOKEN}"
 export AGENT_GRAPH_MESSENGER_TOKEN="${AGENT_GRAPH_MESSENGER_TOKEN:-$VIRTUAL_KEY_TOKEN}"
+export OLLAMA_API_KEY="${OLLAMA_API_KEY:-ollama}"
 
 # ── Detect connectors ──────────────────────────────────────────────
 detected_connectors=""

@@ -35,16 +35,20 @@ never need to update it manually.
 
 ### What you need before you start
 
-1. One API key from any provider BulkheadLM supports (OpenRouter, Anthropic,
-   OpenAI, Google, Mistral, DeepSeek, Groq, and many others).
-2. Put it in a secrets file:
+The default profile is now local-first through Ollama:
+
+1. Start Ollama: `ollama serve`
+2. Pull the default swarm model:
 
 ```bash
-printf 'export OPEN_ROUTER_KEY="paste-your-key-here"\n' >> ~/.bashrc.secrets
+ollama pull qwen3.6:35b
 ```
 
-3. Run the one-liner above.
-4. Type a question in the terminal. Done.
+3. Run the one-liner above or `./run.sh`.
+4. Type a question in the terminal.
+
+If you prefer cloud providers instead, edit `config/runtime.json` and
+`config/client.json` to point to another BulkheadLM gateway profile and route.
 
 ## What it does
 
@@ -98,12 +102,12 @@ Everything is in JSON. No code changes needed.
 | `config/discussion/personas/` | Versioned persona files for each participant |
 | `config/discussion/rules/` | Versioned rules for each participant |
 
-The shipped config mixes providers on purpose to show multi-provider routing:
+The shipped default profile is local and hierarchical:
 
-- planner: `claude-sonnet` (Anthropic)
-- summarizer: `kimi-latest` (Moonshot)
-- validator: `openrouter-gpt-5.2` (OpenRouter)
-- discussion: `claude-sonnet`, `kimi-k2.5`, `openrouter-auto`
+- gateway: `config/gateway.ollama.qwen3.6-35b.json`
+- assistant route: `qwen3.6-35b-local`
+- planner / summarizer / validator: `qwen3.6-35b-local`
+- discussion participants: `qwen3.6-35b-local`
 
 Change `route_model` in `config/runtime.json` to use whichever models you have
 keys for. BulkheadLM validates that every configured route exists at startup.

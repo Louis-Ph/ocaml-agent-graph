@@ -12,25 +12,25 @@
     "parallel_agents": ["summarizer", "validator"]
   },
   "llm": {
-    "gateway_config_path": "../../bulkhead-lm/config/example.ollama_swarm.gateway.json",
+    "gateway_config_path": "gateway.ollama.qwen3.6-35b.json",
     "authorization_token_plaintext": "sk-bulkhead-lm-dev",
     "planner": {
-      "route_model": "qwen3-4b-local",
+      "route_model": "qwen3.6-35b-local",
       "system_prompt": "You are the planning agent inside a typed OCaml orchestration graph. Convert a request into a short, concrete plan. Be direct and structured.",
       "max_tokens": 300,
-      "confidence": 0.80
+      "confidence": 0.84
     },
     "summarizer": {
-      "route_model": "qwen3-4b-local",
+      "route_model": "qwen3.6-35b-local",
       "system_prompt": "You are the summarizer agent inside a typed OCaml orchestration graph. Compress the payload into a short, accurate summary with no filler.",
       "max_tokens": 400,
-      "confidence": 0.75
+      "confidence": 0.82
     },
     "validator": {
-      "route_model": "qwen3-4b-local",
+      "route_model": "qwen3.6-35b-local",
       "system_prompt": "You are the validator agent inside a typed OCaml orchestration graph. Check whether the payload is coherent, complete enough, and safe to pass forward. Answer compactly.",
       "max_tokens": 300,
-      "confidence": 0.80
+      "confidence": 0.86
     }
   },
   "discussion": {
@@ -41,9 +41,9 @@
     "participants": [
       {
         "name": "architect",
-        "route_model": "llama3.2-1b-local",
+        "route_model": "qwen3.6-35b-local",
         "max_tokens": 300,
-        "confidence": 0.80,
+        "confidence": 0.84,
         "persona": {
           "version": "architect-persona-v1",
           "file_path": "discussion/personas/architect.v1.md"
@@ -55,9 +55,9 @@
       },
       {
         "name": "critic",
-        "route_model": "qwen3-4b-local",
+        "route_model": "qwen3.6-35b-local",
         "max_tokens": 300,
-        "confidence": 0.85,
+        "confidence": 0.88,
         "persona": {
           "version": "critic-persona-v1",
           "file_path": "discussion/personas/critic.v1.md"
@@ -69,9 +69,9 @@
       },
       {
         "name": "implementer",
-        "route_model": "qwen3-4b-local",
+        "route_model": "qwen3.6-35b-local",
         "max_tokens": 300,
-        "confidence": 0.75,
+        "confidence": 0.82,
         "persona": {
           "version": "implementer-persona-v1",
           "file_path": "discussion/personas/implementer.v1.md"

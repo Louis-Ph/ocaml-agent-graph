@@ -1,14 +1,12 @@
 #!/bin/sh
 set -eu
 
-# Run the human terminal using local Ollama models exclusively.
-# Zero cloud API cost — all inference runs on your machine.
+# Run the human terminal using the default local Ollama profile.
+# All swarm agents resolve to qwen3.6:35b through the repo-local gateway config.
 #
 # Prerequisites:
 #   1. Ollama running: ollama serve
-#   2. Models pulled: ollama pull qwen3:4b && ollama pull swarm-lead && ollama pull swarm-critic && ollama pull swarm-worker
-#   3. BulkheadLM gateway started with Ollama config (in a separate terminal):
-#      cd ../bulkhead-lm && dune exec bulkhead-lm -- --config config/example.ollama_swarm.gateway.json
+#   2. Model pulled: ollama pull qwen3.6:35b
 #
 # Then just:
 #   ./run-ollama.sh
@@ -22,11 +20,17 @@ if ! curl -sf http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
   exit 1
 fi
 
-printf '%s\n' "Ollama detected. Using local models only (zero cloud cost)."
+if ! curl -sf http://127.0.0.1:11434/api/tags | grep -Eq '"name"[[:space:]]*:[[:space:]]*"qwen3.6:35b"'; then
+  printf '%s\n' "The model qwen3.6:35b is not available in Ollama yet." >&2
+  printf '%s\n' "Pull it with: ollama pull qwen3.6:35b" >&2
+  exit 1
+fi
+
+printf '%s\n' "Ollama detected. Default swarm route is qwen3.6:35b (local only)."
 printf '%s\n' ""
 
 export OLLAMA_API_KEY="${OLLAMA_API_KEY:-ollama}"
 export BULKHEAD_LM_API_KEY="${BULKHEAD_LM_API_KEY:-sk-bulkhead-lm-dev}"
-export AGENT_GRAPH_CLIENT_CONFIG="$ROOT_DIR/config/client.ollama.json"
+export AGENT_GRAPH_CLIENT_CONFIG="${AGENT_GRAPH_CLIENT_CONFIG:-$ROOT_DIR/config/client.json}"
 
 exec "$ROOT_DIR/run.sh" "$@"

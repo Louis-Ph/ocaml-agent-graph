@@ -56,13 +56,23 @@ agent_graph_remote_resolve_switch() {
 agent_graph_remote_load_opam_env() {
   opam_bin=$(agent_graph_remote_find_opam || true)
   if [ -z "${opam_bin}" ]; then
-    return 0
-  fi
-  switch_name=$(agent_graph_remote_resolve_switch)
-  if [ -n "${switch_name}" ]; then
-    eval "$("${opam_bin}" env --switch="${switch_name}" --set-switch)"
+    :
   else
-    eval "$("${opam_bin}" env --set-switch)"
+    switch_name=$(agent_graph_remote_resolve_switch)
+    if [ -n "${switch_name}" ]; then
+      eval "$("${opam_bin}" env --switch="${switch_name}" --set-switch)"
+    else
+      eval "$("${opam_bin}" env --set-switch)"
+    fi
+  fi
+
+  if [ -z "${BULKHEAD_LM_API_KEY:-}" ]; then
+    BULKHEAD_LM_API_KEY="sk-bulkhead-lm-dev"
+    export BULKHEAD_LM_API_KEY
+  fi
+  if [ -z "${OLLAMA_API_KEY:-}" ]; then
+    OLLAMA_API_KEY="ollama"
+    export OLLAMA_API_KEY
   fi
 }
 

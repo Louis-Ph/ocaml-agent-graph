@@ -129,6 +129,10 @@ ensure_connector_auth() {
     BULKHEAD_LM_API_KEY="sk-bulkhead-lm-dev"
     export BULKHEAD_LM_API_KEY
   fi
+  if [ -z "${OLLAMA_API_KEY:-}" ]; then
+    OLLAMA_API_KEY="ollama"
+    export OLLAMA_API_KEY
+  fi
 }
 
 find_opam() {

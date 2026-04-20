@@ -35,6 +35,7 @@ let write_json_file path json =
 
 let default_http_workflow_port = 8087
 let default_http_distribution_port = 8788
+let default_local_route_model = "qwen3.6-35b-local"
 
 let config_json ~graph_runtime_path ~assistant_route_model ~prompt_file
     ~workspace_root ~worker_jobs ~client_config_path =
@@ -177,15 +178,15 @@ let build_config ~client_config_path () =
   let assistant_route_model =
     match Runtime_config.load graph_runtime_path with
     | Error _ ->
-        prompt_with_default ~default:"claude-sonnet" "Assistant route_model"
+        prompt_with_default ~default:default_local_route_model "Assistant route_model"
     | Ok runtime_config -> (
         match Llm_bulkhead_client.create runtime_config.llm with
         | Error _ ->
-            prompt_with_default ~default:"claude-sonnet" "Assistant route_model"
+            prompt_with_default ~default:default_local_route_model "Assistant route_model"
         | Ok llm_client ->
             let assistant : Client_config.Assistant.t =
               {
-                route_model = "claude-sonnet";
+                route_model = default_local_route_model;
                 system_prompt = "";
                 max_tokens = Some 700;
               }

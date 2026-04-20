@@ -1,13 +1,13 @@
 {
   "graph_runtime_path": "runtime.ollama.json",
   "assistant": {
-    "route_model": "qwen3-4b-local",
+    "route_model": "qwen3.6-35b-local",
     "system_prompt_file": "prompts/graph_terminal_assistant.md",
     "max_tokens": 500
   },
   "messenger_spokesperson": {
     "public_model": "swarm-spokesperson",
-    "route_model": "qwen3-4b-local",
+    "route_model": "qwen3.6-35b-local",
     "system_prompt_file": "prompts/swarm_messenger_spokesperson.md",
     "max_tokens": 400,
     "authorization_token_env": "AGENT_GRAPH_MESSENGER_TOKEN"

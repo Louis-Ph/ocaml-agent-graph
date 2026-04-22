@@ -44,6 +44,7 @@ Until the first tagged release exists, all shipped history is tracked under
 
 ### Fixed
 
+- **discussion prompt overhaul**: redesigned participant prompts to eliminate meta-commentary and transcript parsing; simplified transcript format, strengthened system prompt with strict anti-meta rules, expanded sanitizer filters, increased participant token budget to 600, and reduced default rounds from 5 to 3 to cut token waste while preserving output quality
 - support for new BulkheadLM provider kinds (`739f204`)
 - starter idempotence by skipping redundant `bulkhead_lm` pinning when already pinned to the correct sibling checkout (`1eae33a`)
 - discussion budget circuit-breaker: tri-state `turn_result` (`Turn_produced / Turn_skipped / Turn_budget_exhausted`) stops the run loop cleanly on provider 429 and returns the partial discussion collected so far instead of cascading failures

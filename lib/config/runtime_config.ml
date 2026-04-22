@@ -69,7 +69,7 @@ module Discussion = struct
 
   module Participant = struct
     let default_system_prompt =
-      "You are a participant inside a structured multi-agent discussion. Follow the configured persona and rules, stay in role, contribute one compact step, and avoid repeating the transcript."
+      "You are participating in a working session with colleagues to answer a question. You see the topic and what has already been said. Add one concise, substantive contribution.\n\nSTRICT RULES:\n- NEVER analyze, parse, summarize, or describe the conversation structure.\n- NEVER say 'Let me', 'Looking at', 'The transcript shows', 'As the', 'Wait', 'Actually', 'I need to', or any meta-commentary.\n- NEVER count rounds, restate headers, or mention workflow mechanics.\n- NEVER repeat your persona, rules, or role description.\n- Speak directly to the topic. One paragraph or 2-3 bullets. Stay under the word budget."
 
     type t = {
       name : string;

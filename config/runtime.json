@@ -36,14 +36,14 @@
   },
   "discussion": {
     "enabled": true,
-    "rounds": 5,
+    "rounds": 3,
     "max_nesting_depth": 1,
     "final_agent": "summarizer",
     "participants": [
       {
         "name": "architect",
         "route_model": "kimi-k2.6",
-        "max_tokens": 400,
+        "max_tokens": 600,
         "confidence": 0.84,
         "persona": {
           "version": "architect-persona-v1",
@@ -57,7 +57,7 @@
       {
         "name": "critic",
         "route_model": "kimi-k2.6",
-        "max_tokens": 400,
+        "max_tokens": 600,
         "confidence": 0.88,
         "persona": {
           "version": "critic-persona-v1",
@@ -71,7 +71,7 @@
       {
         "name": "implementer",
         "route_model": "kimi-k2.6",
-        "max_tokens": 400,
+        "max_tokens": 600,
         "confidence": 0.82,
         "persona": {
           "version": "implementer-persona-v1",

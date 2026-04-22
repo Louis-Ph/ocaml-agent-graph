@@ -12,6 +12,7 @@ open Lwt.Syntax
 let make_llm_config () =
   {
     Config.Runtime.Llm.gateway_config_path = "/unused/in-tests.json";
+    gateway_endpoint_url = "http://127.0.0.1:4140";
     authorization_token_plaintext = Some "sk-test";
     authorization_token_env = None;
     planner =

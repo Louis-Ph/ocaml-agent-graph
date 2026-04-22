@@ -74,12 +74,12 @@
     "gateway_config_path": "gateway.json",
     "authorization_token_plaintext": "sk-bulkhead-lm-dev",
     "reflector": {
-      "route_model": "claude-sonnet",
+      "route_model": "kimi-k2.6",
       "prompt_file": "prompts/reflector.md",
       "max_tokens": 240
     },
     "reporter": {
-      "route_model": "claude-sonnet",
+      "route_model": "kimi-k2.6",
       "prompt_file": "prompts/reporter.md",
       "max_tokens": 220
     }

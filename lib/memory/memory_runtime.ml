@@ -25,7 +25,7 @@ let session_ref runtime context =
   }
 
 let default_sqlite_path (llm_client : Llm_bulkhead_client.t) =
-  llm_client.store.Bulkhead_lm.Runtime_state.config.persistence.sqlite_path
+  Llm_bulkhead_client.default_persistence_sqlite_path llm_client
 
 let create (config : Runtime_config.t) (llm_client : Llm_bulkhead_client.t) =
   if not config.memory.enabled

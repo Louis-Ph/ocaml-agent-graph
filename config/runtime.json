@@ -12,22 +12,23 @@
     "parallel_agents": ["summarizer", "validator"]
   },
   "llm": {
-    "gateway_config_path": "gateway.ollama.qwen3.6-35b.json",
+    "gateway_config_path": "gateway.kimi-k2.6.json",
+    "gateway_endpoint_url": "http://127.0.0.1:4140",
     "authorization_token_plaintext": "sk-bulkhead-lm-dev",
     "planner": {
-      "route_model": "qwen3.6-35b-local",
+      "route_model": "kimi-k2.6",
       "system_prompt": "You are the planning agent inside a typed OCaml orchestration graph. Convert a request into a short, concrete plan. Be direct and structured.",
       "max_tokens": 300,
       "confidence": 0.84
     },
     "summarizer": {
-      "route_model": "qwen3.6-35b-local",
+      "route_model": "kimi-k2.6",
       "system_prompt": "You are the summarizer agent inside a typed OCaml orchestration graph. Compress the payload into a short, accurate summary with no filler.",
       "max_tokens": 400,
       "confidence": 0.82
     },
     "validator": {
-      "route_model": "qwen3.6-35b-local",
+      "route_model": "kimi-k2.6",
       "system_prompt": "You are the validator agent inside a typed OCaml orchestration graph. Check whether the payload is coherent, complete enough, and safe to pass forward. Answer compactly.",
       "max_tokens": 300,
       "confidence": 0.86
@@ -41,7 +42,7 @@
     "participants": [
       {
         "name": "architect",
-        "route_model": "qwen3.6-35b-local",
+        "route_model": "kimi-k2.6",
         "max_tokens": 400,
         "confidence": 0.84,
         "persona": {
@@ -55,7 +56,7 @@
       },
       {
         "name": "critic",
-        "route_model": "qwen3.6-35b-local",
+        "route_model": "kimi-k2.6",
         "max_tokens": 400,
         "confidence": 0.88,
         "persona": {
@@ -69,7 +70,7 @@
       },
       {
         "name": "implementer",
-        "route_model": "qwen3.6-35b-local",
+        "route_model": "kimi-k2.6",
         "max_tokens": 400,
         "confidence": 0.82,
         "persona": {

@@ -35,19 +35,18 @@ never need to update it manually.
 
 ### What you need before you start
 
-The default profile is now local-first through Ollama:
+The default profile now uses Moonshot Kimi:
 
-1. Start Ollama: `ollama serve`
-2. Pull the default swarm model:
+1. Export your API key in one of the secret files loaded by the starter:
 
 ```bash
-ollama pull qwen3.6:35b
+printf 'export MOONSHOT_API_KEY="paste-key-here"\n' >> ~/.bashrc.secrets
 ```
 
-3. Run the one-liner above or `./run.sh`.
-4. Type a question in the terminal.
+2. Run the one-liner above or `./run.sh`.
+3. Type a question in the terminal.
 
-If you prefer cloud providers instead, edit `config/runtime.json` and
+If you prefer another provider instead, edit `config/runtime.json` and
 `config/client.json` to point to another BulkheadLM gateway profile and route.
 
 ## What it does
@@ -102,12 +101,13 @@ Everything is in JSON. No code changes needed.
 | `config/discussion/personas/` | Versioned persona files for each participant |
 | `config/discussion/rules/` | Versioned rules for each participant |
 
-The shipped default profile is local and hierarchical:
+The shipped default profile is Kimi-based and hierarchical:
 
-- gateway: `config/gateway.ollama.qwen3.6-35b.json`
-- assistant route: `qwen3.6-35b-local`
-- planner / summarizer / validator: `qwen3.6-35b-local`
-- discussion participants: `qwen3.6-35b-local`
+- gateway: `config/gateway.kimi-k2.6.json`
+- gateway endpoint: `http://127.0.0.1:4140`
+- assistant route: `kimi-k2.6`
+- planner / summarizer / validator: `kimi-k2.6`
+- discussion participants: `kimi-k2.6`
 
 Change `route_model` in `config/runtime.json` to use whichever models you have
 keys for. BulkheadLM validates that every configured route exists at startup.
@@ -223,6 +223,7 @@ The starter (`./run.sh`) handles everything automatically:
 - installs git and opam via the detected package manager if missing
 - clones BulkheadLM as a sibling if absent; updates it to the latest version on every run
 - recompiles the BulkheadLM library when a new version is detected
+- starts the local external BulkheadLM gateway for the active runtime config when the endpoint is loopback
 - creates a project-local opam switch by default
 - loads API keys from `~/.bashrc.secrets`, `~/.zshrc.secrets`, `~/.config/bulkhead-lm/env`
 

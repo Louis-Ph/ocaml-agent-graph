@@ -6,6 +6,7 @@ type prompt_profile = {
 
 type llm_config = {
   gateway_config_path : string;
+  gateway_endpoint_url : string;
   authorization_token_plaintext : string option;
   authorization_token_env : string option;
   reflector : prompt_profile;

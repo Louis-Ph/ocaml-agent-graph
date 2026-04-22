@@ -31,6 +31,29 @@ type options = {
 
 let default_pattern_id = "decide-v1"
 
+(* /decide runs every swarm agent on a single paid Moonshot route via the
+   bulkhead gateway. The gateway config must expose a route with this
+   public_model name (see config/gateway.kimi-k2.6.json). *)
+let forced_route_model = "kimi-k2.6"
+
+let force_route_model (config : Runtime_config.t) =
+  let force_profile (p : Runtime_config.Llm.Agent_profile.t) =
+    { p with route_model = forced_route_model }
+  in
+  let force_participant (p : Runtime_config.Discussion.Participant.t) =
+    { p with profile = force_profile p.profile }
+  in
+  { config with
+    llm =
+      { config.llm with
+        planner = force_profile config.llm.planner;
+        summarizer = force_profile config.llm.summarizer;
+        validator = force_profile config.llm.validator };
+    discussion =
+      { config.discussion with
+        participants =
+          List.map force_participant config.discussion.participants } }
+
 (* Parse inline options from raw terminal input.
    Syntax: TOPIC [--rounds N] [--pattern ID]
    Options may appear before or after the topic words. *)
@@ -133,6 +156,8 @@ let run (runtime : Client_runtime.t) (opts : options) =
             discussion =
               { runtime.runtime_config.discussion with rounds = n } }
     in
+    (* /decide is pinned to kimi-k2.6 via bulkhead for every agent. *)
+    let config = force_route_model config in
     let ts = timestamp_now () in
     let slug =
       let s = sanitize_for_id opts.topic in

@@ -58,4 +58,5 @@ while [ "$#" -gt 0 ]; do
 done
 
 agent_graph_remote_load_opam_env
+agent_graph_remote_ensure_bulkhead_gateway "${CLIENT_CONFIG}"
 agent_graph_remote_exec_client serve-http --client-config "${CLIENT_CONFIG}" --port "${PORT}" "$@"

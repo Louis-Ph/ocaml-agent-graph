@@ -1,32 +1,32 @@
 {
-  "security_policy_file": "../../bulkhead-lm/config/defaults/security_policy.ollama_local.json",
+  "security_policy_file": "security_policy.ollama_local.json",
   "error_catalog_file": "../../bulkhead-lm/config/defaults/error_catalog.json",
   "providers_schema_file": "../../bulkhead-lm/config/defaults/providers.schema.json",
   "persistence": {
-    "sqlite_path": "../var/bulkhead-lm.sqlite",
+    "sqlite_path": "../var/bulkhead-lm-kimi.sqlite",
     "busy_timeout_ms": 5000
   },
   "virtual_keys": [
     {
-      "name": "local-dev",
+      "name": "default-kimi",
       "token_plaintext": "sk-bulkhead-lm-dev",
       "daily_token_budget": 500000,
       "requests_per_minute": 120,
       "allowed_routes": [
-        "qwen3.6-35b-local"
+        "kimi-k2.6"
       ]
     }
   ],
   "routes": [
     {
-      "public_model": "qwen3.6-35b-local",
+      "public_model": "kimi-k2.6",
       "backends": [
         {
-          "provider_id": "ollama-qwen3.6-35b",
-          "provider_kind": "ollama_openai",
-          "upstream_model": "qwen3.6:35b",
-          "api_base": "http://127.0.0.1:11434/v1",
-          "api_key_env": "OLLAMA_API_KEY"
+          "provider_id": "moonshot-kimi-k2-6",
+          "provider_kind": "moonshot_openai",
+          "upstream_model": "kimi-k2.6",
+          "api_base": "https://api.moonshot.ai/v1",
+          "api_key_env": "MOONSHOT_API_KEY"
         }
       ]
     }

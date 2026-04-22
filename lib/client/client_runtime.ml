@@ -235,6 +235,7 @@ let graph_summary_lines t =
     Fmt.str "client_config: %s" t.client_config_path;
     Fmt.str "graph_runtime_config: %s" t.runtime_config_path;
     Fmt.str "gateway_config: %s" config.llm.gateway_config_path;
+    Fmt.str "gateway_endpoint: %s" config.llm.gateway_endpoint_url;
     Fmt.str
       "transport: ssh_human=%s"
       t.client_config.transport.ssh.human_remote_command;
@@ -304,6 +305,7 @@ let graph_summary_to_yojson t =
       "client_config_path", `String t.client_config_path;
       "graph_runtime_path", `String t.runtime_config_path;
       "gateway_config_path", `String config.llm.gateway_config_path;
+      "gateway_endpoint_url", `String config.llm.gateway_endpoint_url;
       ( "transport",
         `Assoc
           [

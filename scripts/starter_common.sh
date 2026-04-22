@@ -1,5 +1,7 @@
 #!/bin/sh
 
+. "$ROOT_DIR/scripts/bulkhead_gateway_common.sh"
+
 DEFAULT_CLIENT_CONFIG=${AGENT_GRAPH_CLIENT_CONFIG:-$ROOT_DIR/config/client.json}
 DEFAULT_BULKHEAD_LM_DIR=${AGENT_GRAPH_BULKHEAD_LM_DIR:-$ROOT_DIR/../bulkhead-lm}
 DEFAULT_BULKHEAD_LM_REPO_URL=${AGENT_GRAPH_BULKHEAD_LM_REPO_URL:-https://github.com/Louis-Ph/bulkhead-lm.git}
@@ -88,6 +90,7 @@ EOF
 ensure_exec_bits() {
   chmod +x "$ROOT_DIR/run.sh" "$STARTER_SCRIPT_PATH" "$ROOT_DIR/scripts/starter_common.sh" 2>/dev/null || true
   chmod +x \
+    "$ROOT_DIR/scripts/bulkhead_gateway_common.sh" \
     "$ROOT_DIR/scripts/remote_human_terminal.sh" \
     "$ROOT_DIR/scripts/remote_machine_terminal.sh" \
     "$ROOT_DIR/scripts/remote_install.sh" \
@@ -250,8 +253,8 @@ normalize_existing_dir() {
 }
 
 ensure_bulkhead_lm_latest() {
-  # Ensure the sibling checkout is on the latest remote commit.
-  # Handles dirty trees, detached HEAD, and diverged branches.
+  # Ensure the sibling checkout stays aligned with origin/main when a safe
+  # fast-forward is possible. Preserve local commits and diverged trees.
   if ! command -v git >/dev/null 2>&1; then
     return 0
   fi
@@ -271,33 +274,65 @@ ensure_bulkhead_lm_latest() {
     return 0
   fi
 
-  say "BulkheadLM is behind origin/main; updating ..."
+  relation_counts=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-list --left-right --count HEAD...origin/main 2>/dev/null || true)
+  ahead_count=$(printf '%s' "$relation_counts" | awk '{print $1}')
+  behind_count=$(printf '%s' "$relation_counts" | awk '{print $2}')
+  current_branch=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" symbolic-ref --short -q HEAD 2>/dev/null || true)
 
-  # Stash local changes if the tree is dirty
-  dirty=0
-  if ! git -C "$DEFAULT_BULKHEAD_LM_DIR" diff --quiet HEAD 2>/dev/null; then
-    dirty=1
-    git -C "$DEFAULT_BULKHEAD_LM_DIR" stash --quiet 2>/dev/null || true
-  fi
+  case "${ahead_count:-0}:${behind_count:-0}" in
+    0:0)
+      return 0
+      ;;
+    0:*)
+      if [ "$current_branch" != "main" ]; then
+        say "BulkheadLM is behind origin/main but checkout is on ${current_branch:-detached HEAD}; leaving it unchanged."
+        return 0
+      fi
 
-  # Try fast-forward first; fall back to reset if the branch diverged
-  if ! git -C "$DEFAULT_BULKHEAD_LM_DIR" merge --ff-only origin/main --quiet 2>/dev/null; then
-    say "Fast-forward failed; resetting to origin/main."
-    git -C "$DEFAULT_BULKHEAD_LM_DIR" checkout --quiet main 2>/dev/null || true
-    git -C "$DEFAULT_BULKHEAD_LM_DIR" reset --quiet --hard origin/main 2>/dev/null || true
-  fi
+      say "BulkheadLM is behind origin/main; updating ..."
 
-  if [ "$dirty" = "1" ]; then
-    git -C "$DEFAULT_BULKHEAD_LM_DIR" stash pop --quiet 2>/dev/null || true
-  fi
+      dirty=0
+      stash_created=0
+      if ! git -C "$DEFAULT_BULKHEAD_LM_DIR" diff --quiet HEAD 2>/dev/null; then
+        dirty=1
+        if git -C "$DEFAULT_BULKHEAD_LM_DIR" stash push --quiet --include-untracked --message agent-graph-autostash >/dev/null 2>&1; then
+          stash_created=1
+        fi
+      fi
 
-  after_rev=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-parse HEAD 2>/dev/null || true)
-  if [ "$after_rev" = "$remote_rev" ]; then
-    short_rev=$(printf '%.8s' "$after_rev")
-    say "BulkheadLM updated to $short_rev."
-  else
-    say_err "Warning: BulkheadLM could not be updated to origin/main; continuing with current checkout."
-  fi
+      update_failed=0
+      if ! git -C "$DEFAULT_BULKHEAD_LM_DIR" merge --ff-only origin/main --quiet 2>/dev/null; then
+        update_failed=1
+      fi
+
+      if [ "$stash_created" = "1" ]; then
+        if ! git -C "$DEFAULT_BULKHEAD_LM_DIR" stash pop --quiet >/dev/null 2>&1; then
+          say_err "Warning: BulkheadLM was updated but the stashed local changes could not be reapplied cleanly."
+        fi
+      elif [ "$dirty" = "1" ]; then
+        say_err "Warning: BulkheadLM had local changes and could not be auto-stashed; continuing."
+      fi
+
+      if [ "$update_failed" = "1" ]; then
+        say_err "Warning: BulkheadLM could not be fast-forwarded to origin/main; continuing with current checkout."
+        return 0
+      fi
+
+      after_rev=$(git -C "$DEFAULT_BULKHEAD_LM_DIR" rev-parse HEAD 2>/dev/null || true)
+      if [ "$after_rev" = "$remote_rev" ]; then
+        short_rev=$(printf '%.8s' "$after_rev")
+        say "BulkheadLM updated to $short_rev."
+      else
+        say_err "Warning: BulkheadLM update completed with an unexpected revision; continuing with current checkout."
+      fi
+      ;;
+    *:0)
+      say "BulkheadLM checkout is ahead of origin/main; leaving local commits intact."
+      ;;
+    *)
+      say "BulkheadLM checkout has diverged from origin/main; leaving local history intact."
+      ;;
+  esac
 }
 
 ensure_git_available() {
@@ -603,6 +638,11 @@ starter_main() {
       say_err "See $BUILD_LOG for details."
     fi
     manual_setup_commands >&2
+    exit 1
+  fi
+
+  if ! agent_graph_ensure_external_bulkhead_gateway "$ROOT_DIR" "$DEFAULT_BULKHEAD_LM_DIR" "$DEFAULT_CLIENT_CONFIG"; then
+    say_err "The external BulkheadLM gateway could not be started."
     exit 1
   fi
 

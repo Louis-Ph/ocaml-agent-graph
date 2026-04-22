@@ -157,6 +157,7 @@ module Prompt_templates = struct
       {
         role = "system";
         content = render_system_prompt participant;
+        extra = [];
       }
     in
     let user_message : Bulkhead_lm.Openai_types.message =
@@ -171,6 +172,7 @@ module Prompt_templates = struct
             (render_transcript discussion.turns)
             max_contribution_words
             convergence_marker;
+        extra = [];
       }
     in
     [ system_message; user_message ]

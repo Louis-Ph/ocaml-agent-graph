@@ -24,6 +24,8 @@ VIRTUAL_KEY_TOKEN=${BULKHEAD_LM_API_KEY:-sk-bulkhead-lm-dev}
 say() { printf '%s\n' "$1"; }
 say_err() { printf '%s\n' "$1" >&2; }
 
+. "$ROOT_DIR/scripts/bulkhead_gateway_common.sh"
+
 cleanup_servers() {
   if [ -n "${SPOKESPERSON_PID:-}" ]; then
     kill "$SPOKESPERSON_PID" 2>/dev/null || true
@@ -92,6 +94,11 @@ eval "$(opam env 2>/dev/null || true)"
   say "First build; running full setup via ./run.sh"
   exec "$ROOT_DIR/run.sh"
 }
+
+if ! agent_graph_ensure_external_bulkhead_gateway "$ROOT_DIR" "$BULKHEAD_LM_DIR" "$CLIENT_CONFIG"; then
+  say_err "The graph BulkheadLM gateway could not be started."
+  exit 1
+fi
 
 # ── Generate gateway config ─────────────────────────────────────────
 say "Generating messenger gateway config ..."

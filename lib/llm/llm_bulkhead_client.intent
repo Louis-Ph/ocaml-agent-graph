@@ -1,13 +1,13 @@
 Purpose
-This file is the bridge between `ocaml-agent-graph` and the `bulkhead_lm` library.
+This file is the bridge between `ocaml-agent-graph` and an external BulkheadLM server.
 
 Linear intent
 1. Define small local records for token usage and completion output so the rest of the framework gets a simple normalized shape.
-2. Define the client state as a BulkheadLM runtime store, one resolved authorization header, and the loaded LLM config.
+2. Define the client state around one resolved authorization header, discovered route metadata, and either an external HTTP transport or a test-only embedded store.
 3. Resolve the authorization header either from an inline token or from an environment variable.
-4. Create a client by loading the BulkheadLM gateway config file and building a BulkheadLM runtime store.
-5. Expose `of_store` so tests can inject a mocked BulkheadLM runtime without hitting the network.
+4. Create a client by contacting the external BulkheadLM server, reading `/v1/models`, and indexing the available routes.
+5. Expose `of_store` so tests can still inject a mocked BulkheadLM runtime without hitting the network.
 6. Extract the useful text from the normalized BulkheadLM chat response choices.
 7. Build a chat request from the agent profile and prompt messages.
-8. Send that request through `Bulkhead_lm.Router.dispatch_chat`, which means the graph uses BulkheadLM routing, auth, budgets, and provider adapters.
-9. Convert BulkheadLM errors into plain error strings and successful responses into the local normalized completion shape.
+8. Send normal runtime requests to the external BulkheadLM `/v1/chat/completions` endpoint, while keeping the embedded dispatch path only for isolated tests.
+9. Convert BulkheadLM HTTP or runtime errors into plain error strings and successful responses into the local normalized completion shape.

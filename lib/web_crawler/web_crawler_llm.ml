@@ -11,6 +11,7 @@ let create (config : Web_crawler_types.t) =
   match
     Llm_bulkhead_client.create_with_gateway
       ~gateway_config_path:config.llm.gateway_config_path
+      ~gateway_endpoint_url:config.llm.gateway_endpoint_url
       ~authorization_token_plaintext:config.llm.authorization_token_plaintext
       ~authorization_token_env:config.llm.authorization_token_env
   with
@@ -31,9 +32,13 @@ let invoke_profile
   =
   let messages =
     ([
-       ({ Bulkhead_lm.Openai_types.role = "system"; content = profile.prompt }
+       ({
+          Bulkhead_lm.Openai_types.role = "system";
+          content = profile.prompt;
+          extra = [];
+        }
          : Bulkhead_lm.Openai_types.message);
-       ({ role = "user"; content = user_content }
+       ({ role = "user"; content = user_content; extra = [] }
          : Bulkhead_lm.Openai_types.message);
      ]
       : Bulkhead_lm.Openai_types.message list)

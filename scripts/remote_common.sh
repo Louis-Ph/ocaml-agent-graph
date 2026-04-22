@@ -1,6 +1,8 @@
 AGENT_GRAPH_REMOTE_ROOT_DIR=${AGENT_GRAPH_REMOTE_ROOT_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}
 AGENT_GRAPH_REMOTE_INSTALL_DEFAULT_TARGET=${AGENT_GRAPH_REMOTE_INSTALL_DEFAULT_TARGET:-'${HOME}/opt/ocaml-agent-graph'}
 
+. "${AGENT_GRAPH_REMOTE_ROOT_DIR}/scripts/bulkhead_gateway_common.sh"
+
 agent_graph_remote_note() {
   printf '%s\n' "$*" >&2
 }
@@ -74,6 +76,15 @@ agent_graph_remote_load_opam_env() {
     OLLAMA_API_KEY="ollama"
     export OLLAMA_API_KEY
   fi
+}
+
+agent_graph_remote_ensure_bulkhead_gateway() {
+  client_config=$1
+  bulkhead_dir=${AGENT_GRAPH_REMOTE_BULKHEAD_LM_DIR:-${AGENT_GRAPH_REMOTE_ROOT_DIR}/../bulkhead-lm}
+  agent_graph_ensure_external_bulkhead_gateway \
+    "${AGENT_GRAPH_REMOTE_ROOT_DIR}" \
+    "$bulkhead_dir" \
+    "$client_config"
 }
 
 agent_graph_remote_find_client_runner() {

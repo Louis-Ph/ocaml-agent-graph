@@ -1,4 +1,5 @@
 open Agent_graph
+open Lwt.Infix
 
 let contains_substring ~substring value =
   let substring_length = String.length substring in
@@ -37,6 +38,7 @@ let make_runtime_config route_model =
   let llm =
     {
       Config.Runtime.Llm.gateway_config_path = "/unused/bulkhead.json";
+      gateway_endpoint_url = "http://127.0.0.1:4140";
       authorization_token_plaintext = Some "sk-test";
       authorization_token_env = None;
       planner =
@@ -148,6 +150,7 @@ let make_runtime_config_with_routes
   let llm =
     {
       Config.Runtime.Llm.gateway_config_path = "/unused/bulkhead.json";
+      gateway_endpoint_url = "http://127.0.0.1:4140";
       authorization_token_plaintext = Some "sk-test";
       authorization_token_env = None;
       planner =
@@ -1046,6 +1049,222 @@ let test_infer_http_provider_kind_recognizes_openrouter () =
     "openrouter_openai"
     provider_kind
 
+type captured_gateway_request = {
+  path : string;
+  authorization : string option;
+  body : Yojson.Safe.t option;
+}
+
+let reserve_local_port () =
+  let socket = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
+  Fun.protect
+    ~finally:(fun () -> Unix.close socket)
+    (fun () ->
+      Unix.bind socket (Unix.ADDR_INET (Unix.inet_addr_loopback, 0));
+      match Unix.getsockname socket with
+      | Unix.ADDR_INET (_, port) -> port
+      | _ -> failwith "Expected an INET socket")
+
+let with_fake_bulkhead_gateway f =
+  let port = reserve_local_port () in
+  let requests = ref [] in
+  let stop, stopper = Lwt.wait () in
+  let callback _conn req body =
+    let path = Uri.path (Cohttp.Request.uri req) in
+    let authorization =
+      Cohttp.Header.get (Cohttp.Request.headers req) "authorization"
+    in
+    Cohttp_lwt.Body.to_string body >>= fun body_text ->
+    let body_json =
+      match String.trim body_text with
+      | "" -> None
+      | _ ->
+          Some
+            (try Yojson.Safe.from_string body_text with
+             | Yojson.Json_error _ -> `String body_text)
+    in
+    requests :=
+      { path; authorization; body = body_json } :: !requests;
+    let respond_json json =
+      Cohttp_lwt_unix.Server.respond_string
+        ~status:`OK
+        ~headers:(Cohttp.Header.of_list [ "content-type", "application/json" ])
+        ~body:(Yojson.Safe.to_string json)
+        ()
+    in
+    match Cohttp.Request.meth req, path with
+    | `GET, "/health" ->
+        respond_json (`Assoc [ "status", `String "ok" ])
+    | `GET, "/v1/models" ->
+        respond_json
+          (`Assoc
+             [
+               ( "object",
+                 `String "list" );
+               ( "data",
+                 `List
+                   [
+                     `Assoc
+                       [
+                         "id", `String "assistant-route";
+                         "object", `String "model";
+                         "public_model", `String "assistant-route";
+                         ( "configured_backends",
+                           `List
+                             [
+                               `Assoc
+                                 [
+                                   "provider_id", `String "external-provider";
+                                   "provider_kind", `String "ollama_openai";
+                                   "upstream_model", `String "kimi-k2.6";
+                                   "credential_env", `String "OLLAMA_API_KEY";
+                                   ( "transport",
+                                     `Assoc
+                                       [
+                                         "kind", `String "http";
+                                         "target", `String "http://127.0.0.1:11434/v1";
+                                       ] );
+                                 ];
+                             ] );
+                         "backend_count", `Int 1;
+                       ];
+                   ] );
+             ])
+    | `POST, "/v1/chat/completions" ->
+        respond_json
+          (`Assoc
+             [
+               "id", `String "chatcmpl-test";
+               "created", `Int 1;
+               "model", `String "assistant-route";
+               "object", `String "chat.completion";
+               ( "choices",
+                 `List
+                   [
+                     `Assoc
+                       [
+                         "index", `Int 0;
+                         "finish_reason", `String "stop";
+                         ( "message",
+                           `Assoc
+                             [
+                               "role", `String "assistant";
+                               "content", `String "External BulkheadLM OK.";
+                             ] );
+                       ];
+                   ] );
+               ( "usage",
+                 `Assoc
+                   [
+                     "prompt_tokens", `Int 10;
+                     "completion_tokens", `Int 4;
+                     "total_tokens", `Int 14;
+                   ] );
+             ])
+    | _ ->
+        Cohttp_lwt_unix.Server.respond_string
+          ~status:`Not_found
+          ~headers:(Cohttp.Header.of_list [ "content-type", "application/json" ])
+          ~body:"{\"error\":\"not found\"}"
+          ()
+  in
+  let server =
+    Cohttp_lwt_unix.Server.make ~callback ()
+  in
+  let server_thread =
+    Lwt.async (fun () ->
+        Cohttp_lwt_unix.Server.create
+          ~mode:(`TCP (`Port port))
+          ~stop
+          server)
+  in
+  ignore server_thread;
+  Fun.protect
+    ~finally:(fun () ->
+      Lwt.wakeup_later stopper ();
+      Thread.delay 0.05)
+    (fun () ->
+      Thread.delay 0.05;
+      f port requests)
+
+let test_external_bulkhead_client_uses_http_gateway () =
+  with_fake_bulkhead_gateway (fun port requests ->
+      let client =
+        match
+          Llm.Bulkhead_client.create_with_gateway
+            ~gateway_config_path:"/tmp/gateway.json"
+            ~gateway_endpoint_url:(Fmt.str "http://127.0.0.1:%d" port)
+            ~authorization_token_plaintext:(Some "sk-test")
+            ~authorization_token_env:None
+        with
+        | Error message -> Alcotest.fail message
+        | Ok client -> client
+      in
+      let messages =
+        [
+          ({
+             Bulkhead_lm.Openai_types.role = "user";
+             content = "Bonjour.";
+             extra = [];
+           }
+            : Bulkhead_lm.Openai_types.message);
+        ]
+      in
+      match
+        Lwt_main.run
+          (Llm.Bulkhead_client.invoke_messages
+             client
+             ~route_model:"assistant-route"
+             ~messages
+             ~max_tokens:(Some 64))
+      with
+      | Error message -> Alcotest.fail message
+      | Ok completion ->
+          Alcotest.(check string)
+            "external response content"
+            "External BulkheadLM OK."
+            completion.content;
+          Alcotest.(check int)
+            "external total tokens"
+            14
+            completion.usage.total_tokens;
+          let requests = List.rev !requests in
+          Alcotest.(check int)
+            "models then chat"
+            2
+            (List.length requests);
+          match requests with
+          | models_request :: chat_request :: [] ->
+              Alcotest.(check string)
+                "models path"
+                "/v1/models"
+                models_request.path;
+              Alcotest.(check string)
+                "chat path"
+                "/v1/chat/completions"
+                chat_request.path;
+              Alcotest.(check (option string))
+                "models auth"
+                (Some "Bearer sk-test")
+                models_request.authorization;
+              Alcotest.(check (option string))
+                "chat auth"
+                (Some "Bearer sk-test")
+                chat_request.authorization;
+              (match chat_request.body with
+               | Some json ->
+                   let model =
+                     json
+                     |> Yojson.Safe.Util.member "model"
+                     |> Yojson.Safe.Util.to_string
+                   in
+                   Alcotest.(check string)
+                     "chat request model"
+                     "assistant-route"
+                     model
+               | None -> Alcotest.fail "expected chat request body")
+          | _ -> Alcotest.fail "expected exactly two gateway requests")
+
 let test_messenger_spokesperson_runs_swarm_and_replies () =
   let runtime = make_spokesperson_runtime () in
   let request : Bulkhead_lm.Openai_types.chat_request =
@@ -1056,10 +1275,12 @@ let test_messenger_spokesperson_runs_swarm_and_replies () =
           {
             Bulkhead_lm.Openai_types.role = "user";
             content = "Peux-tu parler au nom de l'essaim sur Telegram ?";
+            extra = [];
           };
         ];
       stream = false;
       max_tokens = Some 400;
+      extra = [];
     }
   in
   match Lwt_main.run (Client.Messenger_spokesperson.respond runtime request) with
@@ -1294,6 +1515,10 @@ let () =
             "recognizes openrouter http endpoints"
             `Quick
             test_infer_http_provider_kind_recognizes_openrouter;
+          Alcotest.test_case
+            "uses external bulkhead gateway over http"
+            `Quick
+            test_external_bulkhead_client_uses_http_gateway;
           Alcotest.test_case
             "messenger spokesperson runs swarm and replies"
             `Quick

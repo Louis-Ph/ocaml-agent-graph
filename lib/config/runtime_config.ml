@@ -37,6 +37,7 @@ module Llm = struct
 
   type t = {
     gateway_config_path : string;
+    gateway_endpoint_url : string;
     authorization_token_plaintext : string option;
     authorization_token_env : string option;
     planner : Agent_profile.t;
@@ -335,6 +336,11 @@ let parse_llm ~base_dir json =
       |> member "gateway_config_path"
       |> to_string
       |> Config_support.resolve_relative_path ~base_dir;
+    gateway_endpoint_url =
+      (json
+      |> member "gateway_endpoint_url"
+      |> to_string_option
+      |> Option.value ~default:"http://127.0.0.1:4140");
     authorization_token_plaintext =
       Config_support.member_string_option
         "authorization_token_plaintext"

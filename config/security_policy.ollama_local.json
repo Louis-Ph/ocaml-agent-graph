@@ -1,0 +1,25 @@
+{
+  "server": {
+    "listen_host": "127.0.0.1",
+    "listen_port": 4140,
+    "request_timeout_ms": 300000,
+    "max_request_body_bytes": 5242880
+  },
+  "egress": {
+    "deny_private_ranges": false,
+    "allowed_schemes": ["https", "http", "ssh"],
+    "blocked_hosts": ["metadata.google.internal", "169.254.169.254"]
+  },
+  "routing": {
+    "max_fallbacks": 5,
+    "max_inflight": 64,
+    "circuit_open_threshold": 8,
+    "circuit_cooldown_s": 15
+  },
+  "rate_limit": {
+    "default_requests_per_minute": 600
+  },
+  "budget": {
+    "default_daily_tokens": 10000000
+  }
+}

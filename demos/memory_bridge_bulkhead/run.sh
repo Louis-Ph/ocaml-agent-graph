@@ -46,44 +46,17 @@ load_secrets() {
 }
 
 detect_provider() {
-  if [ -n "${OPEN_ROUTER_KEY:-}" ]; then
-    DEMO_ROUTE_MODEL=openrouter-auto
-    DEMO_PROVIDER_ID=openrouter-auto
-    DEMO_PROVIDER_KIND=openrouter_openai
-    DEMO_UPSTREAM_MODEL=openrouter/auto
-    DEMO_API_BASE=https://openrouter.ai/api/v1
-    DEMO_API_KEY_ENV=OPEN_ROUTER_KEY
-    return 0
-  fi
-  if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
-    DEMO_ROUTE_MODEL=claude-sonnet
-    DEMO_PROVIDER_ID=anthropic-claude-sonnet
-    DEMO_PROVIDER_KIND=anthropic
-    DEMO_UPSTREAM_MODEL=claude-sonnet-4-5
-    DEMO_API_BASE=https://api.anthropic.com/v1
-    DEMO_API_KEY_ENV=ANTHROPIC_API_KEY
-    return 0
-  fi
-  if [ -n "${OPENAI_API_KEY:-}" ]; then
-    DEMO_ROUTE_MODEL=gpt-5-mini
-    DEMO_PROVIDER_ID=openai-gpt-5-mini
-    DEMO_PROVIDER_KIND=openai_compat
-    DEMO_UPSTREAM_MODEL=gpt-5-mini
-    DEMO_API_BASE=https://api.openai.com/v1
-    DEMO_API_KEY_ENV=OPENAI_API_KEY
-    return 0
-  fi
-  if [ -n "${GOOGLE_API_KEY:-}" ]; then
-    DEMO_ROUTE_MODEL=gemini-2.5-flash
-    DEMO_PROVIDER_ID=google-gemini-2-5-flash
-    DEMO_PROVIDER_KIND=google_openai
-    DEMO_UPSTREAM_MODEL=gemini-2.5-flash
-    DEMO_API_BASE=https://generativelanguage.googleapis.com/v1beta/openai/
-    DEMO_API_KEY_ENV=GOOGLE_API_KEY
+  if [ -n "${MOONSHOT_API_KEY:-}" ]; then
+    DEMO_ROUTE_MODEL=kimi-k2.6
+    DEMO_PROVIDER_ID=moonshot-kimi-k2-6
+    DEMO_PROVIDER_KIND=moonshot_openai
+    DEMO_UPSTREAM_MODEL=kimi-k2.6
+    DEMO_API_BASE=https://api.moonshot.ai/v1
+    DEMO_API_KEY_ENV=MOONSHOT_API_KEY
     return 0
   fi
   say_err "No supported provider key detected."
-  say_err "Set one of OPEN_ROUTER_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_API_KEY."
+  say_err "Set MOONSHOT_API_KEY to run the memory bridge demo with kimi-k2.6."
   exit 1
 }
 

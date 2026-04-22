@@ -12,19 +12,19 @@
       "token_plaintext": "sk-bulkhead-lm-dev",
       "daily_token_budget": 50000,
       "requests_per_minute": 30,
-      "allowed_routes": ["claude-sonnet"]
+      "allowed_routes": ["kimi-k2.6"]
     }
   ],
   "routes": [
     {
-      "public_model": "claude-sonnet",
+      "public_model": "kimi-k2.6",
       "backends": [
         {
-          "provider_id": "anthropic-primary",
-          "provider_kind": "anthropic",
-          "upstream_model": "claude-sonnet-4-5-20250929",
-          "api_base": "https://api.anthropic.com/v1",
-          "api_key_env": "ANTHROPIC_API_KEY"
+          "provider_id": "moonshot-kimi-k2-6",
+          "provider_kind": "moonshot_openai",
+          "upstream_model": "kimi-k2.6",
+          "api_base": "https://api.moonshot.ai/v1",
+          "api_key_env": "MOONSHOT_API_KEY"
         }
       ]
     }

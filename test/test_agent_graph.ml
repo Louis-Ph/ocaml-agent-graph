@@ -1,12 +1,9 @@
 open Agent_graph
 open Lwt.Syntax
 
-let make_llm_config
-    ?(planner_route_model = "planner-model")
+let make_llm_config ?(planner_route_model = "planner-model")
     ?(summarizer_route_model = "summarizer-model")
-    ?(validator_route_model = "validator-model")
-    ()
-  =
+    ?(validator_route_model = "validator-model") () =
   {
     Config.Runtime.Llm.gateway_config_path = "/unused/in-tests.json";
     gateway_endpoint_url = "http://127.0.0.1:4140";
@@ -36,17 +33,11 @@ let make_llm_config
   }
 
 let llm_config = make_llm_config ()
-
 let disabled_discussion = Config.Runtime.Discussion.disabled
-
 let disabled_memory = Config.Runtime.Memory.disabled
 
-let make_config
-    ?(llm = llm_config)
-    ?(discussion = disabled_discussion)
-    ?(memory = disabled_memory)
-    ()
-  =
+let make_config ?(llm = llm_config) ?(discussion = disabled_discussion)
+    ?(memory = disabled_memory) () =
   {
     Config.Runtime.engine =
       {
@@ -63,18 +54,13 @@ let make_config
         parallel_agents =
           [ Core.Agent_name.Summarizer; Core.Agent_name.Validator ];
       };
-    demo =
-      {
-        Config.Runtime.Demo.task_id = "test-task";
-        input = "unused";
-      };
+    demo = { Config.Runtime.Demo.task_id = "test-task"; input = "unused" };
     llm;
     discussion;
     memory;
   }
 
 let config = make_config ()
-
 let registry = Agents.Defaults.make_registry ()
 
 let write_file path content =
@@ -135,29 +121,23 @@ let make_discussion_config () =
 
 let make_bulkhead_config ?routes () =
   let backend provider_id model =
-    Bulkhead_lm.Config_test_support.backend
-      ~provider_id
+    Bulkhead_lm.Config_test_support.backend ~provider_id
       ~provider_kind:Bulkhead_lm.Config.Openai_compat
-      ~api_base:"https://api.example.test/v1"
-      ~upstream_model:model
-      ~api_key_env:"IGNORED"
-      ()
+      ~api_base:"https://api.example.test/v1" ~upstream_model:model
+      ~api_key_env:"IGNORED" ()
   in
   let routes =
     match routes with
     | Some routes -> routes
     | None ->
         [
-          Bulkhead_lm.Config_test_support.route
-            ~public_model:"planner-model"
+          Bulkhead_lm.Config_test_support.route ~public_model:"planner-model"
             ~backends:[ backend "planner-provider" "planner-model" ]
             ();
-          Bulkhead_lm.Config_test_support.route
-            ~public_model:"summarizer-model"
+          Bulkhead_lm.Config_test_support.route ~public_model:"summarizer-model"
             ~backends:[ backend "summarizer-provider" "summarizer-model" ]
             ();
-          Bulkhead_lm.Config_test_support.route
-            ~public_model:"validator-model"
+          Bulkhead_lm.Config_test_support.route ~public_model:"validator-model"
             ~backends:[ backend "validator-provider" "validator-model" ]
             ();
         ]
@@ -169,14 +149,10 @@ let make_bulkhead_config ?routes () =
   Bulkhead_lm.Config_test_support.sample_config
     ~virtual_keys:
       [
-        Bulkhead_lm.Config_test_support.virtual_key
-          ~token_plaintext:"sk-test"
-          ~name:"test"
-          ~allowed_routes
-          ();
+        Bulkhead_lm.Config_test_support.virtual_key ~token_plaintext:"sk-test"
+          ~name:"test" ~allowed_routes ();
       ]
-    ~routes
-    ()
+    ~routes ()
 
 let make_services ?(config = config) ?routes responses =
   let bulkhead_config = make_bulkhead_config ?routes () in
@@ -187,28 +163,18 @@ let make_services ?(config = config) ?routes responses =
       bulkhead_config
   in
   let llm_client =
-    Llm.Bulkhead_client.of_store
-      ~authorization:"Bearer sk-test"
-      store
+    Llm.Bulkhead_client.of_store ~authorization:"Bearer sk-test" store
   in
   Runtime.Services.of_llm_client ~config llm_client
 
-let run_lwt
-    ?(config = config)
-    ?(task_id = "test-task")
-    ?(metadata = [])
-    ~services
-    input
-  =
+let run_lwt ?(config = config) ?(task_id = "test-task") ?(metadata = [])
+    ~services input =
   let context = Core.Context.empty ~task_id ~metadata in
-  Orchestration.Orchestrator.loop
-    ~services
-    ~config
-    ~registry
-    context
+  Orchestration.Orchestrator.loop ~services ~config ~registry context
     (Core.Payload.Text input)
 
-let run ?(config = config) ?(task_id = "test-task") ?(metadata = []) ~services input =
+let run ?(config = config) ?(task_id = "test-task") ?(metadata = []) ~services
+    input =
   Lwt_main.run (run_lwt ~config ~task_id ~metadata ~services input)
 
 let test_short_text_path () =
@@ -218,26 +184,22 @@ let test_short_text_path () =
         ( "summarizer-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
-               ~model:"summarizer-model"
-               ~content:"A short LLM summary."
-               ()) );
+               ~model:"summarizer-model" ~content:"A short LLM summary." ()) );
       ]
   in
-  let payload, context = run ~services "Typed orchestration for compact tasks." in
+  let payload, context =
+    run ~services "Typed orchestration for compact tasks."
+  in
   match payload with
   | Core.Payload.Text summary ->
       Alcotest.(check bool)
-        "summary prefix"
-        true
+        "summary prefix" true
         (has_prefix "Summary:" summary);
       Alcotest.(check string)
-        "llm summary body"
-        "Summary: A short LLM summary."
-        summary;
+        "llm summary body" "Summary: A short LLM summary." summary;
       Alcotest.(check int) "single agent execution" 1 context.step_count;
       Alcotest.(check bool)
-        "summarizer completed"
-        true
+        "summarizer completed" true
         (Core.Context.has_completed_agent context Core.Agent_name.Summarizer)
   | _ -> Alcotest.fail "Expected a summarized text payload"
 
@@ -250,19 +212,22 @@ let test_long_text_parallel_path () =
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"planner-model"
                ~content:
-                 "Identify the modules\nDefine the typed graph\nRun summary and validation in parallel"
+                 "Identify the modules\n\
+                  Define the typed graph\n\
+                  Run summary and validation in parallel"
                ()) );
         ( "summarizer-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
-               ~model:"summarizer-model"
-               ~content:"A compact execution summary."
+               ~model:"summarizer-model" ~content:"A compact execution summary."
                ()) );
         ( "validator-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"validator-model"
-               ~content:"PASS | strengths: typed flow | risks: monitor provider failures"
+               ~content:
+                 "PASS | strengths: typed flow | risks: monitor provider \
+                  failures"
                ()) );
       ]
   in
@@ -278,24 +243,21 @@ let test_long_text_parallel_path () =
         |> List.map (fun (item : Core.Payload.batch_item) ->
                Core.Agent_name.to_string item.agent)
       in
-      Alcotest.(check int) "planner plus two parallel agents" 3 context.step_count;
+      Alcotest.(check int)
+        "planner plus two parallel agents" 3 context.step_count;
       Alcotest.(check int) "two aggregated results" 2 (List.length items);
       Alcotest.(check bool)
-        "planner completed"
-        true
+        "planner completed" true
         (Core.Context.has_completed_agent context Core.Agent_name.Planner);
       Alcotest.(check bool)
-        "summarizer present"
-        true
+        "summarizer present" true
         (List.mem "summarizer" agent_names);
       Alcotest.(check bool)
-        "validator present"
-        true
+        "validator present" true
         (List.mem "validator" agent_names);
       let rendered = Core.Payload.to_pretty_string payload in
       Alcotest.(check bool)
-        "llm validator text kept"
-        true
+        "llm validator text kept" true
         (String.contains rendered 'P')
   | _ -> Alcotest.fail "Expected a batch payload after parallel orchestration"
 
@@ -307,14 +269,11 @@ let test_batch_notes_include_provider_access () =
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"planner-model"
-               ~content:"Identify modules\nValidate providers"
-               ()) );
+               ~content:"Identify modules\nValidate providers" ()) );
         ( "summarizer-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
-               ~model:"summarizer-model"
-               ~content:"Compact summary."
-               ()) );
+               ~model:"summarizer-model" ~content:"Compact summary." ()) );
         ( "validator-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
@@ -324,8 +283,7 @@ let test_batch_notes_include_provider_access () =
       ]
   in
   let payload, _context =
-    run
-      ~services
+    run ~services
       "Plan the graph, summarize it, and validate provider access notes."
   in
   match payload with
@@ -337,38 +295,31 @@ let test_batch_notes_include_provider_access () =
       in
       let joined_notes = String.concat "\n" summarizer_item.notes in
       Alcotest.(check bool)
-        "route model tracked in notes"
-        true
-        (contains_substring
-           ~substring:"route_model=summarizer-model"
+        "route model tracked in notes" true
+        (contains_substring ~substring:"route_model=summarizer-model"
            joined_notes);
       Alcotest.(check bool)
-        "provider id tracked in notes"
-        true
+        "provider id tracked in notes" true
         (contains_substring
            ~substring:"summarizer-provider [openai_compat -> summarizer-model"
            joined_notes);
       Alcotest.(check bool)
-        "route access summary present"
-        true
-        (String.starts_with ~prefix:"Summarizer used route_model=" (List.hd summarizer_item.notes))
+        "route access summary present" true
+        (String.starts_with ~prefix:"Summarizer used route_model="
+           (List.hd summarizer_item.notes))
   | _ -> Alcotest.fail "Expected a batch payload with provider access notes"
 
 let test_long_text_discussion_path () =
   let discussion = make_discussion_config () in
   let config = make_config ~discussion () in
   let route provider_id public_model =
-    Bulkhead_lm.Config_test_support.route
-      ~public_model
+    Bulkhead_lm.Config_test_support.route ~public_model
       ~backends:
         [
-          Bulkhead_lm.Config_test_support.backend
-            ~provider_id
+          Bulkhead_lm.Config_test_support.backend ~provider_id
             ~provider_kind:Bulkhead_lm.Config.Openai_compat
-            ~api_base:"https://api.example.test/v1"
-            ~upstream_model:public_model
-            ~api_key_env:"IGNORED"
-            ();
+            ~api_base:"https://api.example.test/v1" ~upstream_model:public_model
+            ~api_key_env:"IGNORED" ();
         ]
       ()
   in
@@ -382,54 +333,63 @@ let test_long_text_discussion_path () =
     ]
   in
   let services =
-    make_services
-      ~config
-      ~routes
+    make_services ~config ~routes
       [
         ( "planner-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"planner-model"
                ~content:
-                 "Define the target module hierarchy\nDebate risks and interface boundaries\nConverge on an implementation sequence"
+                 "Define the target module hierarchy\n\
+                  Debate risks and interface boundaries\n\
+                  Converge on an implementation sequence"
                ()) );
         ( "architect-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"architect-model"
-               ~content:"Split the workflow into planner, discussion runner, and final summarizer modules."
+               ~content:
+                 "Split the workflow into planner, discussion runner, and \
+                  final summarizer modules."
                ()) );
         ( "critic-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"critic-model"
-               ~content:"Validate every discussion route up front and cover the branch with tests."
+               ~content:
+                 "Validate every discussion route up front and cover the \
+                  branch with tests."
                ()) );
         ( "architect-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"architect-model"
-               ~content:"Keep the transcript typed so the summarizer can consume one stable payload."
+               ~content:
+                 "Keep the transcript typed so the summarizer can consume one \
+                  stable payload."
                ()) );
         ( "critic-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"critic-model"
-               ~content:"Do not hide participant failures; record events and stop only if nobody contributes."
+               ~content:
+                 "Do not hide participant failures; record events and stop \
+                  only if nobody contributes."
                ()) );
         ( "summarizer-model",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"summarizer-model"
-               ~content:"The group converged on a typed discussion workflow with explicit route validation and auditable events."
+               ~content:
+                 "The group converged on a typed discussion workflow with \
+                  explicit route validation and auditable events."
                ()) );
       ]
   in
   let payload, context =
-    run
-      ~config
-      ~services
-      "Design a group discussion workflow of multiple BulkheadLM agents with proper hierarchy, route validation, and a final synthesis."
+    run ~config ~services
+      "Design a group discussion workflow of multiple BulkheadLM agents with \
+       proper hierarchy, route validation, and a final synthesis."
   in
   match payload with
   | Core.Payload.Text summary ->
@@ -440,33 +400,28 @@ let test_long_text_discussion_path () =
       in
       Alcotest.(check string)
         "discussion final summary"
-        "Summary: The group converged on a typed discussion workflow with explicit route validation and auditable events."
+        "Summary: The group converged on a typed discussion workflow with \
+         explicit route validation and auditable events."
         summary;
       Alcotest.(check int)
-        "planner and summarizer counted as top-level steps"
-        2
-        context.step_count;
+        "planner and summarizer counted as top-level steps" 2 context.step_count;
       Alcotest.(check int)
-        "four discussion turns completed"
-        4
+        "four discussion turns completed" 4
         (List.length discussion_turn_events);
       Alcotest.(check bool)
-        "discussion started event recorded"
-        true
+        "discussion started event recorded" true
         (context.Core.Context.events
-         |> List.exists (fun (event : Core.Context.event) ->
-                String.equal event.label "discussion.started"));
+        |> List.exists (fun (event : Core.Context.event) ->
+               String.equal event.label "discussion.started"));
       Alcotest.(check bool)
-        "architect contribution kept in events"
-        true
+        "architect contribution kept in events" true
         (discussion_turn_events
-         |> List.exists (fun (event : Core.Context.event) ->
-                contains_substring
-                  ~substring:"speaker=architect"
-                  event.detail))
+        |> List.exists (fun (event : Core.Context.event) ->
+               contains_substring ~substring:"speaker=architect" event.detail))
   | _ ->
       Alcotest.fail
-        "Expected a final summarized text payload after discussion orchestration"
+        "Expected a final summarized text payload after discussion \
+         orchestration"
 
 let test_discussion_live_output_turn_message () =
   let turn =
@@ -480,28 +435,20 @@ let test_discussion_live_output_turn_message () =
     }
   in
   let rendered =
-    Orchestration.Discussion.Live_output.turn_completed_message
-      ~max_rounds:4
+    Orchestration.Discussion.Live_output.turn_completed_message ~max_rounds:4
       turn
   in
   Alcotest.(check bool)
-    "header keeps round hierarchy"
-    true
-    (contains_substring
-       ~substring:"Discussion turn 2/4 speaker=architect"
+    "header keeps round hierarchy" true
+    (contains_substring ~substring:"Discussion turn 2/4 speaker=architect"
        rendered);
   Alcotest.(check bool)
-    "first content line indented"
-    true
+    "first content line indented" true
     (contains_substring
-       ~substring:"\n    Split the workflow into explicit modules."
-       rendered);
+       ~substring:"\n    Split the workflow into explicit modules." rendered);
   Alcotest.(check bool)
-    "second content line indented"
-    true
-    (contains_substring
-       ~substring:"\n    Keep the transcript typed."
-       rendered)
+    "second content line indented" true
+    (contains_substring ~substring:"\n    Keep the transcript typed." rendered)
 
 let test_discussion_prompt_includes_versioned_persona_and_rules () =
   let participant : Config.Runtime.Discussion.Participant.t =
@@ -534,16 +481,13 @@ let test_discussion_prompt_includes_versioned_persona_and_rules () =
     Orchestration.Discussion.Prompt_templates.render_system_prompt participant
   in
   Alcotest.(check bool)
-    "base prompt preserved"
-    true
+    "base prompt preserved" true
     (contains_substring ~substring:"Base discussion prompt." rendered);
   Alcotest.(check bool)
-    "persona version included"
-    true
+    "persona version included" true
     (contains_substring ~substring:"Persona (version persona-v4)" rendered);
   Alcotest.(check bool)
-    "rules version included"
-    true
+    "rules version included" true
     (contains_substring ~substring:"Rules (version rules-v2)" rendered)
 
 let test_discussion_prompt_uses_local_word_budget_for_local_routes () =
@@ -573,41 +517,64 @@ let test_discussion_prompt_uses_local_word_budget_for_local_routes () =
     }
   in
   let remote_participant : Config.Runtime.Discussion.Participant.t =
-    { local_participant with
+    {
+      local_participant with
       profile =
-        { local_participant.profile with
-          Config.Runtime.Llm.Agent_profile.route_model = "claude-sonnet"
-        }
+        {
+          local_participant.profile with
+          Config.Runtime.Llm.Agent_profile.route_model = "claude-sonnet";
+        };
     }
   in
   let local_messages =
     Orchestration.Discussion.Prompt_templates.build_messages
-      ~participant:local_participant
-      ~context
-      ~discussion
-      ~round_index:1
+      ~participant:local_participant ~context ~discussion ~round_index:1
   in
   let remote_messages =
     Orchestration.Discussion.Prompt_templates.build_messages
-      ~participant:remote_participant
-      ~context
-      ~discussion
-      ~round_index:1
+      ~participant:remote_participant ~context ~discussion ~round_index:1
   in
   let local_user_message = List.nth local_messages 1 in
   let remote_user_message = List.nth remote_messages 1 in
   Alcotest.(check bool)
-    "local routes get a larger budget"
-    true
-    (contains_substring
-       ~substring:"stay under 500 words"
+    "local routes get a larger budget" true
+    (contains_substring ~substring:"stay under 380 words"
        (String.lowercase_ascii local_user_message.content));
   Alcotest.(check bool)
-    "remote routes keep the default budget"
-    true
-    (contains_substring
-       ~substring:"stay under 120 words"
+    "remote routes keep the default budget" true
+    (contains_substring ~substring:"stay under 120 words"
        (String.lowercase_ascii remote_user_message.content))
+
+let test_discussion_turn_normalizer_hard_caps_word_count () =
+  let participant : Config.Runtime.Discussion.Participant.t =
+    {
+      name = "implementer";
+      profile =
+        {
+          Config.Runtime.Llm.Agent_profile.route_model = "qwen3-4b-local";
+          system_prompt = "system prompt";
+          max_tokens = Some 96;
+          confidence = 0.9;
+        };
+      persona = None;
+      rules = None;
+    }
+  in
+  let long_text =
+    List.init 420 (fun index -> Fmt.str "word%d" (index + 1))
+    |> String.concat " "
+  in
+  let normalized =
+    Orchestration.Discussion.normalize_contribution_content ~participant
+      long_text
+  in
+  let word_count =
+    normalized |> String.split_on_char ' '
+    |> List.filter (fun word -> String.trim word <> "")
+    |> List.length
+  in
+  Alcotest.(check bool)
+    "normalizer enforces the hard cap" true (word_count <= 380)
 
 let test_discussion_convergence_requires_explicit_marker_after_round_one () =
   let turn speaker round_index content =
@@ -626,11 +593,15 @@ let test_discussion_convergence_requires_explicit_marker_after_round_one () =
       turns =
         [
           turn "architect" 1 "Do not emit [DISCUSSION_CONVERGED] yet.";
-          turn "critic" 1 "The transcript merely mentions [DISCUSSION_CONVERGED] as a marker.";
+          turn "critic" 1
+            "The transcript merely mentions [DISCUSSION_CONVERGED] as a marker.";
           turn "implementer" 1 "Still debating the design.";
-          turn "architect" 2 "[DISCUSSION_CONVERGED] The design is stable enough to close.";
-          turn "critic" 2 "[DISCUSSION_CONVERGED] Main objections have been addressed.";
-          turn "implementer" 2 "One follow-up remains, but the direction is usable.";
+          turn "architect" 2
+            "[DISCUSSION_CONVERGED] The design is stable enough to close.";
+          turn "critic" 2
+            "[DISCUSSION_CONVERGED] Main objections have been addressed.";
+          turn "implementer" 2
+            "One follow-up remains, but the direction is usable.";
         ];
       sub_discussions = [];
       completed_rounds = 0;
@@ -638,18 +609,12 @@ let test_discussion_convergence_requires_explicit_marker_after_round_one () =
     }
   in
   Alcotest.(check bool)
-    "body mention does not converge round 1"
-    false
-    (Orchestration.Discussion.round_has_converged
-       discussion
-       ~round_index:1
+    "body mention does not converge round 1" false
+    (Orchestration.Discussion.round_has_converged discussion ~round_index:1
        ~participant_count:3);
   Alcotest.(check bool)
-    "majority explicit marker converges at round 2"
-    true
-    (Orchestration.Discussion.round_has_converged
-       discussion
-       ~round_index:2
+    "majority explicit marker converges at round 2" true
+    (Orchestration.Discussion.round_has_converged discussion ~round_index:2
        ~participant_count:3)
 
 let test_discussion_summary_falls_back_when_llm_returns_meta_commentary () =
@@ -669,7 +634,8 @@ let test_discussion_summary_falls_back_when_llm_returns_meta_commentary () =
             Core.Payload.speaker = "architect";
             round_index = 1;
             content =
-              "Add a validation layer with evidence sources, a confidence score, and typed checkpoints.";
+              "Add a validation layer with evidence sources, a confidence \
+               score, and typed checkpoints.";
             metrics = Core.Payload.zero_metrics;
             notes = [];
           };
@@ -677,7 +643,8 @@ let test_discussion_summary_falls_back_when_llm_returns_meta_commentary () =
             Core.Payload.speaker = "critic";
             round_index = 1;
             content =
-              "Track provenance, freshness, and fallback behavior or the confidence score will be misleading.";
+              "Track provenance, freshness, and fallback behavior or the \
+               confidence score will be misleading.";
             metrics = Core.Payload.zero_metrics;
             notes = [];
           };
@@ -685,7 +652,8 @@ let test_discussion_summary_falls_back_when_llm_returns_meta_commentary () =
             Core.Payload.speaker = "implementer";
             round_index = 1;
             content =
-              "Start with a typed evidence record, a confidence updater, and one bounded web/document fetch path.";
+              "Start with a typed evidence record, a confidence updater, and \
+               one bounded web/document fetch path.";
             metrics = Core.Payload.zero_metrics;
             notes = [];
           };
@@ -703,23 +671,23 @@ let test_discussion_summary_falls_back_when_llm_returns_meta_commentary () =
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"summarizer-model"
                ~content:
-                 "We are given a transcript and the task is to summarize the payload and rounds."
+                 "We are given a transcript and the task is to summarize the \
+                  payload and rounds."
                ()) );
       ]
   in
   let context = Core.Context.empty ~task_id:"test-task" ~metadata:[] in
   let payload, _metrics, _notes =
     Lwt_main.run
-      (Agents.Summarizer.run
-         services
-         context
+      (Agents.Summarizer.run services context
          (Core.Payload.Discussion discussion))
   in
   match payload with
   | Core.Payload.Text summary ->
       Alcotest.(check string)
         "meta commentary replaced by discussion fallback"
-        "Summary: Start with a typed evidence record, a confidence updater, and one bounded web/document fetch path."
+        "Summary: Start with a typed evidence record, a confidence updater, \
+         and one bounded web/document fetch path."
         summary
   | _ -> Alcotest.fail "Expected a summarized discussion payload"
 
@@ -739,7 +707,8 @@ let test_discussion_turn_sanitizer_drops_meta_preamble () =
           {
             Config.Runtime.Discussion.Versioned_text.version = "persona-v1";
             text =
-              "Focus on technical implementation slices, interfaces, data flow, validation strategy, and test plan over vague advice.";
+              "Focus on technical implementation slices, interfaces, data \
+               flow, validation strategy, and test plan over vague advice.";
             source_path = None;
           };
       rules = None;
@@ -748,7 +717,8 @@ let test_discussion_turn_sanitizer_drops_meta_preamble () =
   let raw =
     "We are in Round 2 of a 5-round discussion.\n\
      Background:\n\
-     Focus on technical implementation slices, interfaces, data flow, validation strategy, and test plan over vague advice.\n\
+     Focus on technical implementation slices, interfaces, data flow, \
+     validation strategy, and test plan over vague advice.\n\
      - The architect proposed a verification pass.\n\
      My role is to challenge assumptions.\n\
      Add a typed evidence record.\n\
@@ -759,22 +729,17 @@ let test_discussion_turn_sanitizer_drops_meta_preamble () =
     Orchestration.Discussion.normalize_contribution_content ~participant raw
   in
   Alcotest.(check bool)
-    "meta round line removed"
-    false
+    "meta round line removed" false
     (contains_substring ~substring:"We are in Round 2" normalized);
   Alcotest.(check bool)
-    "meta role line removed"
-    false
+    "meta role line removed" false
     (contains_substring ~substring:"My role is" normalized);
   Alcotest.(check bool)
-    "guidance echo removed"
-    false
-    (contains_substring
-       ~substring:"Focus on technical implementation slices"
+    "guidance echo removed" false
+    (contains_substring ~substring:"Focus on technical implementation slices"
        normalized);
   Alcotest.(check bool)
-    "substantive line kept"
-    true
+    "substantive line kept" true
     (contains_substring ~substring:"Add a typed evidence record." normalized)
 
 let make_memory_config sqlite_path =
@@ -791,7 +756,8 @@ let make_memory_config sqlite_path =
     reload = { Config.Runtime.Memory.Reload.recent_turn_buffer = 2 };
     compression =
       {
-        Config.Runtime.Memory.Compression.policy_name = "test_explicit_memory_v1";
+        Config.Runtime.Memory.Compression.policy_name =
+          "test_explicit_memory_v1";
         trigger =
           {
             Config.Runtime.Memory.Compression.Trigger.mode =
@@ -868,20 +834,15 @@ let with_bridge_server f =
         let request_line = input_line input_channel |> String.trim in
         let rec read_headers acc =
           let line = input_line input_channel |> String.trim in
-          if line = ""
-          then List.rev acc
-          else read_headers (line :: acc)
+          if line = "" then List.rev acc else read_headers (line :: acc)
         in
-        let headers =
-          read_headers []
-          |> List.filter_map parse_header
-        in
+        let headers = read_headers [] |> List.filter_map parse_header in
         let content_length =
           match List.assoc_opt "content-length" headers with
-          | Some value ->
-              (match int_of_string_opt value with
-               | Some length -> length
-               | None -> 0)
+          | Some value -> (
+              match int_of_string_opt value with
+              | Some length -> length
+              | None -> 0)
           | None -> 0
         in
         let body_text = really_input_string input_channel content_length in
@@ -890,12 +851,10 @@ let with_bridge_server f =
           | _method :: value :: _ -> value
           | _ -> "/"
         in
-        let uri =
-          Uri.of_string (Fmt.str "http://127.0.0.1:%d%s" port target)
-        in
+        let uri = Uri.of_string (Fmt.str "http://127.0.0.1:%d%s" port target) in
         let body_json =
-          try Yojson.Safe.from_string body_text with
-          | Yojson.Json_error _ -> `String body_text
+          try Yojson.Safe.from_string body_text
+          with Yojson.Json_error _ -> `String body_text
         in
         requests :=
           {
@@ -905,24 +864,28 @@ let with_bridge_server f =
             body = body_json;
           }
           :: !requests;
-        output_string
-          output_channel
-          "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 11\r\nConnection: close\r\n\r\n{\"ok\":true}";
+        output_string output_channel
+          "HTTP/1.1 200 OK\r\n\
+           Content-Type: application/json\r\n\
+           Content-Length: 11\r\n\
+           Connection: close\r\n\
+           \r\n\
+           {\"ok\":true}";
         flush output_channel)
   in
   let server_thread =
     Thread.create
       (fun () ->
         let rec loop () =
-          if !stop
-          then ()
+          if !stop then ()
           else
             try
               let client_socket, _ = Unix.accept server_socket in
               handle_client client_socket;
               loop ()
             with
-            | Unix.Unix_error ((Unix.EBADF | Unix.EINVAL), _, _) when !stop -> ()
+            | Unix.Unix_error ((Unix.EBADF | Unix.EINVAL), _, _) when !stop ->
+                ()
             | End_of_file when !stop -> ()
         in
         loop ())
@@ -931,14 +894,13 @@ let with_bridge_server f =
   Fun.protect
     ~finally:(fun () ->
       stop := true;
-      (try Unix.close server_socket with
-       | Unix.Unix_error _ -> ());
+      (try Unix.close server_socket with Unix.Unix_error _ -> ());
       (try
          let wake_socket = Unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
-         Unix.connect wake_socket (Unix.ADDR_INET (Unix.inet_addr_loopback, port));
+         Unix.connect wake_socket
+           (Unix.ADDR_INET (Unix.inet_addr_loopback, port));
          Unix.close wake_socket
-       with
-       | Unix.Unix_error _ -> ());
+       with Unix.Unix_error _ -> ());
       Thread.join server_thread)
     (fun () ->
       Thread.delay 0.05;
@@ -953,48 +915,36 @@ let test_memory_persists_between_runs () =
       ( "summarizer-model",
         Ok
           (Bulkhead_lm.Provider_mock.sample_chat_response
-             ~model:"summarizer-model"
-             ~content:"A short LLM summary."
-             ()) );
+             ~model:"summarizer-model" ~content:"A short LLM summary." ()) );
     ]
   in
   let services1 = make_services ~config responses in
   let _payload1, _context1 =
-    run
-      ~config
-      ~services:services1
-      ~task_id:"persisted-task"
+    run ~config ~services:services1 ~task_id:"persisted-task"
       "Remember the bridge retrofit notes."
   in
   let services2 = make_services ~config responses in
   let _payload2, context2 =
-    run
-      ~config
-      ~services:services2
-      ~task_id:"persisted-task"
+    run ~config ~services:services2 ~task_id:"persisted-task"
       "Add the new budget estimate."
   in
   let rendered_history =
-    context2.Core.Context.history
-    |> List.rev
+    context2.Core.Context.history |> List.rev
     |> List.map (fun (message : Core.Message.t) -> message.content)
     |> String.concat "\n"
   in
   Alcotest.(check bool)
-    "previous user input reloaded"
-    true
-    (contains_substring
-       ~substring:"Remember the bridge retrofit notes."
+    "previous user input reloaded" true
+    (contains_substring ~substring:"Remember the bridge retrofit notes."
        rendered_history);
   Alcotest.(check bool)
-    "previous assistant reply reloaded"
-    true
-    (contains_substring
-       ~substring:"A short LLM summary."
-       rendered_history)
+    "previous assistant reply reloaded" true
+    (contains_substring ~substring:"A short LLM summary." rendered_history)
 
 let test_memory_compresses_on_checkpoint () =
-  let sqlite_path = Filename.temp_file "agent-graph-memory-compress" ".sqlite" in
+  let sqlite_path =
+    Filename.temp_file "agent-graph-memory-compress" ".sqlite"
+  in
   let memory = make_memory_config sqlite_path in
   let config = make_config ~memory () in
   let responses =
@@ -1002,24 +952,17 @@ let test_memory_compresses_on_checkpoint () =
       ( "summarizer-model",
         Ok
           (Bulkhead_lm.Provider_mock.sample_chat_response
-             ~model:"summarizer-model"
-             ~content:"Compressed durable memory."
-             ()) );
+             ~model:"summarizer-model" ~content:"Compressed durable memory." ())
+      );
     ]
   in
   let services = make_services ~config responses in
   let _ =
-    run
-      ~config
-      ~services
-      ~task_id:"checkpoint-task"
+    run ~config ~services ~task_id:"checkpoint-task"
       "First memory-bearing request."
   in
   let _payload, context =
-    run
-      ~config
-      ~services
-      ~task_id:"checkpoint-task"
+    run ~config ~services ~task_id:"checkpoint-task"
       "Second memory-bearing request."
   in
   let memory_runtime =
@@ -1028,22 +971,22 @@ let test_memory_compresses_on_checkpoint () =
     | None -> Alcotest.fail "expected memory runtime to be enabled"
   in
   let session =
-    Memory.Store.load_session
-      memory_runtime.store
-      { Memory.Store.namespace = "test-memory"; session_key = "checkpoint-task" }
+    Memory.Store.load_session memory_runtime.store
+      {
+        Memory.Store.namespace = "test-memory";
+        session_key = "checkpoint-task";
+      }
       ~recent_turn_buffer:4
   in
   Alcotest.(check (option string))
-    "summary created"
-    (Some "Compressed durable memory.")
-    session.summary;
-  Alcotest.(check int) "compression count increments" 1 session.compression_count;
+    "summary created" (Some "Compressed durable memory.") session.summary;
+  Alcotest.(check int)
+    "compression count increments" 1 session.compression_count;
   Alcotest.(check bool)
-    "compression event recorded"
-    true
+    "compression event recorded" true
     (context.Core.Context.events
-     |> List.exists (fun (event : Core.Context.event) ->
-            String.equal event.label "memory.compressed"))
+    |> List.exists (fun (event : Core.Context.event) ->
+           String.equal event.label "memory.compressed"))
 
 let test_memory_policy_fibonacci_plan () =
   let compression =
@@ -1071,41 +1014,24 @@ let test_memory_policy_fibonacci_plan () =
     }
   in
   let plan =
-    Memory.Policy.plan_for_reply
-      compression
-      ~reply_count:5
-      ~compression_count:1
+    Memory.Policy.plan_for_reply compression ~reply_count:5 ~compression_count:1
   in
   match plan with
   | None -> Alcotest.fail "expected fibonacci checkpoint to produce a plan"
   | Some plan ->
+      Alcotest.(check int) "checkpoint reply" 5 plan.checkpoint_reply_count;
+      Alcotest.(check int) "compression index" 2 plan.budget.compression_index;
       Alcotest.(check int)
-        "checkpoint reply"
-        5
-        plan.checkpoint_reply_count;
+        "fibonacci target percent" 33 plan.budget.target_percent;
       Alcotest.(check int)
-        "compression index"
-        2
-        plan.budget.compression_index;
-      Alcotest.(check int)
-        "fibonacci target percent"
-        33
-        plan.budget.target_percent;
-      Alcotest.(check int)
-        "fibonacci target chars"
-        333
-        plan.budget.target_summary_max_chars;
+        "fibonacci target chars" 333 plan.budget.target_summary_max_chars;
       Alcotest.(check (option int))
-        "fibonacci target tokens"
-        (Some 40)
+        "fibonacci target tokens" (Some 40)
         plan.budget.target_summary_max_tokens;
       Alcotest.(check bool)
-        "non checkpoint returns none"
-        true
+        "non checkpoint returns none" true
         (Option.is_none
-           (Memory.Policy.plan_for_reply
-              compression
-              ~reply_count:6
+           (Memory.Policy.plan_for_reply compression ~reply_count:6
               ~compression_count:1))
 
 let test_runtime_config_loads_memory_policy_file () =
@@ -1175,32 +1101,26 @@ let test_runtime_config_loads_memory_policy_file () =
   write_file runtime_config_path runtime_json;
   match Config.Runtime.load runtime_config_path with
   | Error message ->
-      Alcotest.failf "expected runtime config with memory policy to load: %s" message
-  | Ok loaded ->
+      Alcotest.failf "expected runtime config with memory policy to load: %s"
+        message
+  | Ok loaded -> (
       Alcotest.(check bool) "memory enabled" true loaded.memory.enabled;
       Alcotest.(check string)
-        "memory namespace loaded"
-        "loaded-from-file"
+        "memory namespace loaded" "loaded-from-file"
         loaded.memory.session_namespace;
       Alcotest.(check int)
-        "reload buffer loaded"
-        3
-        loaded.memory.reload.recent_turn_buffer;
+        "reload buffer loaded" 3 loaded.memory.reload.recent_turn_buffer;
       Alcotest.(check string)
-        "policy name loaded"
-        "fibonacci_bridge_demo_v1"
+        "policy name loaded" "fibonacci_bridge_demo_v1"
         loaded.memory.compression.policy_name;
       Alcotest.(check int)
-        "fibonacci first checkpoint loaded"
-        5
+        "fibonacci first checkpoint loaded" 5
         loaded.memory.compression.trigger.fibonacci_first_reply;
       Alcotest.(check int)
-        "base summary max chars loaded"
-        1234
+        "base summary max chars loaded" 1234
         loaded.memory.compression.budget.base_summary_max_chars;
       Alcotest.(check (option string))
-        "session id key loaded"
-        (Some "session_id")
+        "session id key loaded" (Some "session_id")
         loaded.memory.session_id_metadata_key;
       match loaded.memory.bulkhead_bridge with
       | None -> Alcotest.fail "expected bulkhead bridge configuration to load"
@@ -1210,9 +1130,7 @@ let test_runtime_config_loads_memory_policy_file () =
             "http://127.0.0.1:4110/_bulkhead/control/api/memory/session"
             bridge.endpoint_url;
           Alcotest.(check (option string))
-            "bridge prefix loaded"
-            (Some "swarm")
-            bridge.session_key_prefix
+            "bridge prefix loaded" (Some "swarm") bridge.session_key_prefix)
 
 let test_runtime_config_loads_discussion_workflow () =
   let temp_dir = Filename.temp_file "agent-graph-discussion" ".tmp" in
@@ -1222,9 +1140,7 @@ let test_runtime_config_loads_discussion_workflow () =
   let architect_persona_path =
     Filename.concat temp_dir "architect.persona.v1.md"
   in
-  let architect_rules_path =
-    Filename.concat temp_dir "architect.rules.v2.md"
-  in
+  let architect_rules_path = Filename.concat temp_dir "architect.rules.v2.md" in
   write_file architect_persona_path
     "Push for module hierarchy and explicit contracts.";
   write_file architect_rules_path
@@ -1289,21 +1205,13 @@ let test_runtime_config_loads_discussion_workflow () =
   | Error message ->
       Alcotest.failf "expected discussion config to load: %s" message
   | Ok loaded ->
-      Alcotest.(check bool)
-        "discussion enabled"
-        true
-        loaded.discussion.enabled;
-      Alcotest.(check int)
-        "discussion rounds"
-        3
-        loaded.discussion.rounds;
+      Alcotest.(check bool) "discussion enabled" true loaded.discussion.enabled;
+      Alcotest.(check int) "discussion rounds" 3 loaded.discussion.rounds;
       Alcotest.(check string)
-        "discussion final agent"
-        "summarizer"
+        "discussion final agent" "summarizer"
         (Core.Agent_name.to_string loaded.discussion.final_agent);
       Alcotest.(check int)
-        "discussion participant count"
-        2
+        "discussion participant count" 2
         (List.length loaded.discussion.participants);
       let architect = List.hd loaded.discussion.participants in
       let critic = List.nth loaded.discussion.participants 1 in
@@ -1312,8 +1220,7 @@ let test_runtime_config_loads_discussion_workflow () =
         Config.Runtime.Discussion.Participant.default_system_prompt
         architect.profile.system_prompt;
       Alcotest.(check (option string))
-        "architect persona version loaded"
-        (Some "architect-persona-v1")
+        "architect persona version loaded" (Some "architect-persona-v1")
         (Option.map
            (fun (persona : Config.Runtime.Discussion.Versioned_text.t) ->
              persona.version)
@@ -1335,7 +1242,9 @@ let test_runtime_config_loads_discussion_workflow () =
 
 let test_memory_bulkhead_bridge_syncs_session () =
   with_bridge_server (fun port requests ->
-      let sqlite_path = Filename.temp_file "agent-graph-memory-bridge" ".sqlite" in
+      let sqlite_path =
+        Filename.temp_file "agent-graph-memory-bridge" ".sqlite"
+      in
       let memory =
         {
           (make_memory_config sqlite_path) with
@@ -1355,136 +1264,106 @@ let test_memory_bulkhead_bridge_syncs_session () =
       in
       let config = make_config ~memory () in
       let services =
-        make_services
-          ~config
+        make_services ~config
           [
             ( "summarizer-model",
               Ok
                 (Bulkhead_lm.Provider_mock.sample_chat_response
-                   ~model:"summarizer-model"
-                   ~content:"A short LLM summary."
-                   ()) );
+                   ~model:"summarizer-model" ~content:"A short LLM summary." ())
+            );
           ]
       in
       let _payload, context =
         Lwt_main.run
-          (run_lwt
-             ~config
-             ~task_id:"bridge-task"
-             ~services
+          (run_lwt ~config ~task_id:"bridge-task" ~services
              "Mirror this swarm memory into BulkheadLM.")
       in
       let request =
         match List.rev !requests with
         | [ request ] -> request
         | requests ->
-            Alcotest.failf
-              "expected exactly one bridge request, got %d"
+            Alcotest.failf "expected exactly one bridge request, got %d"
               (List.length requests)
       in
       Alcotest.(check (option string))
-        "query session key"
-        (Some "swarm:test-memory:bridge-task")
+        "query session key" (Some "swarm:test-memory:bridge-task")
         request.session_key;
       Alcotest.(check (option string))
-        "authorization header"
-        (Some "Bearer admin-token")
-        request.authorization;
+        "authorization header" (Some "Bearer admin-token") request.authorization;
       let open Yojson.Safe.Util in
       Alcotest.(check string)
-        "body session key"
-        "swarm:test-memory:bridge-task"
+        "body session key" "swarm:test-memory:bridge-task"
         (request.body |> member "session_key" |> to_string);
       Alcotest.(check int)
-        "body compressed turn count"
-        0
+        "body compressed turn count" 0
         (request.body |> member "compressed_turn_count" |> to_int);
       Alcotest.(check int)
-        "recent turns mirrored"
-        2
+        "recent turns mirrored" 2
         (request.body |> member "recent_turns" |> to_list |> List.length);
       Alcotest.(check bool)
-        "sync event recorded"
-        true
+        "sync event recorded" true
         (context.Core.Context.events
-         |> List.exists (fun (event : Core.Context.event) ->
-                String.equal event.label "memory.bulkhead_synced")))
+        |> List.exists (fun (event : Core.Context.event) ->
+               String.equal event.label "memory.bulkhead_synced")))
 
 let test_validate_agent_profiles_rejects_missing_route () =
   let routes =
     [
-      Bulkhead_lm.Config_test_support.route
-        ~public_model:"summarizer-model"
+      Bulkhead_lm.Config_test_support.route ~public_model:"summarizer-model"
         ~backends:
           [
             Bulkhead_lm.Config_test_support.backend
               ~provider_id:"summarizer-provider"
               ~provider_kind:Bulkhead_lm.Config.Openai_compat
               ~api_base:"https://api.example.test/v1"
-              ~upstream_model:"summarizer-model"
-              ~api_key_env:"IGNORED"
-              ();
+              ~upstream_model:"summarizer-model" ~api_key_env:"IGNORED" ();
           ]
         ();
     ]
   in
   let llm =
-    make_llm_config
-      ~planner_route_model:"missing-planner-route"
+    make_llm_config ~planner_route_model:"missing-planner-route"
       ~summarizer_route_model:"summarizer-model"
-      ~validator_route_model:"missing-validator-route"
-      ()
+      ~validator_route_model:"missing-validator-route" ()
   in
-  let store = Bulkhead_lm.Runtime_state.create (make_bulkhead_config ~routes ()) in
+  let store =
+    Bulkhead_lm.Runtime_state.create (make_bulkhead_config ~routes ())
+  in
   let llm_client =
-    Llm.Bulkhead_client.of_store
-      ~authorization:"Bearer sk-test"
-      store
+    Llm.Bulkhead_client.of_store ~authorization:"Bearer sk-test" store
   in
   match Llm.Bulkhead_client.validate_agent_profiles llm_client llm with
-  | Ok () -> Alcotest.fail "Expected agent profile validation to reject missing routes"
+  | Ok () ->
+      Alcotest.fail "Expected agent profile validation to reject missing routes"
   | Error message ->
       Alcotest.(check bool)
-        "planner route called out"
-        true
-        (contains_substring
-           ~substring:"agent=planner"
-           message);
+        "planner route called out" true
+        (contains_substring ~substring:"agent=planner" message);
       Alcotest.(check bool)
-        "route_model wording kept"
-        true
-        (contains_substring
-           ~substring:"route_model=missing-planner-route"
+        "route_model wording kept" true
+        (contains_substring ~substring:"route_model=missing-planner-route"
            message)
 
 let test_validate_discussion_routes_rejects_missing_route () =
   let config = make_config ~discussion:(make_discussion_config ()) () in
   let store = Bulkhead_lm.Runtime_state.create (make_bulkhead_config ()) in
   let llm_client =
-    Llm.Bulkhead_client.of_store
-      ~authorization:"Bearer sk-test"
-      store
+    Llm.Bulkhead_client.of_store ~authorization:"Bearer sk-test" store
   in
   match
-    try Ok (Runtime.Services.of_llm_client ~config llm_client) with
-    | Failure message -> Error message
+    try Ok (Runtime.Services.of_llm_client ~config llm_client)
+    with Failure message -> Error message
   with
   | Ok _ ->
       Alcotest.fail
         "Expected runtime service creation to reject missing discussion routes"
   | Error message ->
       Alcotest.(check bool)
-        "discussion validation prefix"
-        true
-        (contains_substring
-           ~substring:"discussion workflow"
-           message);
+        "discussion validation prefix" true
+        (contains_substring ~substring:"discussion workflow" message);
       Alcotest.(check bool)
-        "missing architect route called out"
-        true
-        (contains_substring
-           ~substring:"route_model=architect-model"
-           message)
+        "missing architect route called out" true
+        (contains_substring ~substring:"route_model=architect-model" message)
 
 let test_brave_result_parsing () =
   let html =
@@ -1499,14 +1378,10 @@ data: [{type:"data",data:{results:[
   let results = Web_crawler.Search.parse_results ~query:"ocaml effects" html in
   Alcotest.(check int) "deduplicated result count" 2 (List.length results);
   match results with
-  | first :: second :: [] ->
+  | [ first; second ] ->
+      Alcotest.(check string) "first domain" "ocaml.org" first.domain;
       Alcotest.(check string)
-        "first domain"
-        "ocaml.org"
-        first.domain;
-      Alcotest.(check string)
-        "second url"
-        "https://github.com/ocaml-multicore/ocaml-effects-tutorial"
+        "second url" "https://github.com/ocaml-multicore/ocaml-effects-tutorial"
         second.url
   | _ -> Alcotest.fail "Expected two parsed results"
 
@@ -1532,105 +1407,79 @@ let test_html_extraction_and_links () =
   in
   let links =
     Web_crawler.Html.extract_links
-      ~base_url:"https://ocaml.org/tutorial/index.html"
-      html
+      ~base_url:"https://ocaml.org/tutorial/index.html" html
   in
-  Alcotest.(check (option string))
-    "title"
-    (Some "OCaml Effects Tutorial")
-    title;
+  Alcotest.(check (option string)) "title" (Some "OCaml Effects Tutorial") title;
   Alcotest.(check bool)
-    "excerpt contains keyword"
-    true
+    "excerpt contains keyword" true
     (String.contains (String.lowercase_ascii excerpt) 'e');
   Alcotest.(check int) "link count" 2 (List.length links);
   Alcotest.(check string)
-    "relative link resolved"
-    "https://ocaml.org/manual/5.4/effects.html"
+    "relative link resolved" "https://ocaml.org/manual/5.4/effects.html"
     (List.hd links)
 
 let () =
-  Alcotest.run
-    "agent-graph"
+  Alcotest.run "agent-graph"
     [
-      ("orchestrator", [ Alcotest.test_case "short text" `Quick test_short_text_path ]);
+      ( "orchestrator",
+        [ Alcotest.test_case "short text" `Quick test_short_text_path ] );
       ( "parallel",
         [
-          Alcotest.test_case "long text -> plan -> batch" `Quick test_long_text_parallel_path;
-          Alcotest.test_case "batch notes include provider access" `Quick test_batch_notes_include_provider_access;
+          Alcotest.test_case "long text -> plan -> batch" `Quick
+            test_long_text_parallel_path;
+          Alcotest.test_case "batch notes include provider access" `Quick
+            test_batch_notes_include_provider_access;
         ] );
       ( "discussion",
         [
-          Alcotest.test_case
-            "long text -> plan -> discussion -> final summary"
-            `Quick
-            test_long_text_discussion_path;
-          Alcotest.test_case
-            "formats live turn output"
-            `Quick
+          Alcotest.test_case "long text -> plan -> discussion -> final summary"
+            `Quick test_long_text_discussion_path;
+          Alcotest.test_case "formats live turn output" `Quick
             test_discussion_live_output_turn_message;
           Alcotest.test_case
-            "includes versioned persona and rules in discussion prompt"
-            `Quick
+            "includes versioned persona and rules in discussion prompt" `Quick
             test_discussion_prompt_includes_versioned_persona_and_rules;
           Alcotest.test_case
-            "uses a larger word budget for local discussion routes"
-            `Quick
+            "uses a larger word budget for local discussion routes" `Quick
             test_discussion_prompt_uses_local_word_budget_for_local_routes;
+          Alcotest.test_case "hard caps discussion turns below 381 words" `Quick
+            test_discussion_turn_normalizer_hard_caps_word_count;
           Alcotest.test_case
-            "requires an explicit convergence marker after round one"
-            `Quick
+            "requires an explicit convergence marker after round one" `Quick
             test_discussion_convergence_requires_explicit_marker_after_round_one;
           Alcotest.test_case
-            "falls back when discussion summary becomes meta commentary"
-            `Quick
+            "falls back when discussion summary becomes meta commentary" `Quick
             test_discussion_summary_falls_back_when_llm_returns_meta_commentary;
-          Alcotest.test_case
-            "drops meta preamble from discussion turns"
-            `Quick
+          Alcotest.test_case "drops meta preamble from discussion turns" `Quick
             test_discussion_turn_sanitizer_drops_meta_preamble;
-          Alcotest.test_case
-            "loads discussion workflow config"
-            `Quick
+          Alcotest.test_case "loads discussion workflow config" `Quick
             test_runtime_config_loads_discussion_workflow;
         ] );
       ( "llm",
         [
-          Alcotest.test_case
-            "reject missing BulkheadLM routes"
-            `Quick
+          Alcotest.test_case "reject missing BulkheadLM routes" `Quick
             test_validate_agent_profiles_rejects_missing_route;
-          Alcotest.test_case
-            "reject missing discussion routes"
-            `Quick
+          Alcotest.test_case "reject missing discussion routes" `Quick
             test_validate_discussion_routes_rejects_missing_route;
         ] );
       ( "memory",
         [
-          Alcotest.test_case
-            "persists between runs"
-            `Quick
+          Alcotest.test_case "persists between runs" `Quick
             test_memory_persists_between_runs;
-          Alcotest.test_case
-            "compresses on checkpoint"
-            `Quick
+          Alcotest.test_case "compresses on checkpoint" `Quick
             test_memory_compresses_on_checkpoint;
-          Alcotest.test_case
-            "computes fibonacci compression plan"
-            `Quick
+          Alcotest.test_case "computes fibonacci compression plan" `Quick
             test_memory_policy_fibonacci_plan;
-          Alcotest.test_case
-            "loads external memory policy file"
-            `Quick
+          Alcotest.test_case "loads external memory policy file" `Quick
             test_runtime_config_loads_memory_policy_file;
-          Alcotest.test_case
-            "syncs durable memory into BulkheadLM"
-            `Quick
+          Alcotest.test_case "syncs durable memory into BulkheadLM" `Quick
             test_memory_bulkhead_bridge_syncs_session;
         ] );
       ( "crawler",
         [
-          Alcotest.test_case "parse brave results" `Quick test_brave_result_parsing;
-          Alcotest.test_case "extract html and links" `Quick test_html_extraction_and_links;
+          Alcotest.test_case "parse brave results" `Quick
+            test_brave_result_parsing;
+          Alcotest.test_case "extract html and links" `Quick
+            test_html_extraction_and_links;
         ] );
     ]

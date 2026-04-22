@@ -6,9 +6,7 @@ type state = {
   graph_run_count : int;
 }
 
-type graph_request_kind =
-  | Graph
-  | Discussion
+type graph_request_kind = Graph | Discussion
 
 type command =
   | Empty
@@ -112,7 +110,8 @@ let parse_command input =
     Invalid Client_human_constants.Text.graph_prompt_required
   else if starts Client_human_constants.Command.graph then
     let prompt = tail Client_human_constants.Command.graph in
-    if prompt = "" then Invalid Client_human_constants.Text.graph_prompt_required
+    if prompt = "" then
+      Invalid Client_human_constants.Text.graph_prompt_required
     else Run_graph prompt
   else if trimmed = Client_human_constants.Command.discussion then
     Invalid Client_human_constants.Text.discussion_prompt_required
@@ -175,6 +174,15 @@ let trim_conversation (runtime : Client_runtime.t) conversation =
   in
   if keep <= 0 then [] else drop keep conversation
 
+module Discussion_team_builder = struct
+  include Client_discussion_team_builder
+
+  let build (runtime : Client_runtime.t) state ~prompt_text ~attachments =
+    Client_discussion_team_builder.build runtime
+      ~active_route_model:state.active_route_model
+      ~conversation:state.conversation ~prompt_text ~attachments
+end
+
 let attachment_line (attachment : Client_assistant.attachment) =
   Fmt.str "- %s (%d bytes%s)" attachment.path attachment.bytes_read
     (if attachment.truncated then ", truncated" else "")
@@ -231,12 +239,8 @@ let graph_input_with_attachments prompt_text attachments =
   match attachments with
   | [] -> prompt_text
   | _ ->
-      Fmt.str
-        "%s\n\nAttached files:\n%s"
-        prompt_text
-        (attachments
-         |> List.map render_graph_attachment
-         |> String.concat "\n\n")
+      Fmt.str "%s\n\nAttached files:\n%s" prompt_text
+        (attachments |> List.map render_graph_attachment |> String.concat "\n\n")
 
 let prepare_graph_request runtime state ~request_kind prompt_text =
   let attachments = List.rev state.attachments in
@@ -245,7 +249,13 @@ let prepare_graph_request runtime state ~request_kind prompt_text =
     | Graph -> prompt_text
     | Discussion ->
         Fmt.str
-          "Run the typed graph in discussion mode for the request below.\nMake the planner produce an agenda, let the configured participants debate it for the configured rounds, then return the final synthesis.\n\nRequest:\n%s"
+          "Run the typed graph in discussion mode for the request below.\n\
+           The planner must produce a concrete, topic-specific agenda (2-4 \
+           items) that guides a focused working session. Participants will \
+           debate the agenda and then the summarizer will return the final \
+           synthesis.\n\n\
+           Request:\n\
+           %s"
           prompt_text
   in
   let input = graph_input_with_attachments prompt_text attachments in
@@ -253,42 +263,33 @@ let prepare_graph_request runtime state ~request_kind prompt_text =
     Fmt.str "%s-%03d" state.graph_session_id (state.graph_run_count + 1)
   in
   let metadata =
-    match runtime.Client_runtime.runtime_config.memory.session_id_metadata_key with
-    | Some metadata_key -> [ metadata_key, state.graph_session_id ]
+    match
+      runtime.Client_runtime.runtime_config.memory.session_id_metadata_key
+    with
+    | Some metadata_key -> [ (metadata_key, state.graph_session_id) ]
     | None -> []
   in
-  task_id, metadata, input
+  (task_id, metadata, input)
 
 let event_line (event : Core_context.event) =
-  Fmt.str
-    "%02d  %s  %s"
-    event.step_index
-    event.label
-    event.detail
+  Fmt.str "%02d  %s  %s" event.step_index event.label event.detail
 
 module Discussion_archive = struct
-  type turn_entry = {
-    heading : string;
-    content : string;
-  }
+  type turn_entry = { heading : string; content : string }
 
   let archive_subdir = Filename.concat "var" "discussions"
 
   let timestamp_of_tm tm =
-    Fmt.str
-      "%04d%02d%02d%02d%02d%02d"
-      (tm.Unix.tm_year + 1900)
-      (tm.Unix.tm_mon + 1)
-      tm.Unix.tm_mday
-      tm.Unix.tm_hour
-      tm.Unix.tm_min
+    Fmt.str "%04d%02d%02d%02d%02d%02d" (tm.Unix.tm_year + 1900)
+      (tm.Unix.tm_mon + 1) tm.Unix.tm_mday tm.Unix.tm_hour tm.Unix.tm_min
       tm.Unix.tm_sec
 
   let timestamp_now () =
     Unix.gettimeofday () |> Unix.localtime |> timestamp_of_tm
 
   let archive_dir (runtime : Client_runtime.t) =
-    Filename.concat runtime.client_config.local_ops.workspace_root archive_subdir
+    Filename.concat runtime.client_config.local_ops.workspace_root
+      archive_subdir
 
   let sanitize_filename_component value =
     let buffer = Buffer.create (String.length value) in
@@ -304,37 +305,32 @@ module Discussion_archive = struct
     | rendered -> rendered
 
   let filename ~timestamp ~task_id =
-    Fmt.str
-      "discussion-%s-%s.md"
-      timestamp
+    Fmt.str "discussion-%s-%s.md" timestamp
       (sanitize_filename_component task_id)
 
   let rec ensure_directory path =
-    if path = "" || path = "." || Sys.file_exists path
-    then Ok ()
+    if path = "" || path = "." || Sys.file_exists path then Ok ()
     else
       let parent = Filename.dirname path in
       match ensure_directory parent with
       | Error _ as error -> error
-      | Ok () ->
-          (try
-             Unix.mkdir path 0o755;
-             Ok ()
-           with
-           | Unix.Unix_error (Unix.EEXIST, _, _) -> Ok ()
-           | Unix.Unix_error (error, _, _) ->
-               Error
-                 (Fmt.str
-                    "Cannot create archive directory %s: %s"
-                    path
-                    (Unix.error_message error)))
+      | Ok () -> (
+          try
+            Unix.mkdir path 0o755;
+            Ok ()
+          with
+          | Unix.Unix_error (Unix.EEXIST, _, _) -> Ok ()
+          | Unix.Unix_error (error, _, _) ->
+              Error
+                (Fmt.str "Cannot create archive directory %s: %s" path
+                   (Unix.error_message error)))
 
   let count_current_turns (context : Core_context.t) =
     context.events
     |> List.fold_left
          (fun count (event : Core_context.event) ->
-           if String.equal event.label "discussion.turn.completed"
-           then count + 1
+           if String.equal event.label "discussion.turn.completed" then
+             count + 1
            else count)
          0
 
@@ -350,10 +346,9 @@ module Discussion_archive = struct
     let marker = " -> " in
     let marker_length = String.length marker in
     let rec find index =
-      if index + marker_length > String.length detail
-      then detail
-      else if String.sub detail index marker_length = marker
-      then String.sub detail 0 index
+      if index + marker_length > String.length detail then detail
+      else if String.sub detail index marker_length = marker then
+        String.sub detail 0 index
       else find (index + 1)
     in
     find 0
@@ -361,8 +356,7 @@ module Discussion_archive = struct
   let current_turn_entries (context : Core_context.t) =
     let turn_count = count_current_turns context in
     let events =
-      context.events
-      |> List.rev
+      context.events |> List.rev
       |> List.filter (fun (event : Core_context.event) ->
              String.equal event.label "discussion.turn.completed")
     in
@@ -372,34 +366,25 @@ module Discussion_archive = struct
              match message.role with
              | Core_message.Speaker _ -> Some message.content
              | System | User | Assistant | Agent _ -> None)
-      |> take turn_count
-      |> List.rev
+      |> take turn_count |> List.rev
     in
     let rec combine acc events contents =
-      match events, contents with
-      | (event : Core_context.event) :: remaining_events, content :: remaining_contents ->
+      match (events, contents) with
+      | ( (event : Core_context.event) :: remaining_events,
+          content :: remaining_contents ) ->
           combine
             ({ heading = detail_heading event.detail; content } :: acc)
-            remaining_events
-            remaining_contents
+            remaining_events remaining_contents
       | _ -> List.rev acc
     in
     combine [] events contents
 
-  let render_attachment_section
-      (attachment : Client_assistant.attachment)
-    =
+  let render_attachment_section (attachment : Client_assistant.attachment) =
     [
-      Fmt.str
-        "### `%s`"
-        attachment.path;
+      Fmt.str "### `%s`" attachment.path;
       "";
-      Fmt.str
-        "- bytes_read: %d"
-        attachment.bytes_read;
-      Fmt.str
-        "- truncated: %b"
-        attachment.truncated;
+      Fmt.str "- bytes_read: %d" attachment.bytes_read;
+      Fmt.str "- truncated: %b" attachment.truncated;
       "";
       "```text";
       attachment.content;
@@ -407,9 +392,7 @@ module Discussion_archive = struct
       "";
     ]
 
-  let render_participant_lines
-      (runtime : Client_runtime.t)
-    =
+  let render_participant_lines (runtime : Client_runtime.t) =
     runtime.runtime_config.discussion.participants
     |> List.map (fun (participant : Runtime_config.Discussion.Participant.t) ->
            let persona_version =
@@ -423,26 +406,17 @@ module Discussion_archive = struct
              | Some rules -> rules.version
            in
            Fmt.str
-             "- %s -> route_model=%s max_tokens=%s confidence=%.2f persona=%s rules=%s"
-             participant.name
-             participant.profile.route_model
+             "- %s -> route_model=%s max_tokens=%s confidence=%.2f persona=%s \
+              rules=%s"
+             participant.name participant.profile.route_model
              (match participant.profile.max_tokens with
-              | Some value -> string_of_int value
-              | None -> "none")
-             participant.profile.confidence
-             persona_version
-             rules_version)
+             | Some value -> string_of_int value
+             | None -> "none")
+             participant.profile.confidence persona_version rules_version)
 
-  let render_markdown
-      ~(runtime : Client_runtime.t)
-      ~timestamp
-      ~task_id
-      ~graph_session_id
-      ~prompt_text
-      ~attachments
-      ~payload
-      ~(context : Core_context.t)
-    =
+  let render_markdown ~(runtime : Client_runtime.t) ~timestamp ~task_id
+      ~graph_session_id ~prompt_text ~attachments ~payload
+      ~(context : Core_context.t) =
     let completed_agents =
       match Core_context.completed_agent_names context with
       | [] -> "none"
@@ -452,9 +426,7 @@ module Discussion_archive = struct
       match attachments with
       | [] -> [ "_none_" ]
       | attachments ->
-          attachments
-          |> List.map render_attachment_section
-          |> List.flatten
+          attachments |> List.map render_attachment_section |> List.flatten
     in
     let transcript_lines =
       match current_turn_entries context with
@@ -481,15 +453,11 @@ module Discussion_archive = struct
          Fmt.str "- graph_session_id: %s" graph_session_id;
          Fmt.str "- step_count: %d" context.step_count;
          Fmt.str "- completed_agents: %s" completed_agents;
-         Fmt.str
-           "- final_payload: %s"
-           (Core_payload.summary payload);
-         Fmt.str
-           "- rounds: %d"
-           runtime.runtime_config.discussion.rounds;
-         Fmt.str
-           "- final_agent: %s"
-           (Core_agent_name.to_string runtime.runtime_config.discussion.final_agent);
+         Fmt.str "- final_payload: %s" (Core_payload.summary payload);
+         Fmt.str "- rounds: %d" runtime.runtime_config.discussion.rounds;
+         Fmt.str "- final_agent: %s"
+           (Core_agent_name.to_string
+              runtime.runtime_config.discussion.final_agent);
          "";
          "## Participants";
          "";
@@ -506,12 +474,7 @@ module Discussion_archive = struct
           "## Attachments";
           "";
         ]
-      @ attachment_lines
-      @ [
-          "## Transcript";
-          "";
-        ]
-      @ transcript_lines
+      @ attachment_lines @ [ "## Transcript"; "" ] @ transcript_lines
       @ [
           "## Final Payload";
           "";
@@ -522,48 +485,32 @@ module Discussion_archive = struct
           "## Execution Trace";
           "";
         ]
-      @ (match List.rev context.events with
-         | [] -> [ "_no orchestration event recorded_" ]
-         | events -> List.map event_line events))
+      @
+      match List.rev context.events with
+      | [] -> [ "_no orchestration event recorded_" ]
+      | events -> List.map event_line events)
 
-  let write
-      ~(runtime : Client_runtime.t)
-      ~timestamp
-      ~task_id
-      ~graph_session_id
-      ~prompt_text
-      ~attachments
-      ~payload
-      ~(context : Core_context.t)
-    =
+  let write ~(runtime : Client_runtime.t) ~timestamp ~task_id ~graph_session_id
+      ~prompt_text ~attachments ~payload ~(context : Core_context.t) =
     let archive_dir = archive_dir runtime in
     match ensure_directory archive_dir with
     | Error _ as error -> error
-    | Ok () ->
+    | Ok () -> (
         let archive_path =
           Filename.concat archive_dir (filename ~timestamp ~task_id)
         in
         let content =
-          render_markdown
-            ~runtime
-            ~timestamp
-            ~task_id
-            ~graph_session_id
-            ~prompt_text
-            ~attachments
-            ~payload
-            ~context
+          render_markdown ~runtime ~timestamp ~task_id ~graph_session_id
+            ~prompt_text ~attachments ~payload ~context
         in
-        (try
-           Stdlib.Out_channel.with_open_bin archive_path (fun channel ->
-               output_string channel content);
-           Ok archive_path
-         with Sys_error message ->
-           Error
-             (Fmt.str
-                "Cannot write discussion archive %s: %s"
-                archive_path
-                message))
+        try
+          Stdlib.Out_channel.with_open_bin archive_path (fun channel ->
+              output_string channel content);
+          Ok archive_path
+        with Sys_error message ->
+          Error
+            (Fmt.str "Cannot write discussion archive %s: %s" archive_path
+               message))
 end
 
 let run_graph_request runtime state ~request_kind prompt_text =
@@ -574,62 +521,71 @@ let run_graph_request runtime state ~request_kind prompt_text =
     print_endline Client_human_constants.Text.discussion_disabled;
     state)
   else
+    let runtime =
+      match request_kind with
+      | Graph -> runtime
+      | Discussion ->
+          let result =
+            Discussion_team_builder.build runtime state ~prompt_text
+              ~attachments:(List.rev state.attachments)
+          in
+          print_blank ();
+          Client_ui.print_section ~style:Client_ui.Style.muted
+            "Discussion Team Builder" result.lines;
+          print_blank ();
+          result.runtime
+    in
     let task_id, metadata, input =
       prepare_graph_request runtime state ~request_kind prompt_text
     in
     match
-      Lwt_main.run
-        (Client_machine.run_graph runtime ~task_id ~metadata input)
+      Lwt_main.run (Client_machine.run_graph runtime ~task_id ~metadata input)
     with
     | payload, context ->
         let archive_path =
           match request_kind with
           | Graph -> None
-          | Discussion ->
-              (match
-                 Discussion_archive.write
-                   ~runtime
-                   ~timestamp:(Discussion_archive.timestamp_now ())
-                   ~task_id
-                   ~graph_session_id:state.graph_session_id
-                   ~prompt_text
-                   ~attachments:(List.rev state.attachments)
-                   ~payload
-                   ~context
-               with
-               | Ok path -> Some path
-               | Error message ->
-                   print_endline message;
-                   None)
+          | Discussion -> (
+              match
+                Discussion_archive.write ~runtime
+                  ~timestamp:(Discussion_archive.timestamp_now ())
+                  ~task_id ~graph_session_id:state.graph_session_id ~prompt_text
+                  ~attachments:(List.rev state.attachments)
+                  ~payload ~context
+              with
+              | Ok path -> Some path
+              | Error message ->
+                  print_endline message;
+                  None)
         in
         print_blank ();
         Client_ui.print_section "Graph Result"
-          ( [
-              Fmt.str "task_id: %s" context.Core_context.task_id;
-              Fmt.str "payload: %s" (Core_payload.summary payload);
-              Fmt.str "completed_agents: %s"
-                (match Core_context.completed_agent_names context with
-                 | [] -> "none"
-                 | names -> String.concat ", " names);
-              Fmt.str "step_count: %d" context.Core_context.step_count;
-            ]
-          @ String.split_on_char '\n' (Core_payload.to_pretty_string payload) );
+          ([
+             Fmt.str "task_id: %s" context.Core_context.task_id;
+             Fmt.str "payload: %s" (Core_payload.summary payload);
+             Fmt.str "completed_agents: %s"
+               (match Core_context.completed_agent_names context with
+               | [] -> "none"
+               | names -> String.concat ", " names);
+             Fmt.str "step_count: %d" context.Core_context.step_count;
+           ]
+          @ String.split_on_char '\n' (Core_payload.to_pretty_string payload));
         print_blank ();
         Client_ui.print_section ~style:Client_ui.Style.muted "Execution Trace"
           (match List.rev context.Core_context.events with
-           | [] -> [ "No orchestration event was recorded." ]
-           | events -> List.map event_line events);
+          | [] -> [ "No orchestration event was recorded." ]
+          | events -> List.map event_line events);
         (match archive_path with
         | None -> ()
         | Some path ->
             print_blank ();
             Client_ui.print_section ~style:Client_ui.Style.muted
-              "Discussion Archive"
-              [ path ]);
+              "Discussion Archive" [ path ]);
         print_blank ();
-        { state with
+        {
+          state with
           attachments = [];
-          graph_run_count = state.graph_run_count + 1
+          graph_run_count = state.graph_run_count + 1;
         }
 
 let transport_rows (runtime : Client_runtime.t) =
@@ -659,7 +615,9 @@ let http_curl_examples (runtime : Client_runtime.t) =
       base_url;
     Fmt.str
       "curl -fsS -X POST %s/v1/messenger/chat/completions -H 'Content-Type: \
-       application/json' -d '{\"model\":\"swarm-spokesperson\",\"messages\":[{\"role\":\"user\",\"content\":\"Speak to me as the swarm spokesperson.\"}],\"stream\":false}'"
+       application/json' -d \
+       '{\"model\":\"swarm-spokesperson\",\"messages\":[{\"role\":\"user\",\"content\":\"Speak \
+       to me as the swarm spokesperson.\"}],\"stream\":false}'"
       base_url;
   ]
 
@@ -722,7 +680,9 @@ let run_assistant_request runtime state ~request_kind prompt_text =
 
 let rec loop (runtime : Client_runtime.t) state =
   update_terminal_context runtime;
-  let prompt = Client_ui.Prompt.emit_and_plain (Fmt.str "%s> " state.active_route_model) in
+  let prompt =
+    Client_ui.Prompt.emit_and_plain (Fmt.str "%s> " state.active_route_model)
+  in
   match
     Bulkhead_lm.Starter_terminal.read_line ~record_history:true ~prompt ()
   with
@@ -733,7 +693,8 @@ let rec loop (runtime : Client_runtime.t) state =
       | Help ->
           print_blank ();
           Client_ui.print_section_verbatim ~style:Client_ui.Style.muted
-            "Commands" (help_lines state.active_route_model);
+            "Commands"
+            (help_lines state.active_route_model);
           print_blank ();
           loop runtime state
       | Tools ->
@@ -840,76 +801,76 @@ let rec loop (runtime : Client_runtime.t) state =
           loop runtime state
       | Run_discussion prompt_text ->
           let state =
-            run_graph_request runtime state ~request_kind:Discussion
-              prompt_text
+            run_graph_request runtime state ~request_kind:Discussion prompt_text
           in
           loop runtime state
-      | Run_decide raw_args ->
-          (match Client_decide.parse_options raw_args with
-           | Error message ->
-               print_endline message;
-               loop runtime state
-           | Ok opts ->
-               let rounds =
-                 Option.value opts.rounds_override
-                   ~default:
-                     runtime.Client_runtime.runtime_config.discussion.rounds
-               in
-               print_blank ();
-               Client_ui.print_section "Verifiable Decision"
-                 [ Fmt.str "topic:   %s" opts.topic;
-                   Fmt.str "rounds:  %d" rounds;
-                   Fmt.str "pattern: %s" opts.pattern_id;
-                   "";
-                   "Running: discussion → L1 consensus → L2 validation → L3 fitness..." ];
-               print_blank ();
-               (match
-                  Lwt_main.run (Client_decide.run runtime opts)
-                with
-                | Error message ->
-                    print_endline message;
-                    loop runtime state
-                | Ok result ->
-                    let consensus_summary =
-                      Orchestration_consensus.outcome_summary
-                        result.Client_decide.consensus_outcome
-                    in
-                    let validation_line =
-                      match result.Client_decide.validation_payload with
-                      | None -> "skipped (no quorum)"
-                      | Some p ->
-                          if Core_payload.is_error p
-                          then Fmt.str "error — %s" (Core_payload.summary p)
-                          else Core_payload.summary p
-                    in
-                    Client_ui.print_section "Decision Result"
-                      [ Fmt.str "decision_id:     %s" result.decision_id;
-                        Fmt.str "consensus:       %s" consensus_summary;
-                        Fmt.str "validation:      %s" validation_line;
-                        Fmt.str "fitness:         %.4f"
-                          (Core_pattern.fitness
-                             result.pattern.Core_pattern.metrics);
-                        Fmt.str "audit_verified:  %b"
-                          result.audit_verified;
-                        Fmt.str "head_hash:       %s"
-                          (Core_audit.head_hash result.audit_chain) ];
-                    print_blank ();
-                    (match Client_decide.write_archive runtime result with
-                     | Error message -> print_endline message
-                     | Ok path ->
-                         Client_ui.print_section
-                           ~style:Client_ui.Style.muted
-                           "Decision Archive" [ path ]);
-                    print_blank ();
-                    loop runtime state))
+      | Run_decide raw_args -> (
+          match Client_decide.parse_options raw_args with
+          | Error message ->
+              print_endline message;
+              loop runtime state
+          | Ok opts -> (
+              let rounds =
+                Option.value opts.rounds_override
+                  ~default:
+                    runtime.Client_runtime.runtime_config.discussion.rounds
+              in
+              print_blank ();
+              Client_ui.print_section "Verifiable Decision"
+                [
+                  Fmt.str "topic:   %s" opts.topic;
+                  Fmt.str "rounds:  %d" rounds;
+                  Fmt.str "pattern: %s" opts.pattern_id;
+                  "";
+                  "Running: discussion → L1 consensus → L2 validation → L3 \
+                   fitness...";
+                ];
+              print_blank ();
+              match Lwt_main.run (Client_decide.run runtime opts) with
+              | Error message ->
+                  print_endline message;
+                  loop runtime state
+              | Ok result ->
+                  let consensus_summary =
+                    Orchestration_consensus.outcome_summary
+                      result.Client_decide.consensus_outcome
+                  in
+                  let validation_line =
+                    match result.Client_decide.validation_payload with
+                    | None -> "skipped (no quorum)"
+                    | Some p ->
+                        if Core_payload.is_error p then
+                          Fmt.str "error — %s" (Core_payload.summary p)
+                        else Core_payload.summary p
+                  in
+                  Client_ui.print_section "Decision Result"
+                    [
+                      Fmt.str "decision_id:     %s" result.decision_id;
+                      Fmt.str "consensus:       %s" consensus_summary;
+                      Fmt.str "validation:      %s" validation_line;
+                      Fmt.str "fitness:         %.4f"
+                        (Core_pattern.fitness
+                           result.pattern.Core_pattern.metrics);
+                      Fmt.str "audit_verified:  %b" result.audit_verified;
+                      Fmt.str "head_hash:       %s"
+                        (Core_audit.head_hash result.audit_chain);
+                    ];
+                  print_blank ();
+                  (match Client_decide.write_archive runtime result with
+                  | Error message -> print_endline message
+                  | Ok path ->
+                      Client_ui.print_section ~style:Client_ui.Style.muted
+                        "Decision Archive" [ path ]);
+                  print_blank ();
+                  loop runtime state))
       | Show_docs topic_opt ->
           print_doc_lines runtime
             (Option.value topic_opt ~default:"general operations");
           loop runtime state
       | Run_wizard None ->
           print_blank ();
-          Client_ui.print_section_verbatim ~style:Client_ui.Style.muted "Wizard Topics"
-            Client_human_constants.Text.wizard_lines;
+          Client_ui.print_section_verbatim ~style:Client_ui.Style.muted
+            "Wizard Topics" Client_human_constants.Text.wizard_lines;
           print_blank ();
           loop runtime state
       | Run_wizard (Some goal) ->

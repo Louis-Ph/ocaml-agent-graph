@@ -25,7 +25,8 @@ let with_temp_dir prefix f =
   let dir = choose 0 in
   Unix.mkdir dir 0o755;
   Fun.protect
-    ~finally:(fun () -> Sys.command (Fmt.str "rm -rf %s" (Filename.quote dir)) |> ignore)
+    ~finally:(fun () ->
+      Sys.command (Fmt.str "rm -rf %s" (Filename.quote dir)) |> ignore)
     (fun () -> f dir)
 
 let write_file path content =
@@ -43,21 +44,21 @@ let make_runtime_config route_model =
       authorization_token_env = None;
       planner =
         {
-          Config.Runtime.Llm.Agent_profile.route_model = route_model;
+          Config.Runtime.Llm.Agent_profile.route_model;
           system_prompt = "planner prompt";
           max_tokens = Some 128;
           confidence = 0.91;
         };
       summarizer =
         {
-          Config.Runtime.Llm.Agent_profile.route_model = route_model;
+          Config.Runtime.Llm.Agent_profile.route_model;
           system_prompt = "summarizer prompt";
           max_tokens = Some 128;
           confidence = 0.88;
         };
       validator =
         {
-          Config.Runtime.Llm.Agent_profile.route_model = route_model;
+          Config.Runtime.Llm.Agent_profile.route_model;
           system_prompt = "validator prompt";
           max_tokens = Some 128;
           confidence = 0.94;
@@ -81,10 +82,7 @@ let make_runtime_config route_model =
           [ Core.Agent_name.Summarizer; Core.Agent_name.Validator ];
       };
     demo =
-      {
-        Config.Runtime.Demo.task_id = "client-test-task";
-        input = "unused";
-      };
+      { Config.Runtime.Demo.task_id = "client-test-task"; input = "unused" };
     llm;
     discussion = Config.Runtime.Discussion.disabled;
     memory = Config.Runtime.Memory.disabled;
@@ -107,7 +105,8 @@ let make_memory_runtime_config route_model sqlite_path =
         reload = { Config.Runtime.Memory.Reload.recent_turn_buffer = 2 };
         compression =
           {
-            Config.Runtime.Memory.Compression.policy_name = "client_test_memory_v1";
+            Config.Runtime.Memory.Compression.policy_name =
+              "client_test_memory_v1";
             trigger =
               {
                 Config.Runtime.Memory.Compression.Trigger.mode =
@@ -141,12 +140,8 @@ let make_memory_runtime_config route_model sqlite_path =
       };
   }
 
-let make_runtime_config_with_routes
-    ~planner_route_model
-    ~summarizer_route_model
-    ~validator_route_model
-    ()
-  =
+let make_runtime_config_with_routes ~planner_route_model ~summarizer_route_model
+    ~validator_route_model () =
   let llm =
     {
       Config.Runtime.Llm.gateway_config_path = "/unused/bulkhead.json";
@@ -193,26 +188,16 @@ let make_runtime_config_with_routes
           [ Core.Agent_name.Summarizer; Core.Agent_name.Validator ];
       };
     demo =
-      {
-        Config.Runtime.Demo.task_id = "client-test-task";
-        input = "unused";
-      };
+      { Config.Runtime.Demo.task_id = "client-test-task"; input = "unused" };
     llm;
     discussion = Config.Runtime.Discussion.disabled;
     memory = Config.Runtime.Memory.disabled;
   }
 
-let make_test_backend
-    ?(provider_kind = Bulkhead_lm.Config.Openai_compat)
-    ?(api_base = "https://api.example.test/v1")
-    route_model
-  =
-  Bulkhead_lm.Config_test_support.backend
-    ~provider_id:"test-provider"
-    ~provider_kind
-    ~api_base
-    ~upstream_model:route_model
-    ~api_key_env:"IGNORED"
+let make_test_backend ?(provider_kind = Bulkhead_lm.Config.Openai_compat)
+    ?(api_base = "https://api.example.test/v1") route_model =
+  Bulkhead_lm.Config_test_support.backend ~provider_id:"test-provider"
+    ~provider_kind ~api_base ~upstream_model:route_model ~api_key_env:"IGNORED"
     ()
 
 let make_llm_client route_model =
@@ -221,13 +206,14 @@ let make_llm_client route_model =
     Bulkhead_lm.Config_test_support.sample_config
       ~virtual_keys:
         [
-          Bulkhead_lm.Config_test_support.virtual_key
-            ~token_plaintext:"sk-test"
-            ~name:"test"
-            ~allowed_routes:[ route_model ]
-            ();
+          Bulkhead_lm.Config_test_support.virtual_key ~token_plaintext:"sk-test"
+            ~name:"test" ~allowed_routes:[ route_model ] ();
         ]
-      ~routes:[ Bulkhead_lm.Config_test_support.route ~public_model:route_model ~backends:[ backend ] () ]
+      ~routes:
+        [
+          Bulkhead_lm.Config_test_support.route ~public_model:route_model
+            ~backends:[ backend ] ();
+        ]
       ()
   in
   let store = Bulkhead_lm.Runtime_state.create config in
@@ -238,16 +224,15 @@ let make_llm_client_with_mock responses routes =
     Bulkhead_lm.Config_test_support.sample_config
       ~virtual_keys:
         [
-          Bulkhead_lm.Config_test_support.virtual_key
-            ~token_plaintext:"sk-test"
+          Bulkhead_lm.Config_test_support.virtual_key ~token_plaintext:"sk-test"
             ~name:"test"
             ~allowed_routes:
               (routes
-               |> List.map (fun (route : Bulkhead_lm.Config.route) -> route.public_model))
+              |> List.map (fun (route : Bulkhead_lm.Config.route) ->
+                     route.public_model))
             ();
         ]
-      ~routes
-      ()
+      ~routes ()
   in
   let provider = Bulkhead_lm.Provider_mock.make responses in
   let store =
@@ -265,14 +250,15 @@ let make_client_runtime route_model =
       Client.Config.graph_runtime_path = "/tmp/runtime.json";
       assistant =
         {
-          Client.Config.Assistant.route_model = route_model;
+          Client.Config.Assistant.route_model;
           system_prompt = "assistant";
           max_tokens = Some 700;
         };
       messenger_spokesperson =
         Some
           {
-            Client.Config.Messenger_spokesperson.public_model = "swarm-spokesperson";
+            Client.Config.Messenger_spokesperson.public_model =
+              "swarm-spokesperson";
             route_model;
             system_prompt = "spokesperson";
             max_tokens = Some 500;
@@ -304,12 +290,14 @@ let make_client_runtime route_model =
             {
               Client.Config.Transport.Http.workflow =
                 {
-                  Client.Config.Transport.Http_workflow.base_url = "http://127.0.0.1:8087";
+                  Client.Config.Transport.Http_workflow.base_url =
+                    "http://127.0.0.1:8087";
                   server_command = "serve-http";
                 };
               distribution =
                 {
-                  Client.Config.Transport.Http_distribution.base_url = "http://127.0.0.1:8788";
+                  Client.Config.Transport.Http_distribution.base_url =
+                    "http://127.0.0.1:8788";
                   server_command = "serve-dist";
                   install_url = "http://127.0.0.1:8788/install.sh";
                   archive_url = "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz";
@@ -318,28 +306,24 @@ let make_client_runtime route_model =
         };
     }
   in
-  Client.Runtime.of_parts
-    ~client_config_path:"/tmp/client.json"
-    ~client_config
-    ~runtime_config_path:"/tmp/runtime.json"
-    ~runtime_config
-    ~llm_client
+  Client.Runtime.of_parts ~client_config_path:"/tmp/client.json" ~client_config
+    ~runtime_config_path:"/tmp/runtime.json" ~runtime_config ~llm_client
 
-let make_client_runtime_with_runtime_config route_model runtime_config =
-  let llm_client = make_llm_client route_model in
+let make_client_runtime_with_parts route_model runtime_config llm_client =
   let client_config =
     {
       Client.Config.graph_runtime_path = "/tmp/runtime.json";
       assistant =
         {
-          Client.Config.Assistant.route_model = route_model;
+          Client.Config.Assistant.route_model;
           system_prompt = "assistant";
           max_tokens = Some 700;
         };
       messenger_spokesperson =
         Some
           {
-            Client.Config.Messenger_spokesperson.public_model = "swarm-spokesperson";
+            Client.Config.Messenger_spokesperson.public_model =
+              "swarm-spokesperson";
             route_model;
             system_prompt = "spokesperson";
             max_tokens = Some 500;
@@ -371,12 +355,14 @@ let make_client_runtime_with_runtime_config route_model runtime_config =
             {
               Client.Config.Transport.Http.workflow =
                 {
-                  Client.Config.Transport.Http_workflow.base_url = "http://127.0.0.1:8087";
+                  Client.Config.Transport.Http_workflow.base_url =
+                    "http://127.0.0.1:8087";
                   server_command = "serve-http";
                 };
               distribution =
                 {
-                  Client.Config.Transport.Http_distribution.base_url = "http://127.0.0.1:8788";
+                  Client.Config.Transport.Http_distribution.base_url =
+                    "http://127.0.0.1:8788";
                   server_command = "serve-dist";
                   install_url = "http://127.0.0.1:8788/install.sh";
                   archive_url = "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz";
@@ -385,37 +371,31 @@ let make_client_runtime_with_runtime_config route_model runtime_config =
         };
     }
   in
-  Client.Runtime.of_parts
-    ~client_config_path:"/tmp/client.json"
-    ~client_config
-    ~runtime_config_path:"/tmp/runtime.json"
-    ~runtime_config
-    ~llm_client
+  Client.Runtime.of_parts ~client_config_path:"/tmp/client.json" ~client_config
+    ~runtime_config_path:"/tmp/runtime.json" ~runtime_config ~llm_client
+
+let make_client_runtime_with_runtime_config route_model runtime_config =
+  let llm_client = make_llm_client route_model in
+  make_client_runtime_with_parts route_model runtime_config llm_client
 
 let make_spokesperson_runtime () =
   let runtime_config =
-    make_runtime_config_with_routes
-      ~planner_route_model:"planner-route"
+    make_runtime_config_with_routes ~planner_route_model:"planner-route"
       ~summarizer_route_model:"summarizer-route"
-      ~validator_route_model:"validator-route"
-      ()
+      ~validator_route_model:"validator-route" ()
   in
   let routes =
     [
-      Bulkhead_lm.Config_test_support.route
-        ~public_model:"planner-route"
+      Bulkhead_lm.Config_test_support.route ~public_model:"planner-route"
         ~backends:[ make_test_backend "planner-route" ]
         ();
-      Bulkhead_lm.Config_test_support.route
-        ~public_model:"summarizer-route"
+      Bulkhead_lm.Config_test_support.route ~public_model:"summarizer-route"
         ~backends:[ make_test_backend "summarizer-route" ]
         ();
-      Bulkhead_lm.Config_test_support.route
-        ~public_model:"validator-route"
+      Bulkhead_lm.Config_test_support.route ~public_model:"validator-route"
         ~backends:[ make_test_backend "validator-route" ]
         ();
-      Bulkhead_lm.Config_test_support.route
-        ~public_model:"assistant-route"
+      Bulkhead_lm.Config_test_support.route ~public_model:"assistant-route"
         ~backends:[ make_test_backend "assistant-route" ]
         ();
     ]
@@ -428,26 +408,31 @@ let make_spokesperson_runtime () =
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"planner-route"
                ~content:
-                 "Assess the client request\nRun the swarm\nPrepare a spokesperson summary"
-               ()) );
+                 "Assess the client request\n\
+                  Run the swarm\n\
+                  Prepare a spokesperson summary" ()) );
         ( "summarizer-route",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"summarizer-route"
-               ~content:"The client wants a messenger-accessible swarm spokesperson."
+               ~content:
+                 "The client wants a messenger-accessible swarm spokesperson."
                ()) );
         ( "validator-route",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"validator-route"
-               ~content:"PASS | strengths: direct client channel | risks: configure auth token"
+               ~content:
+                 "PASS | strengths: direct client channel | risks: configure \
+                  auth token"
                ()) );
         ( "assistant-route",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
                ~model:"assistant-route"
                ~content:
-                 "Bonjour, je parle au nom de l'essaim. Votre demande peut passer par le porte-parole messenger."
+                 "Bonjour, je parle au nom de l'essaim. Votre demande peut \
+                  passer par le porte-parole messenger."
                ()) );
       ]
       routes
@@ -464,7 +449,8 @@ let make_spokesperson_runtime () =
       messenger_spokesperson =
         Some
           {
-            Client.Config.Messenger_spokesperson.public_model = "swarm-spokesperson";
+            Client.Config.Messenger_spokesperson.public_model =
+              "swarm-spokesperson";
             route_model = "assistant-route";
             system_prompt = "spokesperson";
             max_tokens = Some 500;
@@ -496,12 +482,14 @@ let make_spokesperson_runtime () =
             {
               Client.Config.Transport.Http.workflow =
                 {
-                  Client.Config.Transport.Http_workflow.base_url = "http://127.0.0.1:8087";
+                  Client.Config.Transport.Http_workflow.base_url =
+                    "http://127.0.0.1:8087";
                   server_command = "serve-http";
                 };
               distribution =
                 {
-                  Client.Config.Transport.Http_distribution.base_url = "http://127.0.0.1:8788";
+                  Client.Config.Transport.Http_distribution.base_url =
+                    "http://127.0.0.1:8788";
                   server_command = "serve-dist";
                   install_url = "http://127.0.0.1:8788/install.sh";
                   archive_url = "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz";
@@ -510,26 +498,23 @@ let make_spokesperson_runtime () =
         };
     }
   in
-  Client.Runtime.of_parts
-    ~client_config_path:"/tmp/client.json"
-    ~client_config
-    ~runtime_config_path:"/tmp/runtime.json"
-    ~runtime_config
-    ~llm_client
+  Client.Runtime.of_parts ~client_config_path:"/tmp/client.json" ~client_config
+    ~runtime_config_path:"/tmp/runtime.json" ~runtime_config ~llm_client
 
 let test_client_config_loads_prompt_and_paths () =
   with_temp_dir "agent-graph-client-config" (fun dir ->
       let prompt_dir = Filename.concat dir "prompts" in
       Unix.mkdir prompt_dir 0o755;
       let prompt_path = Filename.concat prompt_dir "assistant.md" in
-      let messenger_prompt_path = Filename.concat prompt_dir "spokesperson.md" in
+      let messenger_prompt_path =
+        Filename.concat prompt_dir "spokesperson.md"
+      in
       let runtime_path = Filename.concat dir "runtime.json" in
       let client_path = Filename.concat dir "client.json" in
       write_file prompt_path "assistant prompt body";
       write_file messenger_prompt_path "swarm spokesperson prompt";
       write_file runtime_path "{}";
-      write_file
-        client_path
+      write_file client_path
         {|
 {
   "graph_runtime_path": "runtime.json",
@@ -583,30 +568,23 @@ let test_client_config_loads_prompt_and_paths () =
       | Error message -> Alcotest.fail message
       | Ok config ->
           Alcotest.(check string)
-            "prompt file loaded"
-            "assistant prompt body"
+            "prompt file loaded" "assistant prompt body"
             config.assistant.system_prompt;
           Alcotest.(check (option string))
-            "messenger spokesperson loaded"
-            (Some "swarm-spokesperson")
+            "messenger spokesperson loaded" (Some "swarm-spokesperson")
             (config.messenger_spokesperson
-             |> Option.map (fun spokesperson ->
-                    spokesperson.Client.Config.Messenger_spokesperson.public_model));
+            |> Option.map (fun spokesperson ->
+                   spokesperson
+                     .Client.Config.Messenger_spokesperson.public_model));
           Alcotest.(check string)
-            "runtime path resolved"
-            runtime_path
-            config.graph_runtime_path;
+            "runtime path resolved" runtime_path config.graph_runtime_path;
           Alcotest.(check int)
-            "worker jobs loaded"
-            7
-            config.machine_terminal.worker_jobs;
+            "worker jobs loaded" 7 config.machine_terminal.worker_jobs;
           Alcotest.(check string)
-            "ssh install loaded"
-            "ssh host install"
+            "ssh install loaded" "ssh host install"
             config.transport.ssh.install_emit_command;
           Alcotest.(check string)
-            "http workflow url loaded"
-            "http://mesh.example.test:8087"
+            "http workflow url loaded" "http://mesh.example.test:8087"
             config.transport.http.workflow.base_url)
 
 let test_client_config_supports_legacy_ssh_fallback () =
@@ -618,8 +596,7 @@ let test_client_config_supports_legacy_ssh_fallback () =
       let client_path = Filename.concat dir "client.json" in
       write_file prompt_path "assistant prompt body";
       write_file runtime_path "{}";
-      write_file
-        client_path
+      write_file client_path
         {|
 {
   "graph_runtime_path": "runtime.json",
@@ -644,12 +621,10 @@ let test_client_config_supports_legacy_ssh_fallback () =
       | Error message -> Alcotest.fail message
       | Ok config ->
           Alcotest.(check string)
-            "legacy human ssh preserved"
-            "ssh human legacy"
+            "legacy human ssh preserved" "ssh human legacy"
             config.transport.ssh.human_remote_command;
           Alcotest.(check string)
-            "legacy machine ssh preserved"
-            "ssh machine legacy"
+            "legacy machine ssh preserved" "ssh machine legacy"
             config.transport.ssh.machine_remote_command)
 
 let test_assistant_reply_parses_commands () =
@@ -670,19 +645,14 @@ let test_assistant_reply_parses_commands () =
   in
   let message, commands = Client.Assistant.reply_body_of_content content in
   Alcotest.(check string)
-    "message kept"
-    "Inspect the current runtime and run the tests."
-    message;
+    "message kept" "Inspect the current runtime and run the tests." message;
   Alcotest.(check int) "one command parsed" 1 (List.length commands);
   match commands with
   | command :: [] ->
       Alcotest.(check string)
-        "command program"
-        "/opt/homebrew/bin/opam"
-        command.command;
+        "command program" "/opt/homebrew/bin/opam" command.command;
       Alcotest.(check (option string))
-        "command why"
-        (Some "Verify the graph after changing the config.")
+        "command why" (Some "Verify the graph after changing the config.")
         command.why
   | _ -> Alcotest.fail "Expected exactly one parsed command"
 
@@ -708,27 +678,25 @@ let test_assistant_reply_parses_markdown_fenced_json () =
 
 let test_assistant_docs_selects_ssh_http_and_peer_references () =
   let docs =
-    Client.Assistant_docs.selected_doc_specs "schedule a remote ssh http peer swarm worker"
+    Client.Assistant_docs.selected_doc_specs
+      "schedule a remote ssh http peer swarm worker"
   in
   let paths =
     docs
-    |> List.map (fun (spec : Client.Assistant_docs.doc_spec) -> spec.relative_path)
+    |> List.map (fun (spec : Client.Assistant_docs.doc_spec) ->
+           spec.relative_path)
   in
   Alcotest.(check bool)
-    "includes local assistant playbook"
-    true
+    "includes local assistant playbook" true
     (List.mem "doc/HUMAN_TERMINAL_ASSISTANT.md" paths);
   Alcotest.(check bool)
-    "includes local multi-machine guide"
-    true
+    "includes local multi-machine guide" true
     (List.mem "doc/MULTI_MACHINE.md" paths);
   Alcotest.(check bool)
-    "includes bulkhead ssh guide"
-    true
+    "includes bulkhead ssh guide" true
     (List.mem "docs/SSH_REMOTE.md" paths);
   Alcotest.(check bool)
-    "includes bulkhead peer guide"
-    true
+    "includes bulkhead peer guide" true
     (List.mem "docs/PEER_MESH.md" paths)
 
 let test_assistant_docs_selects_messenger_references () =
@@ -738,62 +706,62 @@ let test_assistant_docs_selects_messenger_references () =
   in
   let paths =
     docs
-    |> List.map (fun (spec : Client.Assistant_docs.doc_spec) -> spec.relative_path)
+    |> List.map (fun (spec : Client.Assistant_docs.doc_spec) ->
+           spec.relative_path)
   in
   Alcotest.(check bool)
-    "includes messenger wiring guide"
-    true
+    "includes messenger wiring guide" true
     (List.mem "doc/MESSENGER_CONNECTORS.md" paths)
 
 let test_assistant_prompt_mentions_bulkhead_hierarchy_and_docs () =
   let runtime = make_client_runtime "assistant-route" in
   let prompt =
-    Client.Assistant.user_prompt
-      ~request_kind:Client.Assistant.Wizard
-      ~runtime
-      ~attachments:[]
-      "prepare a cron driven swarm run over ssh"
+    Client.Assistant.user_prompt ~request_kind:Client.Assistant.Wizard ~runtime
+      ~attachments:[] "prepare a cron driven swarm run over ssh"
   in
   Alcotest.(check bool)
-    "mentions hierarchy"
-    true
+    "mentions hierarchy" true
     (contains_substring
-       ~substring:"BulkheadLM is the primary provider router/gateway and rudimentary-agent layer."
+       ~substring:
+         "BulkheadLM is the primary provider router/gateway and \
+          rudimentary-agent layer."
        prompt);
   Alcotest.(check bool)
-    "mentions swarm composition hierarchy"
-    true
+    "mentions swarm composition hierarchy" true
     (contains_substring
-       ~substring:"Its routed provider-facing agents are the low-level building blocks that ocaml-agent-graph composes into typed agents, graph policies, and smarter swarms."
+       ~substring:
+         "Its routed provider-facing agents are the low-level building blocks \
+          that ocaml-agent-graph composes into typed agents, graph policies, \
+          and smarter swarms."
        prompt);
   Alcotest.(check bool)
-    "mentions assistant playbook"
-    true
+    "mentions assistant playbook" true
     (contains_substring ~substring:"doc/HUMAN_TERMINAL_ASSISTANT.md" prompt);
   Alcotest.(check bool)
-    "mentions http workflow transport"
-    true
+    "mentions http workflow transport" true
     (contains_substring ~substring:"http workflow" prompt)
 
 let test_terminal_parse_command_supports_docs_and_wizard () =
   (match Client.Terminal.parse_command "/docs ssh" with
-   | Client.Terminal.Show_docs (Some "ssh") -> ()
-   | _ -> Alcotest.fail "Expected /docs ssh to parse as Show_docs");
+  | Client.Terminal.Show_docs (Some "ssh") -> ()
+  | _ -> Alcotest.fail "Expected /docs ssh to parse as Show_docs");
   (match Client.Terminal.parse_command "/mesh" with
-   | Client.Terminal.Mesh -> ()
-   | _ -> Alcotest.fail "Expected /mesh to parse as Mesh");
+  | Client.Terminal.Mesh -> ()
+  | _ -> Alcotest.fail "Expected /mesh to parse as Mesh");
   (match Client.Terminal.parse_command "/curl" with
-   | Client.Terminal.Show_curl_examples -> ()
-   | _ -> Alcotest.fail "Expected /curl to parse as Show_curl_examples");
+  | Client.Terminal.Show_curl_examples -> ()
+  | _ -> Alcotest.fail "Expected /curl to parse as Show_curl_examples");
   (match Client.Terminal.parse_command "/install-http" with
-   | Client.Terminal.Show_install_http -> ()
-   | _ -> Alcotest.fail "Expected /install-http to parse as Show_install_http");
+  | Client.Terminal.Show_install_http -> ()
+  | _ -> Alcotest.fail "Expected /install-http to parse as Show_install_http");
   (match Client.Terminal.parse_command "/graph design the orchestration" with
-   | Client.Terminal.Run_graph "design the orchestration" -> ()
-   | _ -> Alcotest.fail "Expected /graph ... to parse as Run_graph");
-  (match Client.Terminal.parse_command "/discussion compare two graph shapes" with
-   | Client.Terminal.Run_discussion "compare two graph shapes" -> ()
-   | _ -> Alcotest.fail "Expected /discussion ... to parse as Run_discussion");
+  | Client.Terminal.Run_graph "design the orchestration" -> ()
+  | _ -> Alcotest.fail "Expected /graph ... to parse as Run_graph");
+  (match
+     Client.Terminal.parse_command "/discussion compare two graph shapes"
+   with
+  | Client.Terminal.Run_discussion "compare two graph shapes" -> ()
+  | _ -> Alcotest.fail "Expected /discussion ... to parse as Run_discussion");
   match Client.Terminal.parse_command "/wizard cron nightly swarm" with
   | Client.Terminal.Run_wizard (Some "cron nightly swarm") -> ()
   | _ -> Alcotest.fail "Expected /wizard ... to parse as Run_wizard"
@@ -801,7 +769,8 @@ let test_terminal_parse_command_supports_docs_and_wizard () =
 let test_terminal_prepare_discussion_request_keeps_session_and_attachments () =
   let runtime_config =
     {
-      (make_memory_runtime_config "assistant-route" "/tmp/terminal-memory.sqlite")
+      (make_memory_runtime_config "assistant-route"
+         "/tmp/terminal-memory.sqlite")
       with
       discussion =
         {
@@ -831,40 +800,241 @@ let test_terminal_prepare_discussion_request_keeps_session_and_attachments () =
     }
   in
   let task_id, metadata, input =
-    Client.Terminal.prepare_graph_request
-      runtime
-      state
-      ~request_kind:Client.Terminal.Discussion
-      "Refactor the orchestration."
+    Client.Terminal.prepare_graph_request runtime state
+      ~request_kind:Client.Terminal.Discussion "Refactor the orchestration."
   in
   Alcotest.(check bool)
-    "task id derives from graph session"
-    true
+    "task id derives from graph session" true
     (has_prefix state.graph_session_id task_id);
   Alcotest.(check (list (pair string string)))
     "session metadata propagated"
     [ ("session_id", state.graph_session_id) ]
     metadata;
   Alcotest.(check bool)
-    "discussion wrapper added"
-    true
-    (contains_substring
-       ~substring:"Run the typed graph in discussion mode"
+    "discussion wrapper added" true
+    (contains_substring ~substring:"Run the typed graph in discussion mode"
        input);
   Alcotest.(check bool)
-    "attachment block added"
-    true
+    "attachment block added" true
     (contains_substring ~substring:"Attached files:" input);
   Alcotest.(check bool)
-    "attachment content included"
-    true
-    (contains_substring ~substring:"Module hierarchy and audit requirements." input)
+    "attachment content included" true
+    (contains_substring ~substring:"Module hierarchy and audit requirements."
+       input)
+
+let test_terminal_discussion_team_builder_selects_concrete_subset () =
+  let runtime_config =
+    {
+      (make_runtime_config "assistant-route") with
+      discussion =
+        {
+          Config.Runtime.Discussion.enabled = true;
+          rounds = 3;
+          max_nesting_depth = 0;
+          final_agent = Core.Agent_name.Summarizer;
+          participants =
+            [
+              {
+                Config.Runtime.Discussion.Participant.name = "architect";
+                profile =
+                  {
+                    Config.Runtime.Llm.Agent_profile.route_model =
+                      "architect-route";
+                    system_prompt = "architect prompt";
+                    max_tokens = Some 180;
+                    confidence = 0.91;
+                  };
+                persona = None;
+                rules = None;
+              };
+              {
+                Config.Runtime.Discussion.Participant.name = "critic";
+                profile =
+                  {
+                    Config.Runtime.Llm.Agent_profile.route_model =
+                      "critic-route";
+                    system_prompt = "critic prompt";
+                    max_tokens = Some 180;
+                    confidence = 0.92;
+                  };
+                persona = None;
+                rules = None;
+              };
+              {
+                Config.Runtime.Discussion.Participant.name = "implementer";
+                profile =
+                  {
+                    Config.Runtime.Llm.Agent_profile.route_model =
+                      "implementer-route";
+                    system_prompt = "implementer prompt";
+                    max_tokens = Some 180;
+                    confidence = 0.9;
+                  };
+                persona = None;
+                rules = None;
+              };
+            ];
+        };
+    }
+  in
+  let routes =
+    [
+      Bulkhead_lm.Config_test_support.route ~public_model:"assistant-route"
+        ~backends:[ make_test_backend "assistant-route" ]
+        ();
+      Bulkhead_lm.Config_test_support.route ~public_model:"architect-route"
+        ~backends:[ make_test_backend "architect-route" ]
+        ();
+      Bulkhead_lm.Config_test_support.route ~public_model:"critic-route"
+        ~backends:[ make_test_backend "critic-route" ]
+        ();
+      Bulkhead_lm.Config_test_support.route ~public_model:"implementer-route"
+        ~backends:[ make_test_backend "implementer-route" ]
+        ();
+    ]
+  in
+  let llm_client =
+    make_llm_client_with_mock
+      [
+        ( "assistant-route",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"assistant-route"
+               ~content:
+                 "{\"participants\":[{\"name\":\"architect\",\"focus\":\"Define \
+                  the decisive module boundaries and target \
+                  architecture.\"},{\"name\":\"implementer\",\"focus\":\"Propose \
+                  the smallest concrete implementation slice and tests.\"}]}"
+               ()) );
+      ]
+      routes
+  in
+  let runtime =
+    make_client_runtime_with_parts "assistant-route" runtime_config llm_client
+  in
+  let state = Client.Terminal.initial_state runtime in
+  let result =
+    Client.Terminal.Discussion_team_builder.build runtime state
+      ~prompt_text:"Refactor the orchestration graph into clearer modules."
+      ~attachments:[]
+  in
+  let selected =
+    result.runtime.Client.Runtime.runtime_config.discussion.participants
+  in
+  Alcotest.(check int)
+    "team builder keeps only selected participants" 2 (List.length selected);
+  Alcotest.(check string)
+    "first selected participant preserved" "architect" (List.hd selected).name;
+  Alcotest.(check string)
+    "second selected participant preserved" "implementer"
+    (List.nth selected 1).name;
+  Alcotest.(check bool)
+    "focus is injected into system prompt" true
+    (contains_substring ~substring:"Discussion-specific focus for this run"
+       (List.hd selected).profile.system_prompt);
+  Alcotest.(check bool)
+    "builder lines mention active route" true
+    (List.exists
+       (contains_substring
+          ~substring:"team_builder_route_model: assistant-route")
+       result.lines)
+
+let test_terminal_discussion_team_builder_falls_back_when_selection_is_invalid
+    () =
+  let runtime_config =
+    {
+      (make_runtime_config "assistant-route") with
+      discussion =
+        {
+          Config.Runtime.Discussion.enabled = true;
+          rounds = 3;
+          max_nesting_depth = 0;
+          final_agent = Core.Agent_name.Summarizer;
+          participants =
+            [
+              {
+                Config.Runtime.Discussion.Participant.name = "architect";
+                profile =
+                  {
+                    Config.Runtime.Llm.Agent_profile.route_model =
+                      "architect-route";
+                    system_prompt = "architect prompt";
+                    max_tokens = Some 180;
+                    confidence = 0.91;
+                  };
+                persona = None;
+                rules = None;
+              };
+              {
+                Config.Runtime.Discussion.Participant.name = "critic";
+                profile =
+                  {
+                    Config.Runtime.Llm.Agent_profile.route_model =
+                      "critic-route";
+                    system_prompt = "critic prompt";
+                    max_tokens = Some 180;
+                    confidence = 0.92;
+                  };
+                persona = None;
+                rules = None;
+              };
+            ];
+        };
+    }
+  in
+  let routes =
+    [
+      Bulkhead_lm.Config_test_support.route ~public_model:"assistant-route"
+        ~backends:[ make_test_backend "assistant-route" ]
+        ();
+      Bulkhead_lm.Config_test_support.route ~public_model:"architect-route"
+        ~backends:[ make_test_backend "architect-route" ]
+        ();
+      Bulkhead_lm.Config_test_support.route ~public_model:"critic-route"
+        ~backends:[ make_test_backend "critic-route" ]
+        ();
+    ]
+  in
+  let llm_client =
+    make_llm_client_with_mock
+      [
+        ( "assistant-route",
+          Ok
+            (Bulkhead_lm.Provider_mock.sample_chat_response
+               ~model:"assistant-route"
+               ~content:
+                 "{\"participants\":[{\"name\":\"invented-role\",\"focus\":\"Do \
+                  something.\"}]}"
+               ()) );
+      ]
+      routes
+  in
+  let runtime =
+    make_client_runtime_with_parts "assistant-route" runtime_config llm_client
+  in
+  let state = Client.Terminal.initial_state runtime in
+  let result =
+    Client.Terminal.Discussion_team_builder.build runtime state
+      ~prompt_text:"Stress-test the refactor." ~attachments:[]
+  in
+  let selected =
+    result.runtime.Client.Runtime.runtime_config.discussion.participants
+  in
+  Alcotest.(check int)
+    "fallback keeps configured participants" 2 (List.length selected);
+  Alcotest.(check string)
+    "configured team order preserved on fallback" "architect"
+    (List.hd selected).name;
+  Alcotest.(check bool)
+    "fallback line recorded" true
+    (List.exists (contains_substring ~substring:"fallback:") result.lines)
 
 let test_terminal_discussion_archive_writes_markdown_file () =
   with_temp_dir "agent-graph-discussion-archive" (fun dir ->
       let runtime_config =
         {
-          (make_memory_runtime_config "assistant-route" "/tmp/archive-memory.sqlite")
+          (make_memory_runtime_config "assistant-route"
+             "/tmp/archive-memory.sqlite")
           with
           discussion =
             {
@@ -878,7 +1048,8 @@ let test_terminal_discussion_archive_writes_markdown_file () =
                     Config.Runtime.Discussion.Participant.name = "architect";
                     profile =
                       {
-                        Config.Runtime.Llm.Agent_profile.route_model = "claude-sonnet";
+                        Config.Runtime.Llm.Agent_profile.route_model =
+                          "claude-sonnet";
                         system_prompt = "architect";
                         max_tokens = Some 180;
                         confidence = 0.9;
@@ -890,7 +1061,8 @@ let test_terminal_discussion_archive_writes_markdown_file () =
                     Config.Runtime.Discussion.Participant.name = "critic";
                     profile =
                       {
-                        Config.Runtime.Llm.Agent_profile.route_model = "kimi-latest";
+                        Config.Runtime.Llm.Agent_profile.route_model =
+                          "kimi-latest";
                         system_prompt = "critic";
                         max_tokens = Some 180;
                         confidence = 0.92;
@@ -904,22 +1076,17 @@ let test_terminal_discussion_archive_writes_markdown_file () =
       in
       let runtime =
         let base_runtime =
-          make_client_runtime_with_runtime_config "assistant-route" runtime_config
+          make_client_runtime_with_runtime_config "assistant-route"
+            runtime_config
         in
         let client_config =
           {
             base_runtime.Client.Runtime.client_config with
             local_ops =
-              {
-                base_runtime.client_config.local_ops with
-                workspace_root = dir;
-              };
+              { base_runtime.client_config.local_ops with workspace_root = dir };
           }
         in
-        {
-          base_runtime with
-          Client.Runtime.client_config;
-        }
+        { base_runtime with Client.Runtime.client_config }
       in
       let attachment : Client.Assistant.attachment =
         {
@@ -934,87 +1101,76 @@ let test_terminal_discussion_archive_writes_markdown_file () =
           Core.Context.empty ~task_id:"human-graph-001" ~metadata:[]
         in
         let context =
-          Core.Context.add_message
-            context
+          Core.Context.add_message context
             {
               Core.Message.role = Core.Message.Speaker "architect";
-              content = "Split the workflow into planner and discussion modules.";
+              content =
+                "Split the workflow into planner and discussion modules.";
             }
         in
         let context =
-          Core.Context.add_message
-            context
+          Core.Context.add_message context
             {
               Core.Message.role = Core.Message.Speaker "critic";
               content = "Require stronger tests around route validation.";
             }
         in
         let context =
-          Core.Context.record_event
-            context
-            ~label:"discussion.turn.completed"
+          Core.Context.record_event context ~label:"discussion.turn.completed"
             ~detail:"round=1 speaker=architect -> Text(55 chars)"
         in
-        Core.Context.record_event
-          context
-          ~label:"discussion.turn.completed"
+        Core.Context.record_event context ~label:"discussion.turn.completed"
           ~detail:"round=1 speaker=critic -> Text(47 chars)"
       in
       match
-        Client.Terminal.Discussion_archive.write
-          ~runtime
-          ~timestamp:"20260413010203"
-          ~task_id:"human-graph-001"
+        Client.Terminal.Discussion_archive.write ~runtime
+          ~timestamp:"20260413010203" ~task_id:"human-graph-001"
           ~graph_session_id:"human-graph-session"
           ~prompt_text:"Refactor the graph around a multi-agent discussion."
           ~attachments:[ attachment ]
-          ~payload:(Core.Payload.Text "Summary: keep the graph typed and auditable.")
+          ~payload:
+            (Core.Payload.Text "Summary: keep the graph typed and auditable.")
           ~context
       with
       | Error message -> Alcotest.fail message
       | Ok archive_path ->
           Alcotest.(check bool)
-            "archive file created"
-            true
+            "archive file created" true
             (Sys.file_exists archive_path);
           Alcotest.(check bool)
-            "timestamp embedded in filename"
-            true
+            "timestamp embedded in filename" true
             (has_prefix
                (Filename.concat
                   (Filename.concat dir "var/discussions")
                   "discussion-20260413010203-")
                archive_path);
           let archived =
-            Stdlib.In_channel.with_open_bin archive_path Stdlib.In_channel.input_all
+            Stdlib.In_channel.with_open_bin archive_path
+              Stdlib.In_channel.input_all
           in
           Alcotest.(check bool)
-            "prompt archived"
-            true
+            "prompt archived" true
             (contains_substring
                ~substring:"Refactor the graph around a multi-agent discussion."
                archived);
           Alcotest.(check bool)
-            "attachment archived"
-            true
+            "attachment archived" true
             (contains_substring
-               ~substring:"Discussion seed with hierarchy and audit constraints."
+               ~substring:
+                 "Discussion seed with hierarchy and audit constraints."
                archived);
           Alcotest.(check bool)
-            "turn heading archived"
-            true
-            (contains_substring
-               ~substring:"### round=1 speaker=architect"
+            "turn heading archived" true
+            (contains_substring ~substring:"### round=1 speaker=architect"
                archived);
           Alcotest.(check bool)
-            "turn content archived"
-            true
+            "turn content archived" true
             (contains_substring
-               ~substring:"Split the workflow into planner and discussion modules."
+               ~substring:
+                 "Split the workflow into planner and discussion modules."
                archived);
           Alcotest.(check bool)
-            "final payload archived"
-            true
+            "final payload archived" true
             (contains_substring
                ~substring:"Summary: keep the graph typed and auditable."
                archived))
@@ -1024,30 +1180,28 @@ let test_client_runtime_graph_summary_mentions_routes () =
   let runtime = make_client_runtime route_model in
   let summary = Client.Runtime.graph_summary_text runtime in
   Alcotest.(check bool)
-    "assistant route mentioned"
-    true
-    (contains_substring ~substring:"assistant_route_model: assistant-route" summary);
+    "assistant route mentioned" true
+    (contains_substring ~substring:"assistant_route_model: assistant-route"
+       summary);
   Alcotest.(check bool)
-    "route summary mentioned"
-    true
+    "route summary mentioned" true
     (contains_substring ~substring:"route_model=assistant-route" summary);
   Alcotest.(check bool)
-    "messenger spokesperson mentioned"
-    true
-    (contains_substring ~substring:"messenger_spokesperson: public_model=swarm-spokesperson" summary);
+    "messenger spokesperson mentioned" true
+    (contains_substring
+       ~substring:"messenger_spokesperson: public_model=swarm-spokesperson"
+       summary);
   Alcotest.(check bool)
-    "http workflow mentioned"
-    true
-    (contains_substring ~substring:"transport: http_workflow=http://127.0.0.1:8087" summary)
+    "http workflow mentioned" true
+    (contains_substring
+       ~substring:"transport: http_workflow=http://127.0.0.1:8087" summary)
 
 let test_infer_http_provider_kind_recognizes_openrouter () =
   let provider_kind =
     Llm.Bulkhead_client.infer_http_provider_kind "https://openrouter.ai/api/v1"
   in
   Alcotest.(check string)
-    "openrouter provider inferred"
-    "openrouter_openai"
-    provider_kind
+    "openrouter provider inferred" "openrouter_openai" provider_kind
 
 type captured_gateway_request = {
   path : string;
@@ -1080,103 +1234,95 @@ let with_fake_bulkhead_gateway f =
       | "" -> None
       | _ ->
           Some
-            (try Yojson.Safe.from_string body_text with
-             | Yojson.Json_error _ -> `String body_text)
+            (try Yojson.Safe.from_string body_text
+             with Yojson.Json_error _ -> `String body_text)
     in
-    requests :=
-      { path; authorization; body = body_json } :: !requests;
+    requests := { path; authorization; body = body_json } :: !requests;
     let respond_json json =
-      Cohttp_lwt_unix.Server.respond_string
-        ~status:`OK
-        ~headers:(Cohttp.Header.of_list [ "content-type", "application/json" ])
+      Cohttp_lwt_unix.Server.respond_string ~status:`OK
+        ~headers:
+          (Cohttp.Header.of_list [ ("content-type", "application/json") ])
         ~body:(Yojson.Safe.to_string json)
         ()
     in
-    match Cohttp.Request.meth req, path with
-    | `GET, "/health" ->
-        respond_json (`Assoc [ "status", `String "ok" ])
+    match (Cohttp.Request.meth req, path) with
+    | `GET, "/health" -> respond_json (`Assoc [ ("status", `String "ok") ])
     | `GET, "/v1/models" ->
         respond_json
           (`Assoc
-             [
-               ( "object",
-                 `String "list" );
-               ( "data",
-                 `List
-                   [
-                     `Assoc
-                       [
-                         "id", `String "assistant-route";
-                         "object", `String "model";
-                         "public_model", `String "assistant-route";
-                         ( "configured_backends",
-                           `List
-                             [
-                               `Assoc
-                                 [
-                                   "provider_id", `String "external-provider";
-                                   "provider_kind", `String "ollama_openai";
-                                   "upstream_model", `String "kimi-k2.6";
-                                   "credential_env", `String "OLLAMA_API_KEY";
-                                   ( "transport",
-                                     `Assoc
-                                       [
-                                         "kind", `String "http";
-                                         "target", `String "http://127.0.0.1:11434/v1";
-                                       ] );
-                                 ];
-                             ] );
-                         "backend_count", `Int 1;
-                       ];
-                   ] );
-             ])
+            [
+              ("object", `String "list");
+              ( "data",
+                `List
+                  [
+                    `Assoc
+                      [
+                        ("id", `String "assistant-route");
+                        ("object", `String "model");
+                        ("public_model", `String "assistant-route");
+                        ( "configured_backends",
+                          `List
+                            [
+                              `Assoc
+                                [
+                                  ("provider_id", `String "external-provider");
+                                  ("provider_kind", `String "ollama_openai");
+                                  ("upstream_model", `String "kimi-k2.6");
+                                  ("credential_env", `String "OLLAMA_API_KEY");
+                                  ( "transport",
+                                    `Assoc
+                                      [
+                                        ("kind", `String "http");
+                                        ( "target",
+                                          `String "http://127.0.0.1:11434/v1" );
+                                      ] );
+                                ];
+                            ] );
+                        ("backend_count", `Int 1);
+                      ];
+                  ] );
+            ])
     | `POST, "/v1/chat/completions" ->
         respond_json
           (`Assoc
-             [
-               "id", `String "chatcmpl-test";
-               "created", `Int 1;
-               "model", `String "assistant-route";
-               "object", `String "chat.completion";
-               ( "choices",
-                 `List
-                   [
-                     `Assoc
-                       [
-                         "index", `Int 0;
-                         "finish_reason", `String "stop";
-                         ( "message",
-                           `Assoc
-                             [
-                               "role", `String "assistant";
-                               "content", `String "External BulkheadLM OK.";
-                             ] );
-                       ];
-                   ] );
-               ( "usage",
-                 `Assoc
-                   [
-                     "prompt_tokens", `Int 10;
-                     "completion_tokens", `Int 4;
-                     "total_tokens", `Int 14;
-                   ] );
-             ])
+            [
+              ("id", `String "chatcmpl-test");
+              ("created", `Int 1);
+              ("model", `String "assistant-route");
+              ("object", `String "chat.completion");
+              ( "choices",
+                `List
+                  [
+                    `Assoc
+                      [
+                        ("index", `Int 0);
+                        ("finish_reason", `String "stop");
+                        ( "message",
+                          `Assoc
+                            [
+                              ("role", `String "assistant");
+                              ("content", `String "External BulkheadLM OK.");
+                            ] );
+                      ];
+                  ] );
+              ( "usage",
+                `Assoc
+                  [
+                    ("prompt_tokens", `Int 10);
+                    ("completion_tokens", `Int 4);
+                    ("total_tokens", `Int 14);
+                  ] );
+            ])
     | _ ->
-        Cohttp_lwt_unix.Server.respond_string
-          ~status:`Not_found
-          ~headers:(Cohttp.Header.of_list [ "content-type", "application/json" ])
-          ~body:"{\"error\":\"not found\"}"
-          ()
+        Cohttp_lwt_unix.Server.respond_string ~status:`Not_found
+          ~headers:
+            (Cohttp.Header.of_list [ ("content-type", "application/json") ])
+          ~body:"{\"error\":\"not found\"}" ()
   in
-  let server =
-    Cohttp_lwt_unix.Server.make ~callback ()
-  in
+  let server = Cohttp_lwt_unix.Server.make ~callback () in
   let server_thread =
     Lwt.async (fun () ->
-        Cohttp_lwt_unix.Server.create
-          ~mode:(`TCP (`Port port))
-          ~stop
-          server)
+        Cohttp_lwt_unix.Server.create ~mode:(`TCP (`Port port)) ~stop server)
   in
   ignore server_thread;
   Fun.protect
@@ -1212,58 +1358,40 @@ let test_external_bulkhead_client_uses_http_gateway () =
       in
       match
         Lwt_main.run
-          (Llm.Bulkhead_client.invoke_messages
-             client
-             ~route_model:"assistant-route"
-             ~messages
-             ~max_tokens:(Some 64))
+          (Llm.Bulkhead_client.invoke_messages client
+             ~route_model:"assistant-route" ~messages ~max_tokens:(Some 64))
       with
       | Error message -> Alcotest.fail message
-      | Ok completion ->
+      | Ok completion -> (
           Alcotest.(check string)
-            "external response content"
-            "External BulkheadLM OK."
+            "external response content" "External BulkheadLM OK."
             completion.content;
           Alcotest.(check int)
-            "external total tokens"
-            14
-            completion.usage.total_tokens;
+            "external total tokens" 14 completion.usage.total_tokens;
           let requests = List.rev !requests in
-          Alcotest.(check int)
-            "models then chat"
-            2
-            (List.length requests);
+          Alcotest.(check int) "models then chat" 2 (List.length requests);
           match requests with
-          | models_request :: chat_request :: [] ->
+          | [ models_request; chat_request ] -> (
               Alcotest.(check string)
-                "models path"
-                "/v1/models"
-                models_request.path;
+                "models path" "/v1/models" models_request.path;
               Alcotest.(check string)
-                "chat path"
-                "/v1/chat/completions"
-                chat_request.path;
+                "chat path" "/v1/chat/completions" chat_request.path;
               Alcotest.(check (option string))
-                "models auth"
-                (Some "Bearer sk-test")
+                "models auth" (Some "Bearer sk-test")
                 models_request.authorization;
               Alcotest.(check (option string))
-                "chat auth"
-                (Some "Bearer sk-test")
-                chat_request.authorization;
-              (match chat_request.body with
-               | Some json ->
-                   let model =
-                     json
-                     |> Yojson.Safe.Util.member "model"
-                     |> Yojson.Safe.Util.to_string
-                   in
-                   Alcotest.(check string)
-                     "chat request model"
-                     "assistant-route"
-                     model
-               | None -> Alcotest.fail "expected chat request body")
-          | _ -> Alcotest.fail "expected exactly two gateway requests")
+                "chat auth" (Some "Bearer sk-test") chat_request.authorization;
+              match chat_request.body with
+              | Some json ->
+                  let model =
+                    json
+                    |> Yojson.Safe.Util.member "model"
+                    |> Yojson.Safe.Util.to_string
+                  in
+                  Alcotest.(check string)
+                    "chat request model" "assistant-route" model
+              | None -> Alcotest.fail "expected chat request body")
+          | _ -> Alcotest.fail "expected exactly two gateway requests"))
 
 let test_messenger_spokesperson_runs_swarm_and_replies () =
   let runtime = make_spokesperson_runtime () in
@@ -1283,32 +1411,29 @@ let test_messenger_spokesperson_runs_swarm_and_replies () =
       extra = [];
     }
   in
-  match Lwt_main.run (Client.Messenger_spokesperson.respond runtime request) with
+  match
+    Lwt_main.run (Client.Messenger_spokesperson.respond runtime request)
+  with
   | Error message -> Alcotest.fail message
   | Ok response ->
       Alcotest.(check string)
-        "public model preserved"
-        "swarm-spokesperson"
-        response.model;
+        "public model preserved" "swarm-spokesperson" response.model;
       let content =
-        response.choices
-        |> List.hd
-        |> fun choice -> choice.Bulkhead_lm.Openai_types.message.content
+        response.choices |> List.hd |> fun choice ->
+        choice.Bulkhead_lm.Openai_types.message.content
       in
       Alcotest.(check bool)
-        "spokesperson text returned"
-        true
-        (contains_substring
-           ~substring:"porte-parole messenger"
-           content)
+        "spokesperson text returned" true
+        (contains_substring ~substring:"porte-parole messenger" content)
 
 let test_run_graph_session_id_persists_memory () =
   let sqlite_path = Filename.temp_file "agent-graph-client-memory" ".sqlite" in
-  let runtime_config = make_memory_runtime_config "assistant-route" sqlite_path in
+  let runtime_config =
+    make_memory_runtime_config "assistant-route" sqlite_path
+  in
   let routes =
     [
-      Bulkhead_lm.Config_test_support.route
-        ~public_model:"assistant-route"
+      Bulkhead_lm.Config_test_support.route ~public_model:"assistant-route"
         ~backends:[ make_test_backend "assistant-route" ]
         ();
     ]
@@ -1319,9 +1444,8 @@ let test_run_graph_session_id_persists_memory () =
         ( "assistant-route",
           Ok
             (Bulkhead_lm.Provider_mock.sample_chat_response
-               ~model:"assistant-route"
-               ~content:"Stored memory response."
-               ()) );
+               ~model:"assistant-route" ~content:"Stored memory response." ())
+        );
       ]
       routes
   in
@@ -1337,7 +1461,8 @@ let test_run_graph_session_id_persists_memory () =
       messenger_spokesperson =
         Some
           {
-            Client.Config.Messenger_spokesperson.public_model = "swarm-spokesperson";
+            Client.Config.Messenger_spokesperson.public_model =
+              "swarm-spokesperson";
             route_model = "assistant-route";
             system_prompt = "spokesperson";
             max_tokens = Some 500;
@@ -1369,12 +1494,14 @@ let test_run_graph_session_id_persists_memory () =
             {
               Client.Config.Transport.Http.workflow =
                 {
-                  Client.Config.Transport.Http_workflow.base_url = "http://127.0.0.1:8087";
+                  Client.Config.Transport.Http_workflow.base_url =
+                    "http://127.0.0.1:8087";
                   server_command = "serve-http";
                 };
               distribution =
                 {
-                  Client.Config.Transport.Http_distribution.base_url = "http://127.0.0.1:8788";
+                  Client.Config.Transport.Http_distribution.base_url =
+                    "http://127.0.0.1:8788";
                   server_command = "serve-dist";
                   install_url = "http://127.0.0.1:8788/install.sh";
                   archive_url = "http://127.0.0.1:8788/ocaml-agent-graph.tar.gz";
@@ -1384,27 +1511,22 @@ let test_run_graph_session_id_persists_memory () =
     }
   in
   let runtime =
-    Client.Runtime.of_parts
-      ~client_config_path:"/tmp/client.json"
-      ~client_config
-      ~runtime_config_path:"/tmp/runtime.json"
-      ~runtime_config
+    Client.Runtime.of_parts ~client_config_path:"/tmp/client.json"
+      ~client_config ~runtime_config_path:"/tmp/runtime.json" ~runtime_config
       ~llm_client
   in
   let request_json input =
     `Assoc
       [
-        "task_id", `String "ephemeral-task";
-        "session_id", `String "external-user-42";
-        "input", `String input;
+        ("task_id", `String "ephemeral-task");
+        ("session_id", `String "external-user-42");
+        ("input", `String input);
       ]
   in
   let run_request input =
     match
       Lwt_main.run
-        (Client.Machine.invoke_json
-           runtime
-           ~kind:Client.Machine.Run_graph
+        (Client.Machine.invoke_json runtime ~kind:Client.Machine.Run_graph
            (request_json input))
     with
     | Ok _ -> ()
@@ -1418,18 +1540,17 @@ let test_run_graph_session_id_persists_memory () =
     | Error message -> Alcotest.fail message
   in
   let session =
-    Agent_graph.Memory.Store.load_session
-      store
+    Agent_graph.Memory.Store.load_session store
       {
         Agent_graph.Memory.Store.namespace = "client-memory";
         session_key = "external-user-42";
       }
       ~recent_turn_buffer:4
   in
-  Alcotest.(check int) "reply count follows external session" 2 session.reply_count;
+  Alcotest.(check int)
+    "reply count follows external session" 2 session.reply_count;
   Alcotest.(check bool)
-    "recent turns retained"
-    true
+    "recent turns retained" true
     (List.length session.recent_turns >= 2)
 
 let test_machine_run_lines_preserves_distinct_requests () =
@@ -1446,10 +1567,10 @@ let test_machine_run_lines_preserves_distinct_requests () =
     outputs
     |> List.filter_map (fun line ->
            match Yojson.Safe.from_string line with
-           | `Assoc fields ->
-               (match List.assoc_opt "id" fields with
-                | Some (`String id) -> Some id
-                | _ -> None)
+           | `Assoc fields -> (
+               match List.assoc_opt "id" fields with
+               | Some (`String id) -> Some id
+               | _ -> None)
            | _ -> None)
     |> List.sort String.compare
   in
@@ -1459,77 +1580,55 @@ let test_machine_run_lines_preserves_distinct_requests () =
     ids
 
 let () =
-  Alcotest.run
-    "agent-graph-client"
+  Alcotest.run "agent-graph-client"
     [
       ( "client-config",
         [
-          Alcotest.test_case "loads prompt and paths" `Quick test_client_config_loads_prompt_and_paths;
-          Alcotest.test_case
-            "supports legacy ssh fallback"
-            `Quick
+          Alcotest.test_case "loads prompt and paths" `Quick
+            test_client_config_loads_prompt_and_paths;
+          Alcotest.test_case "supports legacy ssh fallback" `Quick
             test_client_config_supports_legacy_ssh_fallback;
         ] );
       ( "assistant",
         [
-          Alcotest.test_case
-            "parses structured reply"
-            `Quick
+          Alcotest.test_case "parses structured reply" `Quick
             test_assistant_reply_parses_commands;
-          Alcotest.test_case
-            "parses markdown fenced json"
-            `Quick
+          Alcotest.test_case "parses markdown fenced json" `Quick
             test_assistant_reply_parses_markdown_fenced_json;
-          Alcotest.test_case
-            "selects ssh http and peer docs"
-            `Quick
+          Alcotest.test_case "selects ssh http and peer docs" `Quick
             test_assistant_docs_selects_ssh_http_and_peer_references;
-          Alcotest.test_case
-            "selects messenger docs"
-            `Quick
+          Alcotest.test_case "selects messenger docs" `Quick
             test_assistant_docs_selects_messenger_references;
-          Alcotest.test_case
-            "prompt mentions hierarchy and docs"
-            `Quick
+          Alcotest.test_case "prompt mentions hierarchy and docs" `Quick
             test_assistant_prompt_mentions_bulkhead_hierarchy_and_docs;
-          Alcotest.test_case
-            "terminal parses docs and wizard commands"
-            `Quick
+          Alcotest.test_case "terminal parses docs and wizard commands" `Quick
             test_terminal_parse_command_supports_docs_and_wizard;
           Alcotest.test_case
             "terminal prepares discussion requests with session and attachments"
             `Quick
             test_terminal_prepare_discussion_request_keeps_session_and_attachments;
+          Alcotest.test_case "discussion team builder selects a concrete subset"
+            `Quick test_terminal_discussion_team_builder_selects_concrete_subset;
           Alcotest.test_case
-            "terminal archives discussion transcripts to markdown"
-            `Quick
+            "discussion team builder falls back on invalid selection" `Quick
+            test_terminal_discussion_team_builder_falls_back_when_selection_is_invalid;
+          Alcotest.test_case
+            "terminal archives discussion transcripts to markdown" `Quick
             test_terminal_discussion_archive_writes_markdown_file;
         ] );
       ( "runtime",
         [
-          Alcotest.test_case
-            "graph summary mentions routes"
-            `Quick
+          Alcotest.test_case "graph summary mentions routes" `Quick
             test_client_runtime_graph_summary_mentions_routes;
-          Alcotest.test_case
-            "recognizes openrouter http endpoints"
-            `Quick
+          Alcotest.test_case "recognizes openrouter http endpoints" `Quick
             test_infer_http_provider_kind_recognizes_openrouter;
-          Alcotest.test_case
-            "uses external bulkhead gateway over http"
-            `Quick
+          Alcotest.test_case "uses external bulkhead gateway over http" `Quick
             test_external_bulkhead_client_uses_http_gateway;
-          Alcotest.test_case
-            "messenger spokesperson runs swarm and replies"
-            `Quick
-            test_messenger_spokesperson_runs_swarm_and_replies;
-          Alcotest.test_case
-            "run_graph session_id persists memory"
-            `Quick
+          Alcotest.test_case "messenger spokesperson runs swarm and replies"
+            `Quick test_messenger_spokesperson_runs_swarm_and_replies;
+          Alcotest.test_case "run_graph session_id persists memory" `Quick
             test_run_graph_session_id_persists_memory;
-          Alcotest.test_case
-            "machine run_lines preserves distinct requests"
-            `Quick
-            test_machine_run_lines_preserves_distinct_requests;
+          Alcotest.test_case "machine run_lines preserves distinct requests"
+            `Quick test_machine_run_lines_preserves_distinct_requests;
         ] );
     ]

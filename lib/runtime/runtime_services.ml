@@ -23,6 +23,25 @@ let validate_discussion_bindings
              "Invalid BulkheadLM binding for discussion workflow: %s"
              message)
 
+let validate_napoleon_bindings
+    (llm_client : Llm_bulkhead_client.t)
+    (config : Runtime_config.t)
+  =
+  if not config.napoleon.enabled
+  then Ok ()
+  else
+    match
+      Llm_bulkhead_client.validate_route_models
+        llm_client
+        (Runtime_config.Napoleon.route_models config.napoleon)
+    with
+    | Ok () -> Ok ()
+    | Error message ->
+        Error
+          (Fmt.str
+             "Invalid BulkheadLM binding for napoleon swarm workflow: %s"
+             message)
+
 let create config =
   match Llm_bulkhead_client.create config.Runtime_config.llm with
   | Error _ as error -> error
@@ -37,9 +56,13 @@ let create config =
            (match validate_discussion_bindings llm_client config with
             | Error _ as error -> error
             | Ok () ->
-                (match Memory_runtime.create config llm_client with
+                (match validate_napoleon_bindings llm_client config with
                  | Error _ as error -> error
-                 | Ok memory_runtime -> Ok { config; llm_client; memory_runtime })))
+                 | Ok () ->
+                     (match Memory_runtime.create config llm_client with
+                      | Error _ as error -> error
+                      | Ok memory_runtime ->
+                          Ok { config; llm_client; memory_runtime }))))
 
 let of_llm_client ~config llm_client =
   (match
@@ -48,6 +71,9 @@ let of_llm_client ~config llm_client =
    | Ok () -> ()
    | Error message -> failwith message);
   (match validate_discussion_bindings llm_client config with
+   | Ok () -> ()
+   | Error message -> failwith message);
+  (match validate_napoleon_bindings llm_client config with
    | Ok () -> ()
    | Error message -> failwith message);
   let memory_runtime =

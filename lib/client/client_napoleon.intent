@@ -1,0 +1,9 @@
+Purpose
+Expose the Napoleon evolutionary swarm to the human terminal and archive each run.
+
+Linear intent
+1. Parse `/napoleon` terminal options for topic, generation count, width, and pattern id.
+2. Derive defaults from the hierarchical `napoleon_swarm` runtime configuration instead of hardcoding behavior.
+3. Build runtime services from the current client runtime and invoke the orchestration-level Napoleon swarm.
+4. Collect runtime logs after the run so the terminal and archive show the operational trace.
+5. Render a markdown archive with plan, generation candidates, reserve arbitration, final payload, execution events, audit chain, and L3 fitness.

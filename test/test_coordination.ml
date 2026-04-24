@@ -58,11 +58,53 @@ let make_config () =
     demo = { Config.Runtime.Demo.task_id = "test-task"; input = "unused" };
     llm = make_llm_config ();
     discussion = Config.Runtime.Discussion.disabled;
+    napoleon = Config.Runtime.Napoleon.disabled;
     memory = Config.Runtime.Memory.disabled;
   }
 
 let config = make_config ()
 let registry = Agents.Defaults.make_registry ()
+
+let make_napoleon_role name kind route_model confidence =
+  {
+    Config.Runtime.Napoleon.Role.name;
+    kind;
+    profile =
+      {
+        Config.Runtime.Llm.Agent_profile.route_model;
+        system_prompt = Fmt.str "%s prompt" name;
+        max_tokens = Some 128;
+        confidence;
+      };
+    mission = Fmt.str "%s mission" name;
+  }
+
+let make_napoleon_config () =
+  {
+    config with
+    napoleon =
+      {
+        Config.Runtime.Napoleon.enabled = true;
+        generations = 2;
+        width = 3;
+        convergence_margin = 0.05;
+        pattern_id = "napoleon-test";
+        archive_subdir = Filename.concat "var" "napoleon";
+        roles =
+          [
+            make_napoleon_role "light_cavalry"
+              Config.Runtime.Napoleon.Role_kind.Scout "planner-model" 0.78;
+            make_napoleon_role "line_corps"
+              Config.Runtime.Napoleon.Role_kind.Corps "summarizer-model" 0.84;
+            make_napoleon_role "flank_critic"
+              Config.Runtime.Napoleon.Role_kind.Critic "validator-model" 0.88;
+            make_napoleon_role "imperial_reserve"
+              Config.Runtime.Napoleon.Role_kind.Reserve "validator-model" 0.92;
+            make_napoleon_role "berthier_marshal"
+              Config.Runtime.Napoleon.Role_kind.Marshal "summarizer-model" 0.9;
+          ];
+      };
+  }
 
 let make_services ?config:(cfg = config) responses =
   let backend provider_id model =
@@ -375,6 +417,52 @@ let test_pipeline_empty_is_identity () =
     (Core.Payload.summary result_payload)
 
 (* ------------------------------------------------------------------ *)
+(* Napoleon evolutionary swarm                                          *)
+(* ------------------------------------------------------------------ *)
+
+let test_napoleon_swarm_evolves_frontier () =
+  let config = make_napoleon_config () in
+  let services =
+    make_services ~config
+      [
+        ok_response "planner-model" "Map the hierarchy\nAssign owned modules";
+        ok_response "summarizer-model" "Marshal synthesis with validation.";
+        ok_response "validator-model" "Reserve selects the typed frontier.";
+      ]
+  in
+  let context = Core.Context.empty ~task_id:"napoleon-1" ~metadata:[] in
+  match
+    Lwt_main.run
+      (Orchestration.Napoleon_swarm.run ~services ~config ~registry context
+         ~topic:"Evolve the runtime hierarchy" ~pattern_id:"napoleon-test"
+         ~generations:2 ~width:3)
+  with
+  | Error message -> Alcotest.fail message
+  | Ok result ->
+      Alcotest.(check int)
+        "two generations" 2 result.generation_count;
+      Alcotest.(check int) "three candidates in first generation" 3
+        (match result.generations with
+         | first :: _ -> List.length first.candidates
+         | [] -> 0);
+      Alcotest.(check bool)
+        "audit verifies" true result.audit_verified;
+      Alcotest.(check int)
+        "pattern invocation recorded" 1
+        result.pattern.Core.Pattern.metrics.invocation_count;
+      Alcotest.(check bool)
+        "generation event recorded" true
+        (List.exists
+           (fun (event : Core.Context.event) ->
+             event.label = "napoleon.generation.completed")
+           result.context.events);
+      Alcotest.(check bool)
+        "final payload is text" true
+        (match result.final_payload with
+         | Core.Payload.Text _ -> true
+         | _ -> false)
+
+(* ------------------------------------------------------------------ *)
 (* Runner                                                               *)
 (* ------------------------------------------------------------------ *)
 
@@ -395,5 +483,10 @@ let () =
           test_case "guard skips step on error payload"        `Quick test_pipeline_guard_skips_on_error_payload;
           test_case "halts on error without guard"             `Quick test_pipeline_halts_on_error_without_guard;
           test_case "empty pipeline is identity"               `Quick test_pipeline_empty_is_identity;
+        ] );
+      ( "Napoleon-swarm",
+        [
+          test_case "evolves frontier through reserve arbitration" `Quick
+            test_napoleon_swarm_evolves_frontier;
         ] );
     ]

@@ -3,7 +3,7 @@ This file groups the runtime dependencies that agents need during execution.
 
 Linear intent
 1. Define the runtime services record as the loaded runtime config plus the initialized BulkheadLM-backed LLM client.
-2. Provide `create` so production code can build the services directly from the runtime config.
-3. Return an explicit error when the LLM client cannot be created.
-4. Provide `of_llm_client` so tests and advanced callers can inject a custom client while keeping the same service shape.
-
+2. Validate base agent bindings, discussion participant bindings, and Napoleon swarm role bindings against the loaded BulkheadLM route inventory.
+3. Provide `create` so production code can build the services directly from the runtime config.
+4. Return an explicit error when the LLM client cannot be created or a configured route model is missing.
+5. Provide `of_llm_client` so tests and advanced callers can inject a custom client while keeping the same service shape.

@@ -15,6 +15,8 @@ module Command = struct
   let graph = "/graph"
   let discussion = "/discussion"
   let decide = "/decide"
+  let napoleon = "/napoleon"
+  let napoleon_alias = "/napoleaon"
   let docs = "/docs"
   let wizard = "/wizard"
   let ssh_human = "/ssh-human"
@@ -48,6 +50,8 @@ let commands =
     Command.graph;
     Command.discussion;
     Command.decide;
+    Command.napoleon;
+    Command.napoleon_alias;
     Command.docs;
     Command.wizard;
     Command.ssh_human;
@@ -88,6 +92,8 @@ module Text = struct
     ; { usage = Command.graph ^ " TXT";        description = "run the typed agent graph" }
     ; { usage = Command.discussion ^ " TXT";   description = "run the multi-agent discussion" }
     ; { usage = Command.decide ^ " TXT";       description = "verifiable L0-L3 decision session" }
+    ; { usage = Command.napoleon ^ " TXT";     description = "evolutionary Napoleon swarm" }
+    ; { usage = Command.napoleon_alias ^ " TXT"; description = "alias for /napoleon" }
     ; { usage = Command.docs ^ " TOPIC";       description = "show relevant docs for a topic" }
     ; { usage = Command.wizard ^ " TXT";       description = "run the proactive starter wizard" }
     ; { usage = Command.ssh_human;             description = "print SSH human terminal command" }
@@ -121,6 +127,7 @@ module Text = struct
     ; { topic = "graph";      tip = "/graph TXT  run the typed agent graph" }
     ; { topic = "discussion"; tip = "/discussion TXT  multi-agent discussion workflow" }
     ; { topic = "decide";     tip = "/decide TXT [--rounds N] [--pattern ID]  verifiable L0-L3 decision" }
+    ; { topic = "napoleon";   tip = "/napoleon TXT [--generations N] [--width N]  evolutionary swarm" }
     ; { topic = "install";    tip = "./run.sh  or  /wizard install local human terminal" }
     ; { topic = "cron";       tip = "/wizard cron ...  propose a safe cron schedule" }
     ; { topic = "swarm";      tip = "/wizard swarm ...  webcrawler, HTTP API, or worker mode" }
@@ -186,6 +193,8 @@ module Text = struct
   let discussion_prompt_required = "/discussion expects a request to execute."
   let decide_prompt_required =
     "/decide expects a topic. Example: /decide Should we adopt Rust? --rounds 6"
+  let napoleon_prompt_required =
+    "/napoleon expects a topic. Example: /napoleon Refactor the runtime hierarchy --generations 2 --width 3"
   let discussion_disabled =
     "The discussion workflow is disabled in the runtime config. Set discussion.enabled=true in config/runtime.json, then retry."
   let goodbye = "Bye."

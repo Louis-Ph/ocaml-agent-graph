@@ -108,6 +108,7 @@ Inside the terminal, you can:
 - run `/graph ...` to execute the typed orchestration graph
 - run `/discussion ...` to force the multi-agent discussion path
 - run `/decide TOPIC [--rounds N] [--pattern ID]` for a verifiable decision session
+- run `/napoleon TOPIC [--generations N] [--width N]` for an evolutionary Napoleon-pattern swarm
 - run `/wizard ...` for build, test, install, cron, messenger, ssh, http, peer, or swarm guidance
 - run `/docs ...` to surface the most relevant local documentation
 - run `/mesh` to print the SSH and HTTP transport map

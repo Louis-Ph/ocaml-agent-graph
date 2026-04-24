@@ -221,6 +221,7 @@ The assistant should not blur those two patterns together.
 | `/graph TXT` | Execute the typed graph directly |
 | `/discussion TXT` | Force the multi-agent discussion path |
 | `/decide TXT [--rounds N] [--pattern ID]` | Verifiable L0-L3 decision session |
+| `/napoleon TXT [--generations N] [--width N]` | Evolutionary Napoleon-pattern swarm with reserve arbitration |
 | `/docs TOPIC` | Surface relevant local documentation |
 | `/wizard TXT` | Proactive guided workflow |
 | `/ssh-human` | Print the SSH wrapper for the human terminal |

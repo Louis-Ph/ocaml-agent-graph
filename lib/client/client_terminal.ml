@@ -26,6 +26,7 @@ type command =
   | Run_graph of string
   | Run_discussion of string
   | Run_decide of string
+  | Run_napoleon of string
   | Show_docs of string option
   | Run_wizard of string option
   | Show_ssh_human
@@ -126,6 +127,17 @@ let parse_command input =
     let args = tail Client_human_constants.Command.decide in
     if args = "" then Invalid Client_human_constants.Text.decide_prompt_required
     else Run_decide args
+  else if trimmed = Client_human_constants.Command.napoleon
+          || trimmed = Client_human_constants.Command.napoleon_alias
+  then Invalid Client_human_constants.Text.napoleon_prompt_required
+  else if starts Client_human_constants.Command.napoleon then
+    let args = tail Client_human_constants.Command.napoleon in
+    if args = "" then Invalid Client_human_constants.Text.napoleon_prompt_required
+    else Run_napoleon args
+  else if starts Client_human_constants.Command.napoleon_alias then
+    let args = tail Client_human_constants.Command.napoleon_alias in
+    if args = "" then Invalid Client_human_constants.Text.napoleon_prompt_required
+    else Run_napoleon args
   else Prompt trimmed
 
 let make_graph_session_id () =
@@ -863,6 +875,67 @@ let rec loop (runtime : Client_runtime.t) state =
                         "Decision Archive" [ path ]);
                   print_blank ();
                   loop runtime state))
+      | Run_napoleon raw_args -> (
+          match Client_napoleon.parse_options raw_args with
+          | Error message ->
+              print_endline message;
+              loop runtime state
+          | Ok opts -> (
+              let napoleon =
+                runtime.Client_runtime.runtime_config.napoleon
+              in
+              let generations =
+                Option.value opts.generations_override
+                  ~default:napoleon.generations
+              in
+              let width = Option.value opts.width_override ~default:napoleon.width in
+              let pattern_id =
+                Option.value opts.pattern_id ~default:napoleon.pattern_id
+              in
+              print_blank ();
+              Client_ui.print_section "Napoleon Swarm"
+                [
+                  Fmt.str "topic:       %s" opts.topic;
+                  Fmt.str "generations: %d" generations;
+                  Fmt.str "width:       %d" width;
+                  Fmt.str "pattern:     %s" pattern_id;
+                  "";
+                  "Running: staff plan -> parallel roles -> reserve arbitration -> marshal synthesis...";
+                ];
+              print_blank ();
+              match Lwt_main.run (Client_napoleon.run runtime opts) with
+              | Error message ->
+                  print_endline message;
+                  loop runtime state
+              | Ok result ->
+                  let swarm = result.Client_napoleon.swarm in
+                  Client_ui.print_section "Napoleon Result"
+                    ([
+                       Fmt.str "run_id:          %s" swarm.run_id;
+                       Fmt.str "generations:     %d" swarm.generation_count;
+                       Fmt.str "width:           %d" swarm.width;
+                       Fmt.str "fitness:         %.4f"
+                         (Core_pattern.fitness
+                            swarm.pattern.Core_pattern.metrics);
+                       Fmt.str "audit_verified:  %b" swarm.audit_verified;
+                       Fmt.str "head_hash:       %s"
+                         (Core_audit.head_hash swarm.audit_chain);
+                       "";
+                     ]
+                    @ String.split_on_char '\n'
+                        (Core_payload.to_pretty_string swarm.final_payload));
+                  (if result.runtime_logs <> [] then (
+                     print_blank ();
+                     Client_ui.print_section ~style:Client_ui.Style.muted
+                       "Runtime Logs" result.runtime_logs));
+                  print_blank ();
+                  (match Client_napoleon.write_archive runtime result with
+                  | Error message -> print_endline message
+                  | Ok path ->
+                      Client_ui.print_section ~style:Client_ui.Style.muted
+                        "Napoleon Archive" [ path ]);
+                  print_blank ();
+                  loop runtime state))
       | Show_docs topic_opt ->
           print_doc_lines runtime
             (Option.value topic_opt ~default:"general operations");
@@ -955,6 +1028,7 @@ let run (runtime : Client_runtime.t) =
       "/help for the full deck";
       "/graph ... to execute the typed graph directly";
       "/discussion ... to launch the configured multi-agent discussion workflow";
+      "/napoleon ... to launch the evolutionary Napoleon swarm";
       "/mesh for SSH, HTTP, install, and peer transport commands";
       "/curl for HTTP workflow examples";
       "/wizard install, /wizard http, or /wizard peer for guided setup";

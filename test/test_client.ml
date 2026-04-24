@@ -85,6 +85,7 @@ let make_runtime_config route_model =
       { Config.Runtime.Demo.task_id = "client-test-task"; input = "unused" };
     llm;
     discussion = Config.Runtime.Discussion.disabled;
+    napoleon = Config.Runtime.Napoleon.disabled;
     memory = Config.Runtime.Memory.disabled;
   }
 
@@ -191,6 +192,7 @@ let make_runtime_config_with_routes ~planner_route_model ~summarizer_route_model
       { Config.Runtime.Demo.task_id = "client-test-task"; input = "unused" };
     llm;
     discussion = Config.Runtime.Discussion.disabled;
+    napoleon = Config.Runtime.Napoleon.disabled;
     memory = Config.Runtime.Memory.disabled;
   }
 
@@ -762,6 +764,32 @@ let test_terminal_parse_command_supports_docs_and_wizard () =
    with
   | Client.Terminal.Run_discussion "compare two graph shapes" -> ()
   | _ -> Alcotest.fail "Expected /discussion ... to parse as Run_discussion");
+  (match
+     Client.Terminal.parse_command
+       "/napoleon evolve the runtime hierarchy --generations 2 --width 3"
+   with
+  | Client.Terminal.Run_napoleon
+      "evolve the runtime hierarchy --generations 2 --width 3" ->
+      ()
+  | _ -> Alcotest.fail "Expected /napoleon ... to parse as Run_napoleon");
+  (match Client.Terminal.parse_command "/napoleaon typo-compatible swarm" with
+  | Client.Terminal.Run_napoleon "typo-compatible swarm" -> ()
+  | _ -> Alcotest.fail "Expected /napoleaon alias to parse as Run_napoleon");
+  (match
+     Client.Napoleon.parse_options
+       "evolve the runtime hierarchy --generations 2 --width 3 --pattern n-v2"
+   with
+  | Ok opts ->
+      Alcotest.(check string)
+        "napoleon topic" "evolve the runtime hierarchy"
+        opts.Client.Napoleon.topic;
+      Alcotest.(check (option int))
+        "napoleon generations" (Some 2) opts.generations_override;
+      Alcotest.(check (option int))
+        "napoleon width" (Some 3) opts.width_override;
+      Alcotest.(check (option string))
+        "napoleon pattern" (Some "n-v2") opts.pattern_id
+  | _ -> Alcotest.fail "Expected /napoleon options to parse");
   match Client.Terminal.parse_command "/wizard cron nightly swarm" with
   | Client.Terminal.Run_wizard (Some "cron nightly swarm") -> ()
   | _ -> Alcotest.fail "Expected /wizard ... to parse as Run_wizard"

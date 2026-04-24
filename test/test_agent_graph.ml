@@ -34,10 +34,11 @@ let make_llm_config ?(planner_route_model = "planner-model")
 
 let llm_config = make_llm_config ()
 let disabled_discussion = Config.Runtime.Discussion.disabled
+let disabled_napoleon = Config.Runtime.Napoleon.disabled
 let disabled_memory = Config.Runtime.Memory.disabled
 
 let make_config ?(llm = llm_config) ?(discussion = disabled_discussion)
-    ?(memory = disabled_memory) () =
+    ?(napoleon = disabled_napoleon) ?(memory = disabled_memory) () =
   {
     Config.Runtime.engine =
       {
@@ -57,6 +58,7 @@ let make_config ?(llm = llm_config) ?(discussion = disabled_discussion)
     demo = { Config.Runtime.Demo.task_id = "test-task"; input = "unused" };
     llm;
     discussion;
+    napoleon;
     memory;
   }
 

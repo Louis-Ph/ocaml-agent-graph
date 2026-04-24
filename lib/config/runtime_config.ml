@@ -101,6 +101,71 @@ module Discussion = struct
     |> List.map (fun participant -> participant.Participant.profile.route_model)
 end
 
+module Napoleon = struct
+  module Role_kind = struct
+    type t =
+      | Scout
+      | Corps
+      | Critic
+      | Reserve
+      | Marshal
+
+    let to_string = function
+      | Scout -> "scout"
+      | Corps -> "corps"
+      | Critic -> "critic"
+      | Reserve -> "reserve"
+      | Marshal -> "marshal"
+
+    let of_string value =
+      match String.lowercase_ascii (String.trim value) with
+      | "scout" | "light_cavalry" -> Ok Scout
+      | "corps" | "line_corps" | "worker" -> Ok Corps
+      | "critic" | "flank_critic" -> Ok Critic
+      | "reserve" | "judge" | "imperial_reserve" -> Ok Reserve
+      | "marshal" | "staff" | "berthier" -> Ok Marshal
+      | invalid ->
+          Error
+            (Fmt.str
+               "Invalid napoleon role kind: %s. Expected scout, corps, critic, reserve, or marshal."
+               invalid)
+  end
+
+  module Role = struct
+    type t = {
+      name : string;
+      kind : Role_kind.t;
+      profile : Llm.Agent_profile.t;
+      mission : string;
+    }
+  end
+
+  type t = {
+    enabled : bool;
+    generations : int;
+    width : int;
+    convergence_margin : float;
+    pattern_id : string;
+    archive_subdir : string;
+    roles : Role.t list;
+  }
+
+  let disabled =
+    {
+      enabled = false;
+      generations = 2;
+      width = 3;
+      convergence_margin = 0.05;
+      pattern_id = "napoleon-v1";
+      archive_subdir = Filename.concat "var" "napoleon";
+      roles = [];
+    }
+
+  let route_models t =
+    t.roles
+    |> List.map (fun role -> role.Role.profile.route_model)
+end
+
 module Memory = struct
   module Storage = struct
     type mode =
@@ -253,6 +318,7 @@ type t = {
   demo : Demo.t;
   llm : Llm.t;
   discussion : Discussion.t;
+  napoleon : Napoleon.t;
   memory : Memory.t;
 }
 
@@ -422,6 +488,171 @@ let non_empty_string_member name json =
   |> function
   | Some value when value <> "" -> Some value
   | _ -> None
+
+let parse_profile_system_prompt ~base_dir ~field_label json =
+  let inline_prompt = non_empty_string_member "system_prompt" json in
+  let prompt_file = non_empty_string_member "system_prompt_file" json in
+  match inline_prompt, prompt_file with
+  | Some _, Some _ ->
+      Error
+        (Fmt.str
+           "Invalid %s configuration: use either system_prompt or system_prompt_file, not both."
+           field_label)
+  | Some prompt, None -> Ok prompt
+  | None, Some file_path ->
+      let resolved_path =
+        Config_support.resolve_relative_path ~base_dir file_path
+      in
+      (match Config_support.load_text_file resolved_path with
+       | Ok text ->
+           let text = String.trim text in
+           if text = ""
+           then
+             Error
+               (Fmt.str
+                  "Invalid %s configuration: %s is empty."
+                  field_label
+                  resolved_path)
+           else Ok text
+       | Error message ->
+           Error (Fmt.str "Invalid %s configuration: %s" field_label message))
+  | None, None ->
+      Error
+        (Fmt.str
+           "Invalid %s configuration: system_prompt or system_prompt_file is required."
+           field_label)
+
+let parse_napoleon_role ~base_dir json =
+  let field_label = "napoleon role" in
+  match non_empty_string_member "name" json with
+  | None -> Error "Invalid napoleon role configuration: name is required."
+  | Some name ->
+      let kind =
+        match non_empty_string_member "kind" json with
+        | None ->
+            Error "Invalid napoleon role configuration: kind is required."
+        | Some value -> Napoleon.Role_kind.of_string value
+      in
+      let route_model =
+        match non_empty_string_member "route_model" json with
+        | Some value -> Ok value
+        | None -> (
+            match non_empty_string_member "model" json with
+            | Some value -> Ok value
+            | None ->
+                Error
+                  "Invalid napoleon role configuration: route_model is required.")
+      in
+      let mission =
+        match non_empty_string_member "mission" json with
+        | Some value -> Ok value
+        | None ->
+            Error "Invalid napoleon role configuration: mission is required."
+      in
+      let system_prompt =
+        parse_profile_system_prompt ~base_dir ~field_label json
+      in
+      (match kind, route_model, mission, system_prompt with
+       | (Error _ as error), _, _, _ -> error
+       | _, (Error _ as error), _, _ -> error
+       | _, _, (Error _ as error), _ -> error
+       | _, _, _, (Error _ as error) -> error
+       | Ok kind, Ok route_model, Ok mission, Ok system_prompt ->
+           Ok
+             {
+               Napoleon.Role.name;
+               kind;
+               mission;
+               profile =
+                 {
+                   Llm.Agent_profile.route_model;
+                   system_prompt;
+                   max_tokens = Config_support.member_int_option "max_tokens" json;
+                   confidence = json |> member "confidence" |> to_float;
+                 };
+             })
+
+let napoleon_has_kind kind roles =
+  List.exists
+    (fun (role : Napoleon.Role.t) -> role.kind = kind)
+    roles
+
+let parse_napoleon ~base_dir json =
+  let enabled = bool_member_with_default "enabled" json ~default:false in
+  let roles =
+    match json |> member "roles" with
+    | `Null -> Ok []
+    | `List values ->
+        let rec loop acc = function
+          | [] -> Ok (List.rev acc)
+          | (`Assoc _ as role_json) :: rest ->
+              (match parse_napoleon_role ~base_dir role_json with
+               | Ok role -> loop (role :: acc) rest
+               | Error _ as error -> error)
+          | _ :: _ ->
+              Error "Invalid napoleon_swarm configuration: roles must be objects."
+        in
+        loop [] values
+    | _ -> Error "Invalid napoleon_swarm configuration: roles must be a list."
+  in
+  match roles with
+  | Error _ as error -> error
+  | Ok roles ->
+      let generations =
+        json
+        |> member "generations"
+        |> to_int_option
+        |> Option.value ~default:Napoleon.disabled.generations
+      in
+      let width =
+        json
+        |> member "width"
+        |> to_int_option
+        |> Option.value ~default:Napoleon.disabled.width
+      in
+      let convergence_margin =
+        json
+        |> member "convergence_margin"
+        |> to_float_option
+        |> Option.value ~default:Napoleon.disabled.convergence_margin
+      in
+      if generations <= 0
+      then Error "Invalid napoleon_swarm configuration: generations must be >= 1."
+      else if width <= 0
+      then Error "Invalid napoleon_swarm configuration: width must be >= 1."
+      else if enabled && roles = []
+      then
+        Error
+          "Invalid napoleon_swarm configuration: enable napoleon_swarm only when roles are configured."
+      else if enabled
+              && not (napoleon_has_kind Napoleon.Role_kind.Reserve roles)
+      then
+        Error
+          "Invalid napoleon_swarm configuration: at least one reserve role is required."
+      else if enabled
+              && not (napoleon_has_kind Napoleon.Role_kind.Marshal roles)
+      then
+        Error
+          "Invalid napoleon_swarm configuration: at least one marshal role is required."
+      else
+        Ok
+          {
+            Napoleon.enabled;
+            generations;
+            width;
+            convergence_margin;
+            pattern_id =
+              (json
+              |> member "pattern_id"
+              |> to_string_option
+              |> Option.value ~default:Napoleon.disabled.pattern_id);
+            archive_subdir =
+              (json
+              |> member "archive_subdir"
+              |> to_string_option
+              |> Option.value ~default:Napoleon.disabled.archive_subdir);
+            roles;
+          }
 
 let versioned_text_member names json =
   let rec loop = function
@@ -868,6 +1099,13 @@ let load path =
       | _ ->
           Error "Invalid discussion configuration: expected an object."
     in
+    let napoleon =
+      match json |> member "napoleon_swarm" with
+      | `Null -> Ok Napoleon.disabled
+      | (`Assoc _ as napoleon_json) -> parse_napoleon ~base_dir napoleon_json
+      | _ ->
+          Error "Invalid napoleon_swarm configuration: expected an object."
+    in
     let memory =
       match Config_support.member_string_option "memory_policy_path" json with
       | None -> Ok Memory.disabled
@@ -880,10 +1118,11 @@ let load path =
           let memory_json = Yojson.Safe.from_file resolved_path in
           parse_memory ~base_dir:(Filename.dirname resolved_path) memory_json
     in
-    (match discussion, memory with
-    | (Error _ as error), _ -> error
-    | _, (Error _ as error) -> error
-    | Ok discussion, Ok memory ->
+    (match discussion, napoleon, memory with
+    | (Error _ as error), _, _ -> error
+    | _, (Error _ as error), _ -> error
+    | _, _, (Error _ as error) -> error
+    | Ok discussion, Ok napoleon, Ok memory ->
         Ok
           {
             engine = json |> member "engine" |> parse_engine;
@@ -891,6 +1130,7 @@ let load path =
             demo = json |> member "demo" |> parse_demo;
             llm = json |> member "llm" |> parse_llm ~base_dir;
             discussion;
+            napoleon;
             memory;
           })
   with

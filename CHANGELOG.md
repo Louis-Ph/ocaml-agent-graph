@@ -40,6 +40,7 @@ Until the first tagged release exists, all shipped history is tracked under
   - `Orchestration.Pipeline` (L2) — composable `step` sequence with optional guard predicates; halts immediately on error payload
   - `Core.Pattern` (L3) — stability classes `Frozen/Stable/Fluid/Volatile`; fitness = `success_rate × avg_confidence / (avg_latency_s + 1.0)`
 - **`/decide` verifiable decision command** (`e3526a6`): wires L0-L3 end-to-end — opens audit chain, wraps topic in envelope, runs discussion, gates through L1 quorum consensus, validates winner via L2 pipeline, records L3 pattern fitness, seals and verifies chain, archives to `var/decisions/`; supports `--rounds N` and `--pattern ID` inline options
+- **`/napoleon` evolutionary swarm command**: runs a configurable Napoleon-pattern swarm from the human terminal with staff planning, parallel scout/corps/critic roles, reserve arbitration across generations, marshal synthesis, L0.5 audit chain, L3 fitness, runtime logs, and archives under `var/napoleon/`
 - `Core.Payload.is_error` and `Core.Payload.is_discussion` predicate helpers
 
 ### Fixed

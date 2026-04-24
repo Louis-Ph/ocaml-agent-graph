@@ -84,6 +84,61 @@
       }
     ]
   },
+  "napoleon_swarm": {
+    "enabled": true,
+    "generations": 2,
+    "width": 3,
+    "convergence_margin": 0.05,
+    "pattern_id": "napoleon-v1",
+    "archive_subdir": "var/napoleon",
+    "roles": [
+      {
+        "name": "light_cavalry",
+        "kind": "scout",
+        "route_model": "kimi-k2.6",
+        "system_prompt_file": "napoleon/roles/scout.v1.md",
+        "max_tokens": 500,
+        "confidence": 0.78,
+        "mission": "Observe weak signals, missing facts, external constraints, and surprise routes before each generation commits."
+      },
+      {
+        "name": "line_corps",
+        "kind": "corps",
+        "route_model": "kimi-k2.6",
+        "system_prompt_file": "napoleon/roles/corps.v1.md",
+        "max_tokens": 600,
+        "confidence": 0.84,
+        "mission": "Transform the current frontier into modular executable work with owners, dependencies, and acceptance checks."
+      },
+      {
+        "name": "flank_critic",
+        "kind": "critic",
+        "route_model": "kimi-k2.6",
+        "system_prompt_file": "napoleon/roles/critic.v1.md",
+        "max_tokens": 500,
+        "confidence": 0.88,
+        "mission": "Expose bottlenecks, single points of failure, hidden coupling, unsafe assumptions, and missing tests."
+      },
+      {
+        "name": "imperial_reserve",
+        "kind": "reserve",
+        "route_model": "kimi-k2.6",
+        "system_prompt_file": "napoleon/roles/reserve.v1.md",
+        "max_tokens": 500,
+        "confidence": 0.92,
+        "mission": "Arbitrate one generation, select the strongest frontier, reject the worst risk, and define the next mutation."
+      },
+      {
+        "name": "berthier_marshal",
+        "kind": "marshal",
+        "route_model": "kimi-k2.6",
+        "system_prompt_file": "napoleon/roles/marshal.v1.md",
+        "max_tokens": 800,
+        "confidence": 0.9,
+        "mission": "Synthesize the evolved frontier into one final operational answer with traceable plan, risks, and validation."
+      }
+    ]
+  },
   "memory_policy_path": "memory_policy.json",
   "demo": {
     "task_id": "ollama-test-001",

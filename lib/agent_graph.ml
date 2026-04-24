@@ -38,6 +38,7 @@ module Client = struct
   module Terminal = Client_terminal
   module Starter = Client_starter
   module Decide = Client_decide
+  module Napoleon = Client_napoleon
 end
 
 module Web_crawler = struct
@@ -83,6 +84,7 @@ module Orchestration = struct
   module Decider      = Orchestration_decider
   module Aggregator   = Orchestration_aggregator
   module Discussion   = Orchestration_discussion
+  module Napoleon_swarm = Orchestration_napoleon_swarm
   module Orchestrator = Orchestration_orchestrator
   (* L1-COORDINATION *)
   module Consensus    = Orchestration_consensus

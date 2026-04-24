@@ -84,6 +84,7 @@ With the `/decide` command, you get a full verifiable decision:
 | `/graph TEXT` | Execute the typed orchestration graph |
 | `/discussion TEXT` | Force the multi-agent discussion path |
 | `/decide TEXT` | Verifiable decision with audit trail |
+| `/napoleon TEXT` | Evolutionary Napoleon-pattern swarm with reserve arbitration |
 | `/models` | List available AI models |
 | `/inspect` | Show the graph and route summary |
 | `/wizard TEXT` | Guided workflow for build, deploy, SSH, etc. |

@@ -1,0 +1,11 @@
+Purpose
+Run the Napoleon evolutionary swarm pattern with typed configuration, audited generations, reserve arbitration, and L3 fitness tracking.
+
+Linear intent
+1. Treat the runtime `napoleon_swarm` configuration as the source of truth for generations, width, role prompts, route models, missions, and archive policy.
+2. Use the existing planner agent as the staff planning phase so the swarm starts from a typed plan.
+3. Select contributor roles (`scout`, `corps`, `critic`) separately from the `reserve` judge and final `marshal` synthesizer.
+4. For each generation, invoke contributor roles concurrently and collect structured role outputs with metrics, notes, latency, and success state.
+5. Ask the reserve role to arbitrate the generation and produce the evolved frontier for the next generation.
+6. Ask the marshal role to synthesize the final frontier into one operational payload.
+7. Record context events, runtime logs, a tamper-evident audit chain, and a volatile L3 pattern fitness score for the full run.

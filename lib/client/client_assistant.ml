@@ -204,7 +204,6 @@ let ask
       {
         role = "system";
         content = config.assistant.system_prompt;
-        extra = [];
       }
     in
     let conversation =
@@ -216,7 +215,6 @@ let ask
       {
         role = "user";
         content = user_prompt ~request_kind ~runtime ~attachments prompt;
-        extra = [];
       }
     in
     system_message :: conversation @ [ user_message ]

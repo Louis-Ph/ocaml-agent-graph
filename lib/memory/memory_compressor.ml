@@ -70,7 +70,7 @@ let compress_history
   | _ ->
       let messages : Bulkhead_lm.Openai_types.message list =
         [
-          { role = "system"; content = profile.system_prompt; extra = [] };
+          { role = "system"; content = profile.system_prompt };
           {
             role = "user";
             content =
@@ -79,7 +79,6 @@ let compress_history
                 ~plan
                 ~existing_summary
                 ~turns;
-            extra = [];
           };
         ]
       in

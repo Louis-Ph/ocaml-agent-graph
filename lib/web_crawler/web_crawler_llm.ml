@@ -35,10 +35,9 @@ let invoke_profile
        ({
           Bulkhead_lm.Openai_types.role = "system";
           content = profile.prompt;
-          extra = [];
         }
          : Bulkhead_lm.Openai_types.message);
-       ({ role = "user"; content = user_content; extra = [] }
+       ({ role = "user"; content = user_content }
          : Bulkhead_lm.Openai_types.message);
      ]
       : Bulkhead_lm.Openai_types.message list)

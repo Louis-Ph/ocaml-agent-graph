@@ -518,7 +518,7 @@ let invoke_messages client ~route_model ~messages ~max_tokens =
   | Ok route_access ->
       let request =
         Bulkhead_lm.Openai_types.
-          { model = route_model; messages; stream = false; max_tokens; extra = [] }
+          { model = route_model; messages; stream = false; max_tokens }
       in
       let response_lwt =
         match client.transport with

@@ -683,9 +683,8 @@ let run_assistant_request runtime state ~request_kind prompt_text =
             {
               Bulkhead_lm.Openai_types.role = "user";
               content = prompt_text;
-              extra = [];
             };
-            { role = "assistant"; content = reply.message; extra = [] };
+            { role = "assistant"; content = reply.message };
           ]
       in
       { state with attachments = []; conversation }

@@ -41,14 +41,12 @@ let build_messages ~agent ~profile ~instruction context payload :
     {
       role = "system";
       content = profile.Runtime_config.Llm.Agent_profile.system_prompt;
-      extra = [];
     }
   in
   let user_message : Bulkhead_lm.Openai_types.message =
     {
       role = "user";
       content = render_user_message ~agent ~instruction context payload;
-      extra = [];
     }
   in
   [ system_message; user_message ]

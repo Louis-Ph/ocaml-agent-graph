@@ -148,7 +148,7 @@ let chat_response ~model ~content ~usage =
         [
           {
             index = 0;
-            message = { role = "assistant"; content; extra = [] };
+            message = { role = "assistant"; content };
             finish_reason = "stop";
           };
         ];
@@ -240,8 +240,8 @@ let respond
             let prompt = spokesperson_prompt request result in
             let messages : Bulkhead_lm.Openai_types.message list =
               [
-                { role = "system"; content = config.system_prompt; extra = [] };
-                { role = "user"; content = prompt; extra = [] };
+                { role = "system"; content = config.system_prompt };
+                { role = "user"; content = prompt };
               ]
             in
             Llm_bulkhead_client.invoke_messages

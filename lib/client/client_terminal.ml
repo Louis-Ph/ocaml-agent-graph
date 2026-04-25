@@ -16,6 +16,7 @@ type command =
   | Inspect
   | Show_config
   | Show_models
+  | Show_routes
   | Swap_model of string
   | Attach_file of string
   | Show_files
@@ -58,6 +59,7 @@ let parse_command input =
   else if trimmed = Client_human_constants.Command.inspect then Inspect
   else if trimmed = Client_human_constants.Command.config then Show_config
   else if trimmed = Client_human_constants.Command.models then Show_models
+  else if trimmed = Client_human_constants.Command.routes then Show_routes
   else if trimmed = Client_human_constants.Command.files then Show_files
   else if trimmed = Client_human_constants.Command.clearfiles then Clear_files
   else if trimmed = Client_human_constants.Command.docs then Show_docs None
@@ -199,17 +201,8 @@ let attachment_line (attachment : Client_assistant.attachment) =
   Fmt.str "- %s (%d bytes%s)" attachment.path attachment.bytes_read
     (if attachment.truncated then ", truncated" else "")
 
-let prompt_for_command_execution (command : Client_assistant.command) =
-  let command_line =
-    match command.args with
-    | [] -> command.command
-    | args -> String.concat " " (command.command :: args)
-  in
-  (match command.why with
-  | Some why ->
-      print_endline (Fmt.str "Suggested command: %s\nWhy: %s" command_line why)
-  | None -> print_endline (Fmt.str "Suggested command: %s" command_line));
-  print_string "Run it now? [y/N] ";
+let prompt_for_command_execution ~index (command : Client_assistant.command) =
+  Client_ui.print_suggested_command ~index command;
   flush stdout;
   match read_line () with
   | answer ->
@@ -428,7 +421,7 @@ module Discussion_archive = struct
 
   let render_markdown ~(runtime : Client_runtime.t) ~timestamp ~task_id
       ~graph_session_id ~prompt_text ~attachments ~payload
-      ~(context : Core_context.t) =
+      ~(context : Core_context.t) ~runtime_logs =
     let completed_agents =
       match Core_context.completed_agent_names context with
       | [] -> "none"
@@ -500,10 +493,17 @@ module Discussion_archive = struct
       @
       match List.rev context.events with
       | [] -> [ "_no orchestration event recorded_" ]
-      | events -> List.map event_line events)
+      | events -> List.map event_line events
+      @ [ "";
+          "## Runtime Logs";
+          "";
+        ]
+      @ (if runtime_logs = [] then [ "_no runtime logs collected_" ]
+         else runtime_logs))
 
   let write ~(runtime : Client_runtime.t) ~timestamp ~task_id ~graph_session_id
-      ~prompt_text ~attachments ~payload ~(context : Core_context.t) =
+      ~prompt_text ~attachments ~payload ~(context : Core_context.t)
+      ~runtime_logs =
     let archive_dir = archive_dir runtime in
     match ensure_directory archive_dir with
     | Error _ as error -> error
@@ -513,7 +513,7 @@ module Discussion_archive = struct
         in
         let content =
           render_markdown ~runtime ~timestamp ~task_id ~graph_session_id
-            ~prompt_text ~attachments ~payload ~context
+            ~prompt_text ~attachments ~payload ~context ~runtime_logs
         in
         try
           Stdlib.Out_channel.with_open_bin archive_path (fun channel ->
@@ -532,7 +532,8 @@ let run_graph_request runtime state ~request_kind prompt_text =
   then (
     print_endline Client_human_constants.Text.discussion_disabled;
     state)
-  else
+  else (
+    let () = ignore (Runtime_logger.collect_logs ()) in
     let runtime =
       match request_kind with
       | Graph -> runtime
@@ -554,6 +555,7 @@ let run_graph_request runtime state ~request_kind prompt_text =
       Lwt_main.run (Client_machine.run_graph runtime ~task_id ~metadata input)
     with
     | payload, context ->
+        let runtime_logs = Runtime_logger.collect_logs () in
         let archive_path =
           match request_kind with
           | Graph -> None
@@ -563,7 +565,7 @@ let run_graph_request runtime state ~request_kind prompt_text =
                   ~timestamp:(Discussion_archive.timestamp_now ())
                   ~task_id ~graph_session_id:state.graph_session_id ~prompt_text
                   ~attachments:(List.rev state.attachments)
-                  ~payload ~context
+                  ~payload ~context ~runtime_logs
               with
               | Ok path -> Some path
               | Error message ->
@@ -587,6 +589,10 @@ let run_graph_request runtime state ~request_kind prompt_text =
           (match List.rev context.Core_context.events with
           | [] -> [ "No orchestration event was recorded." ]
           | events -> List.map event_line events);
+        (if runtime_logs <> [] then (
+           print_blank ();
+           Client_ui.print_section ~style:Client_ui.Style.muted "Runtime Logs"
+             runtime_logs));
         (match archive_path with
         | None -> ()
         | Some path ->
@@ -598,7 +604,7 @@ let run_graph_request runtime state ~request_kind prompt_text =
           state with
           attachments = [];
           graph_run_count = state.graph_run_count + 1;
-        }
+        })
 
 let transport_rows (runtime : Client_runtime.t) =
   [
@@ -659,13 +665,13 @@ let run_assistant_request runtime state ~request_kind prompt_text =
       { state with attachments = [] }
   | Ok reply ->
       print_blank ();
-      Client_ui.print_wrapped_styled ~style:Client_ui.Style.good reply.message;
-      print_endline
-        (Fmt.str "route=%s model=%s tokens=%d" reply.route_model
-           reply.resolved_model reply.usage.total_tokens);
-      List.iter
-        (fun command ->
-          if prompt_for_command_execution command then (
+      Client_ui.Box.print_box ~title:(Fmt.str "%s  %s  %d tok"
+        reply.route_model reply.resolved_model reply.usage.total_tokens)
+        ~style:Client_ui.Style.highlight
+        (String.split_on_char '\n' reply.message);
+      List.iteri
+        (fun idx command ->
+          if prompt_for_command_execution ~index:idx command then (
             let plan : Client_local_ops.exec_plan =
               {
                 command = command.command;
@@ -691,8 +697,13 @@ let run_assistant_request runtime state ~request_kind prompt_text =
 
 let rec loop (runtime : Client_runtime.t) state =
   update_terminal_context runtime;
+  let conversation_turns = List.length state.conversation / 2 in
   let prompt =
-    Client_ui.Prompt.emit_and_plain (Fmt.str "%s> " state.active_route_model)
+    Client_ui.Prompt.emit_status_and_plain
+      ~route_model:state.active_route_model
+      ~attachments:(List.length state.attachments)
+      ~conversation_turns
+      (Fmt.str "> ")
   in
   match
     Bulkhead_lm.Starter_terminal.read_line ~record_history:true ~prompt ()
@@ -744,7 +755,15 @@ let rec loop (runtime : Client_runtime.t) state =
           loop runtime state
       | Show_models ->
           print_blank ();
-          Client_ui.print_section "Route Models" (route_lines runtime);
+          Client_ui.print_section Client_human_constants.Text.route_models_title
+            (route_lines runtime);
+          print_blank ();
+          loop runtime state
+      | Show_routes ->
+          print_blank ();
+          Client_ui.print_section ~style:Client_ui.Style.muted
+            Client_human_constants.Text.route_readiness_title
+            (route_lines runtime);
           print_blank ();
           loop runtime state
       | Swap_model route_model -> (
@@ -1016,26 +1035,31 @@ let rec loop (runtime : Client_runtime.t) state =
 let run (runtime : Client_runtime.t) =
   Client_ui.print_banner ~title:Client_human_constants.Text.title
     ~subtitle:
-      "Typed orchestration above BulkheadLM with a human lane, a worker lane, \
-       SSH remoting, HTTP workflow serving, and bootstrap installers."
+      "Typed multi-agent orchestration above BulkheadLM"
     [ "human"; "worker"; "ssh"; "http"; "peer" ];
   Client_ui.print_styled_lines ~style:Client_ui.Style.muted
     Client_human_constants.Text.intro_lines;
   print_blank ();
-  Client_ui.print_section ~style:Client_ui.Style.muted "Quick Start"
+  Client_ui.Box.print_box ~title:"Quick Start"
+    ~style:Client_ui.Style.accent
     [
-      "/help for the full deck";
-      "/graph ... to execute the typed graph directly";
-      "/discussion ... to launch the configured multi-agent discussion workflow";
-      "/napoleon ... to launch the evolutionary Napoleon swarm";
-      "/mesh for SSH, HTTP, install, and peer transport commands";
-      "/curl for HTTP workflow examples";
-      "/wizard install, /wizard http, or /wizard peer for guided setup";
+      "Type freely to chat with the assistant, or use:";
+      "";
+      "  /graph <topic>       run the typed agent graph";
+      "  /discussion <topic>  multi-agent discussion";
+      "  /decide <topic>      verifiable L0-L3 decision";
+      "  /napoleon <topic>    evolutionary swarm";
+      "  /mesh                SSH, HTTP, install, peer transport";
+      "  /wizard <topic>      guided setup wizard";
+      "  /help                full command reference";
+      "  /swap <model>        switch LLM route";
+      "  /routes              show route readiness";
     ];
   if runtime.Client_runtime.client_config.human_terminal.show_routes_on_start
   then (
     print_blank ();
-    Client_ui.print_section ~style:Client_ui.Style.muted "Route Readiness"
+    Client_ui.print_section ~style:Client_ui.Style.muted
+      Client_human_constants.Text.route_readiness_title
       (route_lines runtime));
   print_blank ();
   Client_ui.print_section_verbatim ~style:Client_ui.Style.muted "Doc Shortcuts"

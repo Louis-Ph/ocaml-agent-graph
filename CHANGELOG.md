@@ -45,6 +45,10 @@ Until the first tagged release exists, all shipped history is tracked under
 
 ### Fixed
 
+- **route readiness startup noise**: the verbose BulkheadLM backend readiness
+  table is hidden by default and available on demand with `/routes`
+- **runtime logs in all reports**: `Runtime_logger` now collects every log entry; discussion archives, decision archives, and graph results all include a "Runtime Logs" section with the full execution trace
+- **human terminal UX overhaul**: complete visual redesign with Unicode box-drawing frames, color-coded status bar (model, attachments, turn count), framed assistant responses, numbered suggested commands with reasons, and richer welcome banner for a polished first impression
 - **discussion prompt overhaul**: redesigned participant prompts to eliminate meta-commentary and transcript parsing; simplified transcript format, strengthened system prompt with strict anti-meta rules, expanded sanitizer filters, increased participant token budget to 600, and reduced default rounds from 5 to 3 to cut token waste while preserving output quality
 - support for new BulkheadLM provider kinds (`739f204`)
 - starter idempotence by skipping redundant `bulkhead_lm` pinning when already pinned to the correct sibling checkout (`1eae33a`)

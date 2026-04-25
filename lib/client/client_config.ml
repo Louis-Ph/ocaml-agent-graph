@@ -217,9 +217,9 @@ let parse_human_terminal json =
   {
     Human_terminal.show_routes_on_start =
       (match json |> member "show_routes_on_start" with
-       | `Null -> true
+       | `Null -> false
        | `Bool value -> value
-       | _ -> true);
+       | _ -> false);
     conversation_keep_turns =
       (match json |> member "conversation_keep_turns" with
        | `Null -> 8

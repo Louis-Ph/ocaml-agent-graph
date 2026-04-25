@@ -86,6 +86,7 @@ With the `/decide` command, you get a full verifiable decision:
 | `/decide TEXT` | Verifiable decision with audit trail |
 | `/napoleon TEXT` | Evolutionary Napoleon-pattern swarm with reserve arbitration |
 | `/models` | List available AI models |
+| `/routes` | Show detailed route readiness |
 | `/inspect` | Show the graph and route summary |
 | `/wizard TEXT` | Guided workflow for build, deploy, SSH, etc. |
 | `/docs TOPIC` | Surface relevant documentation |

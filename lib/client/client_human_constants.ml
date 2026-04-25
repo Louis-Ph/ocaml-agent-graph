@@ -5,6 +5,7 @@ module Command = struct
   let inspect = "/inspect"
   let config = "/config"
   let models = "/models"
+  let routes = "/routes"
   let swap = "/swap"
   let file = "/file"
   let files = "/files"
@@ -40,6 +41,7 @@ let commands =
     Command.inspect;
     Command.config;
     Command.models;
+    Command.routes;
     Command.swap;
     Command.file;
     Command.files;
@@ -64,24 +66,27 @@ let commands =
   ]
 
 module Text = struct
-  let title = "ocaml-agent-graph terminal"
+  let title = "Agent Graph Terminal"
+  let route_models_title = "Route Models"
+  let route_readiness_title = "Route Readiness"
 
   let intro_lines =
     [
-      "BulkheadLM remains the primary provider router/gateway and rudimentary-agent layer.";
-      "ocaml-agent-graph composes those routed provider-facing agents into typed orchestration, graph control, install flows, and smarter swarms.";
-      "The human terminal now covers local work, SSH remoting, HTTP workflow serving, and pair-style machine calls.";
+      "Welcome. This is your cockpit for typed multi-agent orchestration.";
+      "You can chat, run agent graphs, hold structured discussions, and deploy swarms.";
+      "Everything is auditable, configurable, and runs through your BulkheadLM gateway.";
     ]
 
   type command_entry = { usage : string; description : string }
 
   let command_entries =
-    [ { usage = Command.help;                  description = "show this help" }
+    [ { usage = Command.help;                  description = "show commands and shortcuts" }
     ; { usage = Command.tools;                 description = "show operational workflow lanes" }
     ; { usage = Command.mesh;                  description = "show SSH, HTTP, and peer transport map" }
     ; { usage = Command.inspect;               description = "show graph and route summary" }
     ; { usage = Command.config;                description = "show active config paths" }
-    ; { usage = Command.models;                description = "list BulkheadLM route models" }
+    ; { usage = Command.models;                description = "list available LLM route models" }
+    ; { usage = Command.routes;                description = "show detailed route readiness" }
     ; { usage = Command.swap ^ " NAME";        description = "switch to another route model" }
     ; { usage = Command.file ^ " PATH";        description = "attach a local file to the next prompt" }
     ; { usage = Command.files;                 description = "list attached files" }
@@ -90,18 +95,18 @@ module Text = struct
     ; { usage = Command.open_file ^ " PATH";   description = "preview a local file" }
     ; { usage = Command.run ^ " CMD";          description = "run one local command" }
     ; { usage = Command.graph ^ " TXT";        description = "run the typed agent graph" }
-    ; { usage = Command.discussion ^ " TXT";   description = "run the multi-agent discussion" }
+    ; { usage = Command.discussion ^ " TXT";   description = "run multi-agent discussion" }
     ; { usage = Command.decide ^ " TXT";       description = "verifiable L0-L3 decision session" }
     ; { usage = Command.napoleon ^ " TXT";     description = "evolutionary Napoleon swarm" }
     ; { usage = Command.napoleon_alias ^ " TXT"; description = "alias for /napoleon" }
-    ; { usage = Command.docs ^ " TOPIC";       description = "show relevant docs for a topic" }
-    ; { usage = Command.wizard ^ " TXT";       description = "run the proactive starter wizard" }
-    ; { usage = Command.ssh_human;             description = "print SSH human terminal command" }
-    ; { usage = Command.ssh_machine;           description = "print SSH machine worker command" }
-    ; { usage = Command.http_server;           description = "print HTTP workflow server command" }
-    ; { usage = Command.curl;                  description = "print curl examples for the HTTP API" }
-    ; { usage = Command.install_ssh;           description = "print SSH bootstrap installer" }
-    ; { usage = Command.install_http;          description = "print HTTP installer URL" }
+    ; { usage = Command.docs ^ " TOPIC";       description = "show docs for a topic" }
+    ; { usage = Command.wizard ^ " TXT";       description = "run proactive starter wizard" }
+    ; { usage = Command.ssh_human;             description = "SSH human terminal command" }
+    ; { usage = Command.ssh_machine;           description = "SSH worker command" }
+    ; { usage = Command.http_server;           description = "HTTP workflow server command" }
+    ; { usage = Command.curl;                  description = "curl examples for HTTP API" }
+    ; { usage = Command.install_ssh;           description = "SSH bootstrap installer" }
+    ; { usage = Command.install_http;          description = "HTTP installer URL" }
     ; { usage = Command.quit;                  description = "exit" }
     ]
 
@@ -183,7 +188,7 @@ module Text = struct
 
   let unknown_route route_model =
     Fmt.str
-      "Unknown route_model %s. Use /models to inspect available routes."
+      "Unknown route_model %s. Use /models or /routes to inspect available routes."
       route_model
 
   let file_attached path = Fmt.str "Attached for the next prompt: %s" path
@@ -197,5 +202,5 @@ module Text = struct
     "/napoleon expects a topic. Example: /napoleon Refactor the runtime hierarchy --generations 2 --width 3"
   let discussion_disabled =
     "The discussion workflow is disabled in the runtime config. Set discussion.enabled=true in config/runtime.json, then retry."
-  let goodbye = "Bye."
+  let goodbye = "Goodbye. See you next session."
 end

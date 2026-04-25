@@ -627,7 +627,10 @@ let test_client_config_supports_legacy_ssh_fallback () =
             config.transport.ssh.human_remote_command;
           Alcotest.(check string)
             "legacy machine ssh preserved" "ssh machine legacy"
-            config.transport.ssh.machine_remote_command)
+            config.transport.ssh.machine_remote_command;
+          Alcotest.(check bool)
+            "route readiness hidden by default" false
+            config.human_terminal.show_routes_on_start)
 
 let test_assistant_reply_parses_commands () =
   let content =
@@ -756,6 +759,9 @@ let test_terminal_parse_command_supports_docs_and_wizard () =
   (match Client.Terminal.parse_command "/install-http" with
   | Client.Terminal.Show_install_http -> ()
   | _ -> Alcotest.fail "Expected /install-http to parse as Show_install_http");
+  (match Client.Terminal.parse_command "/routes" with
+  | Client.Terminal.Show_routes -> ()
+  | _ -> Alcotest.fail "Expected /routes to parse as Show_routes");
   (match Client.Terminal.parse_command "/graph design the orchestration" with
   | Client.Terminal.Run_graph "design the orchestration" -> ()
   | _ -> Alcotest.fail "Expected /graph ... to parse as Run_graph");
@@ -1158,7 +1164,7 @@ let test_terminal_discussion_archive_writes_markdown_file () =
           ~attachments:[ attachment ]
           ~payload:
             (Core.Payload.Text "Summary: keep the graph typed and auditable.")
-          ~context
+          ~context ~runtime_logs:[]
       with
       | Error message -> Alcotest.fail message
       | Ok archive_path ->

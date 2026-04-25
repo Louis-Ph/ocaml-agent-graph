@@ -3,7 +3,7 @@
   "assistant": {
     "route_model": "kimi-k2.6",
     "system_prompt_file": "prompts/graph_terminal_assistant.md",
-    "max_tokens": 500
+    "max_tokens": 800
   },
   "messenger_spokesperson": {
     "public_model": "swarm-spokesperson",

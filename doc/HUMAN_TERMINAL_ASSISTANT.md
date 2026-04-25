@@ -211,6 +211,7 @@ The assistant should not blur those two patterns together.
 | `/inspect` | Current graph and route summary |
 | `/config` | Active client and runtime config paths |
 | `/models` | List BulkheadLM route models |
+| `/routes` | Show detailed route readiness |
 | `/swap MODEL` | Switch the assistant to another route model |
 | `/file PATH` | Attach a local text file |
 | `/files` | List attached files |

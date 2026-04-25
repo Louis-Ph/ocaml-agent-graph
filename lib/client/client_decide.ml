@@ -133,6 +133,7 @@ type decision_result = {
   pattern            : Core_pattern.t;
   audit_chain        : Core_audit.t;
   audit_verified     : bool;
+  runtime_logs       : string list;
 }
 
 (* ------------------------------------------------------------------ *)
@@ -306,6 +307,7 @@ let run (runtime : Client_runtime.t) (opts : options) =
     in
     let verified = Core_audit.verify_chain chain in
 
+    let runtime_logs = Runtime_logger.collect_logs () in
     Lwt.return
       (Ok
          { decision_id;
@@ -319,7 +321,8 @@ let run (runtime : Client_runtime.t) (opts : options) =
            validation_payload;
            pattern;
            audit_chain = chain;
-           audit_verified = verified })
+           audit_verified = verified;
+           runtime_logs })
 
 (* ------------------------------------------------------------------ *)
 (* Archive                                                              *)
@@ -421,6 +424,12 @@ let render_markdown (result : decision_result) =
         Fmt.str "- head_hash: %s" head_hash;
         "" ]
     @ audit_lines
+    @ [ "";
+        "## Runtime Logs";
+        "";
+      ]
+    @ (if result.runtime_logs = [] then [ "_no runtime logs collected_" ]
+       else result.runtime_logs)
     @ [ "" ])
 
 let write_archive (runtime : Client_runtime.t) result =

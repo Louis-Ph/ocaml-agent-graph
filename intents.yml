@@ -1,0 +1,1868 @@
+project: ocaml-agent-graph
+description: Typed, modular multi-agent orchestration framework in OCaml with LangGraph/CrewAI-style routing
+generated_from: repository root
+extraction_timestamp: '2026-04-23T10:28:37+02:00'
+extraction_errors: []
+architecture:
+  language: OCaml >= 5.2.0
+  build_system: Dune >= 3.21
+  concurrency: Lwt (async promises)
+  database: SQLite3
+  http: cohttp-lwt-unix
+  layers:
+    L0: Core primitives (Envelope, Capability)
+    L0.5: Audit (tamper-evident hash chain)
+    L1: Consensus (quorum voting)
+    L2: Pipeline (agent sequences)
+    L3: Pattern (strategy fitness tracking)
+tree:
+  CODE_OF_CONDUCT.md:
+    purpose: Code of Conduct
+    sections:
+    - Code of Conduct
+    - Our standard
+    - Unacceptable behavior
+    - Scope
+    - Reporting
+    - Enforcement
+    target_audience: ''
+  ocaml-agent-graph.opam:
+    purpose: OPAM package definition
+    dependencies:
+    - ocaml
+    - dune
+    - lwt
+    - yojson
+    - fmt
+    - sqlite3
+    - bulkhead_lm
+    - cmdliner
+    - alcotest
+    - odoc
+    - dune
+    - subst
+    - dune
+    - build
+  CHANGELOG.md:
+    purpose: Changelog
+    sections:
+    - Changelog
+    - Unreleased
+    - Added
+    - Fixed
+    - Documentation
+    - Maintenance
+    target_audience: ''
+  install.sh:
+    purpose: OCaml Agent Graph one-line installer
+    operations:
+    - say
+    - say_err
+    - fail
+    entry_points: []
+  run.sh:
+    purpose: ''
+    operations: []
+    entry_points: []
+  README.md:
+    purpose: ocaml-agent-graph
+    sections:
+    - ocaml-agent-graph
+    - Quick start
+    - What you need before you start
+    - What it does
+    - Terminal commands
+    - Configuration
+    - Swarm layers (L0-L3)
+    - Chat from Telegram, WhatsApp, or any messenger
+    - Multi-machine
+    - Demos
+    target_audience: Human developers
+  SUPPORT.md:
+    purpose: Support
+    sections:
+    - Support
+    - Where to ask for help
+    - What to include
+    - Support expectations
+    target_audience: ''
+  dune-project:
+    purpose: 'Build configuration: dune-project'
+    build_system: Dune
+    targets: []
+  .gitignore:
+    purpose: Git ignore patterns
+    patterns:
+    - _build/
+    - '*.install'
+    - '*.merlin'
+    - .DS_Store
+    - /var/discussions/
+  CONTRIBUTING.md:
+    purpose: Contributing to ocaml-agent-graph
+    sections:
+    - Contributing to ocaml-agent-graph
+    - License
+    - Before you start
+    - Development setup
+    - Design expectations
+    - Tests and documentation
+    - Conventional Commits
+    - Changelog policy
+    - Pull requests
+    - Security issues
+    target_audience: Contributors
+  .ocamlformat:
+    purpose: OCaml code formatting configuration
+    formatting_rules:
+    - profile = conventional
+  run-ollama.sh:
+    purpose: Legacy compatibility wrapper.
+    operations: []
+    entry_points: []
+  AGENTS.md:
+    purpose: AGENTS.md — ocaml-agent-graph
+    sections:
+    - AGENTS.md — ocaml-agent-graph
+    - Project overview
+    - Technology stack
+    - Key dependencies
+    - Project structure
+    - Module naming convention
+    - Build and test commands
+    - Quick start (uses project-local opam switch)
+    - Manual build (assumes you manage your own opam switch)
+    - Pin the sibling dependency first
+    target_audience: AI coding agents
+  intents.yml:
+    purpose: 'YAML configuration: intents.yml'
+    line_count: 1826
+  SECURITY.md:
+    purpose: Security Policy
+    sections:
+    - Security Policy
+    - Supported versions
+    - Reporting a vulnerability
+    - Response targets
+    - Scope guidance
+    - Operational note
+    target_audience: ''
+  .github:
+    release.yml:
+      purpose: 'YAML configuration: release.yml'
+      line_count: 31
+    pull_request_template.md:
+      purpose: Summary
+      sections:
+      - Summary
+      - Validation
+      - Impact
+      - Notes
+      target_audience: ''
+    ISSUE_TEMPLATE:
+      feature_request.yml:
+        purpose: 'YAML configuration: feature_request.yml'
+        line_count: 31
+      bug_report.yml:
+        purpose: 'YAML configuration: bug_report.yml'
+        line_count: 69
+      config.yml:
+        purpose: 'YAML configuration: config.yml'
+        line_count: 9
+    workflows:
+      ci.yml:
+        purpose: 'YAML configuration: ci.yml'
+        line_count: 57
+  bin:
+    ocaml_agent_graph_demo.intent:
+      purpose: ''
+      design_decisions:
+      - 1. Open the Cmdliner API so the demo can expose a real CLI instead of ad hoc argument parsing.
+      - 2. Define the `--config` option so the user can choose which JSON runtime configuration file to load.
+      - 3. Define the `--task-id` option so the user can override the task id without editing the config file.
+      - 4. Define the positional `INPUT` argument so the user can override the demo prompt from the command line.
+      - 5. In `run`, load the runtime configuration and fail early with a clean CLI error if the file cannot be parsed.
+      - 6. Resolve the final task id by preferring the CLI override and falling back to the configuration value.
+      - 7. Resolve the final input text by preferring the CLI override and falling back to the configuration value.
+      - 8. Execute the framework through `Agent_graph.run` inside `Lwt_main.run`.
+      - 9. Print the task id so the run is easy to identify.
+      - 10. Print the completed agent names so the user can see which path the orchestration followed.
+      - 11. Print the final payload in a human-readable form.
+      - 12. Register the command metadata and exit through `Cmd.eval`.
+    ocaml_agent_graph_demo.ml:
+      purpose: ''
+      domain_concepts: []
+      dependencies:
+      - Cmdliner
+      operations: []
+      invariants:
+      - Async execution via Lwt promises
+    dune:
+      purpose: 'Build configuration: dune'
+      build_system: Dune
+      targets:
+      - ocaml_agent_graph_demo
+      - adaptive_webcrawler_demo
+      - client
+    adaptive_webcrawler_demo.ml:
+      purpose: ''
+      domain_concepts: []
+      dependencies:
+      - Cmdliner
+      operations: []
+      invariants:
+      - Async execution via Lwt promises
+    client.ml:
+      purpose: ''
+      domain_concepts: []
+      dependencies:
+      - Agent_graph
+      - Cmdliner
+      operations: []
+      invariants:
+      - Async execution via Lwt promises
+  config:
+    runtime.json:
+      purpose: Routing configuration for LLM gateway
+      schema_hints:
+      - retry_backoff_seconds
+      - confidence
+      - parallel_agents
+      - short_text_agent
+      - gateway_endpoint_url
+      - version
+      - rules
+      - persona
+      - long_text_threshold
+      - summarizer
+      - input
+      - max_tokens
+      - max_steps
+      - memory_policy_path
+      - final_agent
+    gateway.kimi-k2.6.json:
+      purpose: Routing configuration for LLM gateway
+      schema_hints:
+      - providers_schema_file
+      - public_model
+      - sqlite_path
+      - provider_kind
+      - token_plaintext
+      - routes
+      - virtual_keys
+      - persistence
+      - error_catalog_file
+      - security_policy_file
+      - backends
+      - daily_token_budget
+      - name
+      - provider_id
+      - api_key_env
+    example.gateway.json:
+      purpose: Routing configuration for LLM gateway
+      schema_hints:
+      - local_ops
+      - install_url
+      - show_routes_on_start
+      - ssh
+      - graph_runtime_path
+      - system_prompt_file
+      - max_exec_output_bytes
+      - command_timeout_ms
+      - max_tokens
+      - base_url
+      - archive_url
+      - worker_jobs
+      - human_remote_command
+      - machine_terminal
+      - server_command
+    security_policy.ollama_local.json:
+      purpose: Timeout and retry policy configuration
+      schema_hints:
+      - listen_host
+      - default_daily_tokens
+      - budget
+      - max_fallbacks
+      - egress
+      - listen_port
+      - max_request_body_bytes
+      - request_timeout_ms
+      - deny_private_ranges
+      - server
+      - allowed_schemes
+      - max_inflight
+      - circuit_cooldown_s
+      - rate_limit
+      - blocked_hosts
+    runtime.ollama.json:
+      purpose: Routing configuration for LLM gateway
+      schema_hints:
+      - retry_backoff_seconds
+      - confidence
+      - parallel_agents
+      - short_text_agent
+      - gateway_endpoint_url
+      - version
+      - rules
+      - persona
+      - long_text_threshold
+      - summarizer
+      - input
+      - max_tokens
+      - max_steps
+      - memory_policy_path
+      - final_agent
+    memory_policy.json:
+      purpose: Routing configuration for LLM gateway
+      schema_hints:
+      - storage
+      - session_id_metadata_key
+      - min_summary_max_tokens
+      - compression
+      - min_summary_max_chars
+      - summary_prompt
+      - base_summary_max_chars
+      - compress_first
+      - keep_verbatim
+      - trigger
+      - base_summary_max_tokens
+      - mode
+      - keep_strongly
+      - recent_turn_buffer
+      - policy_name
+    client.json:
+      purpose: Routing configuration for LLM gateway
+      schema_hints:
+      - local_ops
+      - public_model
+      - authorization_token_env
+      - install_url
+      - show_routes_on_start
+      - ssh
+      - graph_runtime_path
+      - system_prompt_file
+      - max_exec_output_bytes
+      - command_timeout_ms
+      - max_tokens
+      - base_url
+      - archive_url
+      - worker_jobs
+      - human_remote_command
+    client.ollama.json:
+      purpose: Routing configuration for LLM gateway
+      schema_hints:
+      - local_ops
+      - public_model
+      - authorization_token_env
+      - install_url
+      - show_routes_on_start
+      - ssh
+      - graph_runtime_path
+      - system_prompt_file
+      - max_exec_output_bytes
+      - command_timeout_ms
+      - max_tokens
+      - base_url
+      - archive_url
+      - worker_jobs
+      - human_remote_command
+    discussion:
+      personas:
+        critic.v1.md:
+          purpose: You are the critical reviewer.
+          sections: []
+          target_audience: ''
+        implementer.v1.md:
+          purpose: You are the execution synthesizer.
+          sections: []
+          target_audience: ''
+        architect.v1.md:
+          purpose: You are the lead architect.
+          sections: []
+          target_audience: ''
+      rules:
+        critic.v1.md:
+          purpose: 1. Challenge assumptions and failure modes, not personalities.
+          sections: []
+          target_audience: ''
+        implementer.v1.md:
+          purpose: 1. Produce the clearest recommended path the user can act on now.
+          sections: []
+          target_audience: ''
+        architect.v1.md:
+          purpose: 1. Answer the user's actual question, not a nearby one.
+          sections: []
+          target_audience: ''
+    prompts:
+      graph_terminal_assistant.md:
+        purpose: You are the assistant inside the Agent Graph human terminal.
+        sections: []
+        target_audience: ''
+      swarm_messenger_spokesperson.md:
+        purpose: You are the client-facing spokesperson of an ocaml-agent-graph swarm.
+        sections: []
+        target_audience: ''
+  demos:
+    README.md:
+      purpose: Demonstration Scenarios
+      sections:
+      - Demonstration Scenarios
+      - Demos
+      - adaptive_webcrawler
+      - professional_buyer
+      - multi_supplier_rfq
+      - price_watch
+      - category_restock_optimizer
+      - How it works
+      - Integration demos
+      - memory_bridge_bulkhead
+      target_audience: Human developers
+    catalog.json:
+      purpose: 'Configuration file: catalog.json'
+      schema_hints:
+      - domain
+      - title
+      - primary_goal
+      - uses_multiple_llms
+      - requires_real_llm
+      - id
+      - requires_web_crawler
+      - scenarios
+      - version
+    adaptive_webcrawler:
+      run.sh:
+        purpose: Run the adaptive webcrawler demo.
+        operations: []
+        entry_points: []
+      README.md:
+        purpose: Adaptive Webcrawler
+        sections:
+        - Adaptive Webcrawler
+        - Default mission
+        - Cost control
+        - Run
+        target_audience: Human developers
+      gateway.json:
+        purpose: Routing configuration for LLM gateway
+        schema_hints:
+        - providers_schema_file
+        - public_model
+        - sqlite_path
+        - provider_kind
+        - token_plaintext
+        - routes
+        - virtual_keys
+        - persistence
+        - error_catalog_file
+        - security_policy_file
+        - backends
+        - daily_token_budget
+        - name
+        - provider_id
+        - api_key_env
+      scenario.json:
+        purpose: Routing configuration for LLM gateway
+        schema_hints:
+        - min_authoritative_pages
+        - max_queries_per_round
+        - preferred_domain_bonus
+        - max_rounds
+        - keyword_url_weight
+        - reflector
+        - output_template_file
+        - user_agent
+        - max_llm_calls
+        - preferred_domains
+        - keyword_title_weight
+        - link_depth_penalty
+        - max_total_pages
+        - max_tokens
+        - scenario_name
+      output:
+        report_template.md:
+          purpose: 'Sections:'
+          sections: []
+          target_audience: ''
+      prompts:
+        reflector.md:
+          purpose: You are the reflection agent of a real webcrawler.
+          sections: []
+          target_audience: ''
+        reporter.md:
+          purpose: You are the final reporting agent of a real adaptive webcrawler.
+          sections: []
+          target_audience: ''
+    category_restock_optimizer:
+      run.sh:
+        purpose: Run the category restock optimizer demo through the swarm graph.
+        operations: []
+        entry_points: []
+      README.md:
+        purpose: Category Restock Optimizer
+        sections:
+        - Category Restock Optimizer
+        target_audience: Human developers
+      scenario.json:
+        purpose: 'Configuration file: scenario.json'
+        schema_hints:
+        - goal
+        - title
+        - uses_multiple_llms
+        - requires_real_llm
+        - scenario_id
+        - core_outputs
+        - requires_real_web_crawler
+    memory_bridge_bulkhead:
+      run.sh:
+        purpose: ''
+        operations:
+        - say
+        - say_err
+        - cleanup
+        - load_secrets
+        - detect_provider
+        - write_security_policy
+        - write_gateway_config
+        - write_memory_policy
+        - write_runtime_config
+        - write_client_config
+        entry_points: []
+      README.md:
+        purpose: Memory Bridge Demo
+        sections:
+        - Memory Bridge Demo
+        - What it proves
+        - Requirements
+        - Run
+        - Expected signal
+        target_audience: Human developers
+    multi_supplier_rfq:
+      run.sh:
+        purpose: Run the multi-supplier RFQ demo through the swarm graph.
+        operations: []
+        entry_points: []
+      README.md:
+        purpose: Multi Supplier RFQ
+        sections:
+        - Multi Supplier RFQ
+        target_audience: Human developers
+      scenario.json:
+        purpose: 'Configuration file: scenario.json'
+        schema_hints:
+        - goal
+        - title
+        - uses_multiple_llms
+        - requires_real_llm
+        - scenario_id
+        - core_outputs
+        - requires_real_web_crawler
+    price_watch:
+      run.sh:
+        purpose: Run the price watch demo through the swarm graph.
+        operations: []
+        entry_points: []
+      README.md:
+        purpose: Price Watch
+        sections:
+        - Price Watch
+        target_audience: Human developers
+      scenario.json:
+        purpose: 'Configuration file: scenario.json'
+        schema_hints:
+        - goal
+        - title
+        - uses_multiple_llms
+        - requires_real_llm
+        - scenario_id
+        - core_outputs
+        - requires_real_web_crawler
+    professional_buyer:
+      run.sh:
+        purpose: Run the professional buyer demo through the swarm graph.
+        operations: []
+        entry_points: []
+      README.md:
+        purpose: Professional Buyer
+        sections:
+        - Professional Buyer
+        - Core result
+        - Expected workflow
+        - Folder contents
+        - Important rule
+        target_audience: Human developers
+      scenario.json:
+        purpose: 'Configuration file: scenario.json'
+        schema_hints:
+        - format
+        - title
+        - business_goal
+        - primary_goal
+        - deliverable
+        - required_sections
+        - must_provide_ranked_alternatives
+        - uses_multiple_llms
+        - output
+        - preferred_sources
+        - crawl_targets
+        - llm_roles
+        - buyer_rules
+        - minimum_offer_count
+        - definition_of_best
+      output:
+        report_template.md:
+          purpose: Buyer Memo Template
+          sections:
+          - Buyer Memo Template
+          - Need Summary
+          - Search Coverage
+          - Recommended Offer
+          - Ranked Alternatives
+          - Cost Breakdown
+          - Logistics And Warranty Notes
+          - Risks And Missing Evidence
+          - Final Decision Rationale
+          target_audience: ''
+      prompts:
+        04_procurement_decider.md:
+          purpose: Procurement Decider Prompt
+          sections:
+          - Procurement Decider Prompt
+          target_audience: ''
+        01_planner.md:
+          purpose: Planner Prompt
+          sections:
+          - Planner Prompt
+          target_audience: ''
+        02_crawler_supervisor.md:
+          purpose: Crawler Supervisor Prompt
+          sections:
+          - Crawler Supervisor Prompt
+          target_audience: ''
+        03_extractor.md:
+          purpose: Extractor Prompt
+          sections:
+          - Extractor Prompt
+          target_audience: ''
+      scoring:
+        score_weights.json:
+          purpose: 'Configuration file: score_weights.json'
+          schema_hints:
+          - stock_confidence
+          - hard_fail_rules
+          - score_version
+          - seller_trust
+          - warranty_and_returns
+          - weights
+          - technical_fit
+          - delivery_speed
+          - evidence_quality
+          - total_landed_cost
+  doc:
+    RELEASING.md:
+      purpose: Releasing
+      sections:
+      - Releasing
+      - Commit type mapping
+      - Release checklist
+      - Notes
+      target_audience: ''
+    HUMAN_TERMINAL_ASSISTANT.md:
+      purpose: Human Terminal Assistant
+      sections:
+      - Human Terminal Assistant
+      - Product Hierarchy
+      - Assistant Role
+      - Canonical Workflows
+      - Build
+      - Test
+      - Install Or Bootstrap
+      - Discussion Workflow
+      - Verifiable Decision Workflow
+      - Cron Or Scheduled Runs
+      target_audience: ''
+    START_HERE.md:
+      purpose: Start Here
+      sections:
+      - Start Here
+      - The Big Idea
+      - What Is In This Project?
+      - What Happens When You Run It?
+      - How To Run It
+      - The Swarm Layers (L0-L3)
+      - How To Try Your Own Text
+      - How To Change The Settings
+      - How To Know If It Still Works
+      - What The Main Parts Do
+      target_audience: ''
+    MAKE_YOUR_OWN_AGENT.md:
+      purpose: Make Your Own Agent
+      sections:
+      - Make Your Own Agent
+      - 'Step 1: Create The New File'
+      - 'Step 2: Give The Agent A Name'
+      - 'Step 3: Follow The Agent Shape'
+      - 'Step 4: Register The Agent'
+      - 'Step 5: Let The Graph Use It'
+      - 'Step 6: Test It'
+      - Good Rule
+      target_audience: ''
+    CONCEPT_CONTINUOUS_IMPROVEMENT.md:
+      purpose: 'Concept: Continuous Improvement Loop for /decide'
+      sections:
+      - 'Concept: Continuous Improvement Loop for /decide'
+      - Core Insight
+      - The Four Quadrants
+      - Proposed Stages for /decide
+      - 1. RECALL (memory, positive — exists partially via L3 pattern fitness)
+      - 2. DISCUSS (perception, positive — exists today)
+      - 3. DISTILL (memory, positive — new)
+      - 4. VALIDATE (perception, positive — new)
+      - 5. DECIDE (consensus + validation — exists today)
+      - 6. FORGET (memory, negative — new)
+      target_audience: ''
+    MESSENGER_CONNECTORS.md:
+      purpose: Messenger Connectors
+      sections:
+      - Messenger Connectors
+      - Quick start
+      - Hierarchy
+      - Integration Pattern
+      - Public Versus Internal Models
+      - Example Wiring
+      - Automated Wiring
+      - Operational Effect
+      target_audience: ''
+    MULTI_MACHINE.md:
+      purpose: Multi-Machine Workflows
+      sections:
+      - Multi-Machine Workflows
+      - Human Operator Over SSH
+      - Worker Over SSH
+      - Worker Over HTTP
+      - SSH Bootstrap Install
+      - HTTP Bootstrap Install
+      - Pair-Style Topologies
+      target_audience: ''
+    README.md:
+      purpose: Docs
+      sections:
+      - Docs
+      target_audience: Human developers
+    napoleaon_pattern.txt:
+      purpose: 'Text file: napoleaon_pattern.txt'
+      line_count: 2
+  docs:
+    swarm-layers.md:
+      purpose: Swarm Layers — L0 through L3
+      sections:
+      - Swarm Layers — L0 through L3
+      - Layer map
+      - L0 — Protocol
+      - '`Core.Envelope` — typed message envelope'
+      - '`Core.Capability` — permission lattice'
+      - L0.5 — Audit
+      - '`Core.Audit` — hash-chained audit log'
+      - L1 — Coordination
+      - '`Orchestration.Consensus` — quorum-based coordination'
+      - L2 — Composition
+      target_audience: ''
+  lib:
+    dune:
+      purpose: 'Build configuration: dune'
+      build_system: Dune
+      targets:
+      - agent_graph
+    agent_graph.ml:
+      purpose: ''
+      domain_concepts: []
+      dependencies:
+      - Lwt
+      operations: []
+      invariants:
+      - Uses explicit result types for error handling
+      - Async execution via Lwt promises
+      - Tamper-evident audit logging
+      - Permission-based access control
+    agent_graph.intent:
+      purpose: ''
+      design_decisions:
+      - 1. Re-export the core modules under one stable `Core` namespace so callers do not need to know every internal file
+        name.
+      - 2. Re-export the configuration loader under `Config` to keep the external API organized.
+      - 3. Re-export the LLM modules under `Llm` so callers can discover the prompt and BulkheadLM client layers from one
+        place.
+      - 4. Re-export the agent modules under `Agents` so users can discover the built-in agents from one place.
+      - 5. Re-export the runtime modules under `Runtime`, including the injected services layer.
+      - 6. Re-export the orchestration modules under `Orchestration` so the routing layer is accessible without exposing the
+        whole file tree.
+      - 7. Provide a single high-level `run` function for the common case.
+      - 8. Build the runtime services first so the graph has a ready BulkheadLM-backed client.
+      - 9. Return an explicit error result if the runtime services cannot be created.
+      - 10. Build the default registry and the starting context when the services are ready.
+      - 11. Start the orchestrator with the initial payload wrapped as `Core_payload.Text`.
+      - 12. Return the final payload and context inside a result-aware `Lwt` promise.
+    agents:
+      agent_intf.ml:
+        purpose: ''
+        domain_concepts:
+        - run_result
+        - packed
+        dependencies: []
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      planner_agent.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Open `Lwt.Infix` so the asynchronous result mapping reads naturally.
+        - 2. Define a local maximum number of plan steps.
+        - 3. Expose the agent id as `Planner`.
+        - 4. Keep a small local fallback plan path so the agent can still normalize unusable output.
+        - 5. Provide helpers that split raw text, trim numbering prefixes, and normalize multi-line plan output.
+        - 6. Provide a local deterministic `plan_from_text` fallback based on text segmentation.
+        - 7. Build a planner-specific LLM instruction that asks for short execution steps with no extra commentary.
+        - 8. Convert the LLM usage information into the framework metrics and notes format.
+        - 9. In `run`, accept only `Text` payloads.
+        - 10. Read the planner profile from the runtime services configuration.
+        - 11. Call `Llm_bulkhead_client.invoke_chat` so the planner goes through BulkheadLM and the configured provider route.
+        - '12. Parse the LLM text into normalized `Stage N: ...` lines.'
+        - 13. Fall back to the local planning heuristic if the model returns no usable lines.
+        - 14. Return a typed `Plan` payload plus metrics and notes.
+        - 15. Reject unsupported payload kinds with a typed error payload.
+      default_agents.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations:
+        - all
+        invariants: []
+      default_agents.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Build one list named `all` that contains the packaged built-in agents.
+        - 2. Keep that list explicit so the default system has a visible and auditable composition.
+        - 3. Create a new registry with a small initial capacity.
+        - 4. Register each built-in agent into that registry.
+        - 5. Return the registry so the rest of the system can run without extra wiring.
+      agent_intf.intent:
+        purpose: ''
+        design_decisions:
+        - '1. Define `run_result` as one precise shape for every agent output: payload, metrics, and notes.'
+        - 2. Define the module signature `S` so every agent exposes an `id` and a `run` function.
+        - 3. Require `run` to receive the injected runtime services first, because agents now depend on the shared LLM gateway
+          layer.
+        - 4. Require `run` to receive the typed context and typed payload after the services.
+        - 5. Require `run` to return an `Lwt` promise so agents fit into the asynchronous runtime.
+        - 6. Define `packed` so different agent modules can be stored together in the registry.
+      validator_agent.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Open `Lwt.Infix` so asynchronous result mapping stays linear.
+        - 2. Keep one local fallback size limit for deterministic validation.
+        - 3. Expose the agent id as `Validator`.
+        - 4. Provide local fallback validators for raw text and plan payloads.
+        - 5. Build a validator-specific LLM instruction that asks for a compact verdict, strengths, and risks.
+        - 6. Convert the LLM usage information into the framework metrics and notes format.
+        - 7. In `run`, accept `Text` payloads and ask the LLM for a compact validation report.
+        - 8. Fall back to the local text validator if the model returns no content.
+        - 9. In `run`, also accept `Plan` payloads so the validator can inspect planner output.
+        - 10. Fall back to the local plan validator if the model returns no content.
+        - '11. Return `Validation: ...` as a typed `Text` payload plus metrics and notes.'
+        - 12. Reject unsupported payload kinds with a typed error payload.
+      summarizer_agent.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      summarizer_agent.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Open `Lwt.Infix` so asynchronous result mapping stays linear.
+        - 2. Keep a small local summary fallback budget.
+        - 3. Expose the agent id as `Summarizer`.
+        - 4. Provide local helper functions for deterministic text and plan summarization.
+        - 5. Build a summarizer-specific LLM instruction that asks for a short plain-English summary.
+        - 6. Convert the LLM usage information into the framework metrics and notes format.
+        - 7. In `run`, accept `Text` payloads and ask the LLM for a concise summary.
+        - 8. If the model response is empty, fall back to the local text summarizer.
+        - 9. In `run`, also accept `Plan` payloads so the summarizer can run after the planner branch.
+        - 10. If the model response is empty for a plan, fall back to the local plan summarizer.
+        - '11. Return `Summary: ...` as a typed `Text` payload plus metrics and notes.'
+        - 12. Reject unsupported payload kinds with a typed error payload.
+      validator_agent.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      planner_agent.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+    client:
+      client_human_constants.ml:
+        purpose: ''
+        domain_concepts:
+        - command_entry
+        - tool_entry
+        dependencies: []
+        operations: []
+        invariants: []
+      client_terminal.ml:
+        purpose: ''
+        domain_concepts:
+        - state
+        - graph_request_kind
+        - command
+        - turn_entry
+        dependencies: []
+        operations:
+        - plan
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      client_config.ml:
+        purpose: ''
+        domain_concepts:
+        - t
+        - t
+        - t
+        - t
+        - t
+        - t
+        - t
+        - t
+        - t
+        - t
+        dependencies:
+        - Yojson
+        operations: []
+        invariants: []
+      client_http_server.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      client_messenger_spokesperson.ml:
+        purpose: ''
+        domain_concepts:
+        - run_result
+        dependencies:
+        - Lwt
+        operations:
+        - messages
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      client_runtime.ml:
+        purpose: ''
+        domain_concepts:
+        - agent_profile_summary
+        - messenger_spokesperson_summary
+        - t
+        dependencies: []
+        operations:
+        - profile
+        invariants: []
+      client_discussion_team_builder.ml:
+        purpose: ''
+        domain_concepts:
+        - picked_participant
+        - result
+        dependencies: []
+        operations:
+        - system_message
+        - user_message
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      client_ui.ml:
+        purpose: ── Box drawing ────────────────────────────────────────────────────────
+        domain_concepts: []
+        dependencies: []
+        operations: []
+        invariants: []
+      client_assistant.ml:
+        purpose: ''
+        domain_concepts:
+        - command
+        - reply
+        - attachment
+        - request_kind
+        dependencies:
+        - Lwt
+        operations:
+        - system_message
+        - user_message
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      client_decide.ml:
+        purpose: '------------------------------------------------------------------'
+        domain_concepts:
+        - options
+        - decision_result
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+        - Tamper-evident audit logging
+      client_machine.ml:
+        purpose: ''
+        domain_concepts:
+        - call_kind
+        - call_response
+        - worker_request
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      client_local_ops.ml:
+        purpose: ''
+        domain_concepts:
+        - dir_entry_kind
+        - dir_entry
+        - list_dir_result
+        - read_file_result
+        - exec_plan
+        - exec_result
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      client_assistant_docs.ml:
+        purpose: ''
+        domain_concepts:
+        - repo
+        - topic
+        - doc_spec
+        dependencies: []
+        operations: []
+        invariants: []
+      client_starter.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations:
+        - assistant
+        - local_ops
+        - human_terminal
+        - machine_terminal
+        - transport
+        - provisional_config
+        invariants: []
+    config:
+      runtime_config.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Open the Yojson helper API to make JSON field extraction concise.
+        - 2. Define the `Engine` record type for timeout, retry, backoff, and step-budget settings.
+        - 3. Define the `Routing` record type for decision policy, including the important agent names used by the graph.
+        - 4. Define the `Demo` record type for the built-in sample task id and sample input text.
+        - 5. Define the `Llm.Agent_profile` record so each agent can have its own model, prompt, token cap, and confidence.
+        - 6. Define the top-level `Llm` record so the runtime knows where the BulkheadLM gateway config lives and how to authenticate
+          to it.
+        - 7. Combine `engine`, `routing`, `demo`, and `llm` into one top-level runtime configuration type.
+        - 8. Expose the default JSON path so callers have one canonical location.
+        - 9. Provide small helpers for optional strings, optional integers, and relative path resolution.
+        - 10. Convert agent names from strings into typed `Core_agent_name.t` values.
+        - 11. Parse the `engine` JSON section into a typed record.
+        - 12. Parse the `routing` JSON section into a typed record, including the list of parallel agents.
+        - 13. Parse the `demo` JSON section into a typed record.
+        - 14. Parse each LLM agent profile and the enclosing `llm` section.
+        - 15. In `load`, read the file, resolve relative paths against the config file directory, parse each section, and
+          assemble the final configuration.
+        - 16. Return explicit error messages for missing files, invalid JSON syntax, invalid JSON shapes, and invalid values.
+      config_support.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Yojson
+        operations: []
+        invariants: []
+      runtime_config.ml:
+        purpose: ''
+        domain_concepts:
+        - t
+        - t
+        - t
+        - t
+        - t
+        - t
+        - t
+        - t
+        - mode
+        - t
+        dependencies:
+        - Yojson
+        operations: []
+        invariants: []
+    core:
+      core_envelope.ml:
+        purpose: "L0-PROTOCOL: Typed message envelope with provenance metadata.\n   Every payload exchanged between agents\
+          \ is wrapped in an envelope that\n   carries a correlation_id (traces a logical request end-to-end),\n   a causation_id\
+          \ (the id of the envelope that triggered this one), and a\n   schema_version so consumers can reject incompatible\
+          \ shapes before\n   deserializing.\n\n   Envelope identifiers are monotonic-timestamp + random suffix to be both\n\
+          \   sortable and collision-resistant within a single process."
+        domain_concepts:
+        - schema_version
+        - t
+        dependencies: []
+        operations:
+        - v1_0
+        invariants: []
+      core_agent_name.ml:
+        purpose: ''
+        domain_concepts:
+        - t
+        dependencies: []
+        operations: []
+        invariants: []
+      core_payload.ml:
+        purpose: ''
+        domain_concepts:
+        - metrics
+        - discussion_turn
+        - discussion
+        - t
+        dependencies: []
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+      core_context.ml:
+        purpose: ''
+        domain_concepts:
+        - t
+        - event
+        - t
+        dependencies: []
+        operations: []
+        invariants: []
+      core_payload.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Define the `metrics` record so every agent result can carry confidence, cost, and latency.
+        - '2. Define the payload variant with four core states: `Text`, `Plan`, `Batch`, and `Error`.'
+        - 3. Define `batch_item` so aggregated results keep the producing agent, the payload, the metrics, and the notes together.
+        - 4. Expose `zero_metrics` as the neutral fallback value for failures and unsupported cases.
+        - 5. Provide `summary` to describe any payload in one short string for logs and context history.
+        - 6. Provide `text_length` as a convenience helper for the text case.
+        - 7. Provide `metrics_to_string` so runtime metrics can be rendered consistently.
+        - 8. Provide `to_pretty_string` so final payloads can be printed in a user-facing way, including nested batch output.
+      core_audit.ml:
+        purpose: "Compute the self_hash for an entry by hashing the concatenation of its\n   defining fields.  The separator\
+          \ '|' prevents field boundary ambiguity."
+        domain_concepts:
+        - entry
+        - t
+        dependencies: []
+        operations:
+        - empty
+        - head_hash
+        invariants:
+        - Uses explicit result types for error handling
+      core_decision.ml:
+        purpose: ''
+        domain_concepts:
+        - stop_reason
+        - t
+        dependencies: []
+        operations: []
+        invariants: []
+      core_agent_name.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Define the closed variant type `t` so only known agents can exist in the system.
+        - 2. Expose the `all` list so other modules can iterate over the known names.
+        - 3. Provide `compare`, `equal`, and `hash` so agent names can be used in sets, hash tables, and ordered operations.
+        - 4. Convert typed names into stable lowercase strings for logs, config files, and output.
+        - 5. Convert strings back into typed names and return an explicit error for unknown values.
+        - 6. Provide a formatter helper for pretty-printing.
+      core_message.ml:
+        purpose: ''
+        domain_concepts:
+        - role
+        - t
+        dependencies: []
+        operations: []
+        invariants: []
+      core_pattern.ml:
+        purpose: "A stability class may accept changes proposed at or above its own level.\n   Frozen accepts nothing; Volatile\
+          \ accepts everything."
+        domain_concepts:
+        - stability
+        - metrics
+        - t
+        dependencies: []
+        operations:
+        - zero_metrics
+        invariants: []
+      core_context.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Build an `Agent_set` so the system can efficiently remember which agents already ran.
+        - 2. Define the `event` record to capture auditable runtime facts with step index, label, detail, and timestamp.
+        - 3. Define the main context record with task id, message history, metadata, completed agents, events, and step count.
+        - 4. Provide `empty` to create a clean starting context.
+        - 5. Provide `add_message` to extend the history when a caller wants to append a message manually.
+        - 6. Provide `record_event` to append a generic event with the current step count.
+        - 7. Provide `has_completed_agent` so the router can avoid looping back to the same stage incorrectly.
+        - 8. Provide `completed_agent_names` so the CLI can print the finished path.
+        - 9. Implement `record_outcome` to update history, completed agents, events, and step count after one agent finishes.
+        - 10. Implement `record_outcomes` to fold many agent results into the context during parallel execution.
+        - 11. Implement `record_parallel_join` to add a dedicated event when a fan-out stage joins back together.
+        - 12. Implement `step_budget_exhausted` so the router can stop when the configured maximum number of steps has been
+          reached.
+      core_capability.ml:
+        purpose: 'read-only: inspect context and payload'
+        domain_concepts:
+        - t
+        - token
+        dependencies: []
+        operations: []
+        invariants:
+        - Tamper-evident audit logging
+        - Permission-based access control
+      core_decision.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Define the finite set of stop reasons so termination stays explainable.
+        - '2. Define the decision type as one of three possibilities: run one agent, run many agents, or stop.'
+        - 3. Convert stop reasons into stable strings for logs and debugging.
+        - 4. Convert full decisions into readable strings so the orchestrator can log every routing choice.
+      core_message.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Define the possible message roles, including a role that carries a typed agent name.
+        - 2. Define the message record as a role plus textual content.
+        - 3. Provide a role-to-string helper so history entries can be rendered outside the type system.
+    llm:
+      llm_bulkhead_client.ml:
+        purpose: ''
+        domain_concepts:
+        - usage
+        - readiness
+        - backend_access
+        - route_access
+        - completion
+        - transport
+        - t
+        dependencies:
+        - Lwt
+        operations:
+        - profile
+        invariants:
+        - Async execution via Lwt promises
+      llm_prompt.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations:
+        - system_message
+        - user_message
+        invariants: []
+      llm_prompt.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Render metadata pairs into one compact string.
+        - 2. Render the context history in chronological order so the model can see what happened before.
+        - 3. Render the set of completed agents so the model knows the current position in the graph.
+        - 4. Build one user message that includes the agent name, task id, metadata, completed agents, history, current payload,
+          and agent-specific instruction.
+        - 5. Build the final OpenAI-style message list as one system message plus one user message.
+      llm_bulkhead_client.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Define small local records for token usage and completion output so the rest of the framework gets a simple normalized
+          shape.
+        - 2. Define the client state around one resolved authorization header, discovered route metadata, and either an external
+          HTTP transport or a test-only embedded store.
+        - 3. Resolve the authorization header either from an inline token or from an environment variable.
+        - 4. Create a client by contacting the external BulkheadLM server, reading `/v1/models`, and indexing the available
+          routes.
+        - 5. Expose `of_store` so tests can still inject a mocked BulkheadLM runtime without hitting the network.
+        - 6. Extract the useful text from the normalized BulkheadLM chat response choices.
+        - 7. Build a chat request from the agent profile and prompt messages.
+        - 8. Send normal runtime requests to the external BulkheadLM `/v1/chat/completions` endpoint, while keeping the embedded
+          dispatch path only for isolated tests.
+        - 9. Convert BulkheadLM HTTP or runtime errors into plain error strings and successful responses into the local normalized
+          completion shape.
+    memory:
+      memory_runtime.ml:
+        purpose: ''
+        domain_concepts:
+        - t
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      memory_bulkhead_bridge.ml:
+        purpose: ''
+        domain_concepts:
+        - t
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      memory_store.ml:
+        purpose: ''
+        domain_concepts:
+        - role
+        - turn
+        - session
+        - session_ref
+        - t
+        dependencies: []
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+      memory_compressor.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Lwt
+        operations:
+        - messages
+        invariants:
+        - Async execution via Lwt promises
+      memory_policy.ml:
+        purpose: ''
+        domain_concepts:
+        - trigger_reason
+        - budget
+        - plan
+        dependencies: []
+        operations: []
+        invariants: []
+    orchestration:
+      orchestration_decider.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations: []
+        invariants: []
+      orchestration_orchestrator.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      orchestration_pipeline.ml:
+        purpose: Append a step to the pipeline.
+        domain_concepts:
+        - boundary
+        - step
+        - t
+        dependencies:
+        - Lwt
+        operations:
+        - empty
+        invariants:
+        - Async execution via Lwt promises
+      orchestration_discussion.ml:
+        purpose: "Turn results are tri-state: a successful contribution, a skipped empty response,\n   or a fatal budget-exhaustion\
+          \ that must halt the entire discussion immediately."
+        domain_concepts:
+        - turn_result
+        dependencies:
+        - Lwt
+        operations:
+        - system_message
+        - user_message
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      orchestration_graph.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Define the named graph nodes so the route can carry more meaning than a raw decision alone.
+        - 2. Define the `route` record as a node plus a decision.
+        - 3. In `route`, stop immediately if the context has exhausted the configured step budget.
+        - 4. Stop immediately for error payloads because the graph should not continue after a typed failure.
+        - 5. Stop immediately for batch payloads because aggregation is the current terminal state.
+        - 6. Send `Plan` payloads into the fan-out stage by returning a parallel decision with the configured parallel agents.
+        - 7. For `Text` payloads, first stop if the text was already processed by either the short-text or planner branch,
+          which prevents accidental loops.
+        - 8. For fresh `Text` payloads longer than the configured threshold, route to the planner.
+        - 9. For fresh `Text` payloads shorter than or equal to the threshold, route directly to the short-text agent.
+      orchestration_decider.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Accept the configuration, context, and payload.
+        - 2. Delegate the real decision work to `Orchestration_graph.route`.
+        - 3. Keep the decider module thin so future policy logic can grow here without changing the orchestrator call site.
+      orchestration_consensus.ml:
+        purpose: ''
+        domain_concepts:
+        - vote
+        - outcome
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      orchestration_orchestrator.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Open `Lwt.Syntax` so the file can use sequential async style.
+        - 2. Define `log_decision` so every routing choice is written through the runtime logger.
+        - 3. In `loop`, receive the injected runtime services in addition to the configuration and registry.
+        - 4. Ask the decider for the current route from the current configuration, context, and payload.
+        - 5. Log the chosen decision before acting on it.
+        - 6. If the decision is `Stop`, return the current payload and context as the final result.
+        - 7. If the decision is `Next agent`, run one agent through the runtime engine and pass the shared services through.
+        - 8. Record that single outcome into the context.
+        - 9. Recurse with the updated context and the new payload produced by the agent.
+        - 10. If the decision is `Parallel agents`, run all selected agents through the parallel executor while sharing the
+          same runtime services.
+        - 11. Record all outcomes into the context.
+        - 12. Record one extra event that marks the parallel join point.
+        - 13. Merge the items into one batch payload through the aggregator.
+        - 14. Recurse with the updated context and the merged payload.
+      orchestration_aggregator.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations: []
+        invariants: []
+      orchestration_graph.ml:
+        purpose: ''
+        domain_concepts:
+        - node
+        - route
+        dependencies: []
+        operations: []
+        invariants: []
+      orchestration_aggregator.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Accept a list of batch items produced by parallel agents.
+        - 2. Sort the items by agent name so aggregation order is deterministic.
+        - 3. Wrap the ordered items into `Core_payload.Batch`.
+    runtime:
+      runtime_services.ml:
+        purpose: ''
+        domain_concepts:
+        - t
+        dependencies: []
+        operations: []
+        invariants: []
+      runtime_parallel_executor.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      runtime_engine.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      runtime_retry_policy.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Open `Lwt.Syntax` so the backoff flow reads in direct order.
+        - 2. Define the retry policy record with maximum retries and backoff duration.
+        - 3. Define `run` as a wrapper around a promise-producing function.
+        - 4. Inside `run`, attempt the function and catch exceptions.
+        - 5. If the retry limit has been reached, re-raise the exception through `Lwt.fail`.
+        - 6. Otherwise, wait for the configured backoff duration and try again with an incremented retry index.
+      runtime_services.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Define the runtime services record as the loaded runtime config plus the initialized BulkheadLM-backed LLM client.
+        - 2. Provide `create` so production code can build the services directly from the runtime config.
+        - 3. Return an explicit error when the LLM client cannot be created.
+        - 4. Provide `of_llm_client` so tests and advanced callers can inject a custom client while keeping the same service
+          shape.
+      runtime_registry.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Define the hash-table key behavior for `Core_agent_name.t`.
+        - 2. Instantiate a hash-table module specialized to agent names.
+        - 3. Define the registry type as a table of packed agent modules.
+        - 4. Provide `create` so callers can choose an initial capacity.
+        - 5. Provide `register` so an agent module is inserted under its own typed id.
+        - 6. Provide `find` so the runtime engine can look up an agent by name.
+      runtime_registry.ml:
+        purpose: ''
+        domain_concepts:
+        - t
+        - t
+        dependencies: []
+        operations: []
+        invariants: []
+      runtime_parallel_executor.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Accept the runtime services, configuration, registry, agent list, context, and payload.
+        - 2. Map each agent name to one `Runtime_engine.run_agent` call.
+        - 3. Pass the shared runtime services into every agent run so all parallel branches can reach the same LLM gateway
+          layer.
+        - 4. Use `Lwt_list.map_p` so the agent runs happen concurrently.
+        - 5. Return the collected list of batch items when all runs complete.
+      runtime_engine.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Open `Lwt.Syntax` so asynchronous steps read in direct order.
+        - 2. Define `with_timeout` to race the real promise against a sleep-based timeout failure.
+        - 3. Define `measure_latency_ms` to convert elapsed wall-clock time into integer milliseconds.
+        - 4. Define `build_item` to package one agent result into the standard batch item structure.
+        - 5. Define `failure_item` to create a consistent error result when the agent cannot be found or fails.
+        - 6. In `run_agent`, receive both the runtime services and the runtime configuration, because agents now depend on
+          injected LLM services while the engine still owns policy.
+        - 7. Ask the registry for the requested agent module.
+        - 8. If the agent is missing, log an error and return a typed failure item instead of crashing the runtime.
+        - 9. If the agent exists, capture the start time so latency can be measured after execution.
+        - 10. Build a retry policy from the runtime configuration.
+        - 11. Log the fact that this agent is about to run and on what kind of payload.
+        - 12. Run the agent under the retry policy and under the timeout wrapper, passing the injected services through to
+          the agent.
+        - 13. When the run succeeds, compute the measured latency and overwrite the metrics latency field with the real value.
+        - 14. Package the successful output, metrics, and notes into one batch item.
+        - 15. If any exception escapes, turn it into a logged error and a typed failure item.
+      runtime_retry_policy.ml:
+        purpose: ''
+        domain_concepts:
+        - t
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      runtime_logger.intent:
+        purpose: ''
+        design_decisions:
+        - 1. Define the finite set of log levels.
+        - 2. Convert each log level into a short stable label.
+        - 3. Build a local wall-clock timestamp string.
+        - 4. Print one formatted log line to standard error with timestamp, level, and message.
+      runtime_logger.ml:
+        purpose: ''
+        domain_concepts:
+        - level
+        dependencies: []
+        operations: []
+        invariants: []
+    web_crawler:
+      web_crawler_html.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations: []
+        invariants: []
+      web_crawler_keywords.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations: []
+        invariants: []
+      web_crawler_config.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Yojson
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+      web_crawler_runner.ml:
+        purpose: ''
+        domain_concepts:
+        - state
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+      web_crawler_llm.ml:
+        purpose: ''
+        domain_concepts:
+        - invocation
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      web_crawler_url.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations: []
+        invariants: []
+      web_crawler_types.ml:
+        purpose: ''
+        domain_concepts:
+        - prompt_profile
+        - llm_config
+        - budget
+        - ranking
+        - search_config
+        - stop_condition
+        - t
+        - discovery_origin
+        - candidate
+        - fetched_page
+        dependencies: []
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+      web_crawler_http.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Async execution via Lwt promises
+      web_crawler_ranker.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies: []
+        operations: []
+        invariants: []
+      web_crawler_search.ml:
+        purpose: ''
+        domain_concepts: []
+        dependencies:
+        - Lwt
+        operations: []
+        invariants:
+        - Uses explicit result types for error handling
+        - Async execution via Lwt promises
+  scripts:
+    start-with-messengers.sh:
+      purpose: 'Start the full messenger stack in one command:'
+      operations:
+      - say
+      - say_err
+      - cleanup_servers
+      - detect_connector
+      - connector_json
+      - append_connector
+      entry_points: []
+    http_machine_server.sh:
+      purpose: ''
+      operations:
+      - print_help
+      entry_points: []
+    bulkhead_gateway_common.sh:
+      purpose: ''
+      operations:
+      - agent_graph_json_string_field
+      - agent_graph_resolve_path
+      - agent_graph_is_loopback_endpoint
+      - agent_graph_bulkhead_binary
+      - agent_graph_gateway_expected_routes
+      - agent_graph_gateway_matches_expected_routes
+      - agent_graph_endpoint_port
+      - agent_graph_listener_pids
+      - agent_graph_stop_listener
+      - agent_graph_ensure_external_bulkhead_gateway
+      entry_points: []
+    linux_starter.sh:
+      purpose: ''
+      operations:
+      - platform_validate_host
+      - detect_package_manager
+      - platform_install_opam
+      - platform_manual_setup_commands
+      entry_points:
+      - main() function
+    macos_starter.sh:
+      purpose: ''
+      operations:
+      - platform_validate_host
+      - platform_find_opam
+      - platform_install_opam
+      - platform_manual_setup_commands
+      entry_points:
+      - main() function
+    remote_install.sh:
+      purpose: ''
+      operations:
+      - print_help
+      entry_points: []
+    remote_machine_terminal.sh:
+      purpose: ''
+      operations:
+      - print_help
+      entry_points: []
+    freebsd_starter.sh:
+      purpose: ''
+      operations:
+      - platform_validate_host
+      - platform_find_opam
+      - platform_install_opam
+      - platform_manual_setup_commands
+      entry_points:
+      - main() function
+    remote_human_terminal.sh:
+      purpose: ''
+      operations:
+      - print_help
+      entry_points: []
+    starter_common.sh:
+      purpose: Ensure the sibling checkout stays aligned with origin/main when a safe
+      operations:
+      - say
+      - say_err
+      - has_hook
+      - prompt_yes_no
+      - ensure_build_log
+      - cleanup_temp_files
+      - manual_setup_commands
+      - ensure_exec_bits
+      - load_secret_file
+      - load_secret_files
+      entry_points: []
+    http_dist_server.sh:
+      purpose: ''
+      operations:
+      - note
+      - print_help
+      - cleanup
+      entry_points: []
+    remote_common.sh:
+      purpose: Intentionally word-splitting SSH args so callers can pass flags in one variable.
+      operations:
+      - agent_graph_remote_note
+      - agent_graph_remote_find_tar
+      - agent_graph_remote_find_opam
+      - agent_graph_remote_resolve_switch
+      - agent_graph_remote_load_opam_env
+      - agent_graph_remote_ensure_bulkhead_gateway
+      - agent_graph_remote_find_client_runner
+      - agent_graph_remote_exec_client
+      - agent_graph_remote_stream_archive
+      - agent_graph_remote_emit_ssh_installer
+      entry_points: []
+    ubuntu_starter.sh:
+      purpose: ''
+      operations:
+      - platform_validate_host
+      - platform_install_opam
+      - platform_manual_setup_commands
+      entry_points:
+      - main() function
+  test:
+    test_agent_graph.intent:
+      purpose: ''
+      design_decisions:
+      - 1. Open the public `Agent_graph` API instead of reaching into private implementation details.
+      - 2. Build a deterministic runtime configuration, including one LLM profile per agent.
+      - 3. Build the default registry once for all tests.
+      - 4. Define `has_prefix` as a tiny helper for checking summarizer output.
+      - 5. Define `make_services` to build a real BulkheadLM runtime store backed by `Bulkhead_lm.Provider_mock`.
+      - 6. Configure BulkheadLM routes and a test virtual key so the graph still goes through the real `Config -> Runtime_state
+        -> Router` path.
+      - 7. Wrap that mocked BulkheadLM runtime inside `Runtime.Services`.
+      - 8. Define `run` as a synchronous helper that creates a fresh context and executes the orchestrator with injected services.
+      - 9. In `test_short_text_path`, mock the summarizer route and run the graph on a short text.
+      - 10. Assert that the final payload is summarized text generated from the mocked LLM response.
+      - 11. Assert that only one step happened and that the summarizer completed.
+      - 12. In `test_long_text_parallel_path`, mock the planner, summarizer, and validator routes.
+      - 13. Run the graph on a long text so it goes through planning and parallel fan-out.
+      - 14. Assert that the final payload is a batch with two aggregated parallel results.
+      - 15. Assert that the planner completed and that both `summarizer` and `validator` are present in the batch.
+      - 16. Assert that the rendered batch still contains the mocked validation content.
+      - 17. Register both tests with Alcotest under clear suite names.
+    test_demos.ml:
+      purpose: ''
+      domain_concepts: []
+      dependencies:
+      - Agent_graph
+      - Yojson
+      operations: []
+      invariants: []
+    test_agent_graph.ml:
+      purpose: ''
+      domain_concepts:
+      - captured_bridge_request
+      dependencies:
+      - Agent_graph
+      - Lwt
+      operations:
+      - participant
+      - local_participant
+      - remote_participant
+      - participant
+      - participant
+      invariants:
+      - Uses explicit result types for error handling
+      - Async execution via Lwt promises
+    dune:
+      purpose: 'Build configuration: dune'
+      build_system: Dune
+      targets:
+      - test_agent_graph
+      - test_client
+      - test_demos
+      - test_protocol
+      - test_coordination
+    test_client.ml:
+      purpose: ''
+      domain_concepts:
+      - captured_gateway_request
+      dependencies:
+      - Agent_graph
+      - Lwt
+      operations:
+      - attachment
+      - attachment
+      - request
+      invariants:
+      - Uses explicit result types for error handling
+      - Async execution via Lwt promises
+    test_coordination.ml:
+      purpose: "Tests for L1-COORDINATION (Consensus) and L2-COMPOSITION (Pipeline).\n   Both layers are exercised through\
+        \ mock LLM services so that tests run\n   offline and remain deterministic."
+      domain_concepts: []
+      dependencies:
+      - Agent_graph
+      - Lwt
+      operations: []
+      invariants:
+      - Uses explicit result types for error handling
+      - Async execution via Lwt promises
+    test_protocol.ml:
+      purpose: "Tests for L0-PROTOCOL (Envelope, Capability) and L0.5-AUDIT (Audit chain).\n   These are pure-function tests\
+        \ — no LLM calls, no Lwt, no mocks."
+      domain_concepts: []
+      dependencies:
+      - Agent_graph
+      operations:
+      - m
+      invariants:
+      - Async execution via Lwt promises
+      - Tamper-evident audit logging
+      - Permission-based access control

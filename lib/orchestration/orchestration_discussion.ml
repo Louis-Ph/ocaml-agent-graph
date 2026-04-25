@@ -123,6 +123,7 @@ module Prompt_templates = struct
       {
         role = "system";
         content = render_system_prompt participant;
+        extra = [];
       }
     in
     let transcript_block = render_transcript discussion.turns in
@@ -158,6 +159,7 @@ module Prompt_templates = struct
                (render_agenda discussion.agenda)
                transcript_block participant.name max_contribution_words
                convergence_marker);
+        extra = [];
       }
     in
     [ system_message; user_message ]

@@ -178,8 +178,8 @@ let final_prompt ~(topic : string) ~(plan : string list)
 let role_messages (role : Napoleon.Role.t) prompt :
     Bulkhead_lm.Openai_types.message list =
   [
-    { role = "system"; content = role.profile.system_prompt };
-    { role = "user"; content = prompt };
+    { role = "system"; content = role.profile.system_prompt; extra = [] };
+    { role = "user"; content = prompt; extra = [] };
   ]
 
 let invoke_role ~(services : Runtime_services.t) ?generation_index

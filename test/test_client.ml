@@ -1385,6 +1385,7 @@ let test_external_bulkhead_client_uses_http_gateway () =
           ({
              Bulkhead_lm.Openai_types.role = "user";
              content = "Bonjour.";
+             extra = [];
            }
             : Bulkhead_lm.Openai_types.message);
         ]
@@ -1436,10 +1437,12 @@ let test_messenger_spokesperson_runs_swarm_and_replies () =
           {
             Bulkhead_lm.Openai_types.role = "user";
             content = "Peux-tu parler au nom de l'essaim sur Telegram ?";
+            extra = [];
           };
         ];
       stream = false;
       max_tokens = Some 400;
+      extra = [];
     }
   in
   match

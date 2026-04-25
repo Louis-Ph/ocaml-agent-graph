@@ -240,6 +240,7 @@ let build_messages runtime ~active_route_model ~conversation ~prompt_text
          {\"participants\":[{\"name\":\"existing-name\",\"focus\":\"short \
          concrete mission\",\"why\":\"optional short reason\"}]}\n\
          Do not invent names. Do not add commentary outside JSON.";
+      extra = [];
     }
   in
   let user_message : Bulkhead_lm.Openai_types.message =
@@ -261,6 +262,7 @@ let build_messages runtime ~active_route_model ~conversation ~prompt_text
           (conversation_prompt (trim_conversation runtime conversation))
           (attachment_prompt attachments)
           (participant_catalog_prompt participants);
+      extra = [];
     }
   in
   [ system_message; user_message ]
